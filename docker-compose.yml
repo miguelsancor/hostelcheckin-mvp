@@ -3,7 +3,7 @@ services:
     build:
       context: ./backend
     ports:
-      - "4000:4040"
+      - "4040:4000"
     volumes:
       - ./backend:/app
     command: npm run dev
@@ -12,7 +12,7 @@ services:
     build:
       context: ./frontend-web
     ports:
-      - "5173:5180"
+      - "5180:5173"
     volumes:
       - ./frontend-web:/app
       - /app/node_modules

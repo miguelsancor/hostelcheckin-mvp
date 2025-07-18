@@ -68,7 +68,7 @@ export default function CheckinForm() {
         ...rest,
       }));
 
-      const res = await fetch("http://localhost:4000/checkin", {
+      const res = await fetch("http://34.75.5.236:4040/checkin", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

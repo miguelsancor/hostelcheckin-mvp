@@ -1,15 +1,15 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "sqlite"
   url      = "file:./dev.db"
 }
 
+generator client {
+  provider = "prisma-client-js"
+}
+
 model Huesped {
   id               Int      @id @default(autoincrement())
-  nombreCompleto   String
+  nombre           String
   tipoDocumento    String
   numeroDocumento  String
   nacionalidad     String
@@ -19,7 +19,8 @@ model Huesped {
   telefono         String
   email            String
   motivoViaje      String
-  fechaIngreso     DateTime
-  fechaSalida      DateTime
+  fechaIngreso     String
+  fechaSalida      String
+  numeroReserva    String   @unique
   creadoEn         DateTime @default(now())
 }

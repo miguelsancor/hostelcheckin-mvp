@@ -10,6 +10,6 @@ RUN npm install
 RUN chmod +x ./node_modules/.bin/prisma \
   && npx prisma generate
 
-EXPOSE 4000
+EXPOSE 4040
 
 CMD ["npm", "run", "dev"]

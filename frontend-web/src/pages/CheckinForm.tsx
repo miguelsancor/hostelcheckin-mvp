@@ -13,6 +13,13 @@ export default function CheckinForm() {
     }
   }, []);
 
+  useEffect(() => {
+    // Si viene reserva por otro medio, guardar en localStorage para mantenerla
+    if (reserva && !localStorage.getItem("reserva")) {
+      localStorage.setItem("reserva", JSON.stringify(reserva));
+    }
+  }, [reserva]);
+
   const handleChange = (index: number, e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     const updatedList = [...formList];

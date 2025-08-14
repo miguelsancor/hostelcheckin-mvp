@@ -15,7 +15,7 @@ export default function Login() {
       : { codigoReserva };
 
     try {
-      const res = await fetch("http://18.206.179.50:4040/api/checkin/buscar", {
+      const res = await fetch("http://18.206.179.50:4000/api/checkin/buscar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

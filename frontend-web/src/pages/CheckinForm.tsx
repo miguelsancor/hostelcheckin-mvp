@@ -10,11 +10,16 @@ export default function CheckinForm() {
       try {
         const parsed = JSON.parse(data);
         const items = Array.isArray(parsed) ? parsed : [parsed];
-        setFormList(items);
+        setFormList(items.length ? items : [{}]);
         setReserva(items[0] ?? null);
+        return;
       } catch { /* ignore */ }
     }
+    // Si no hay nada en localStorage, crea un formulario vacío
+    setFormList([{}]);
+    setReserva(null);
   }, []);
+  
 
   useEffect(() => {
     // Si viene reserva por otro medio, guardar en localStorage para mantenerla

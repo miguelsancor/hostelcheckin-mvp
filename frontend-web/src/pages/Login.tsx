@@ -28,21 +28,27 @@ export default function Login() {
       }
 
       const data = await res.json();
-
-      // ⚠️ Normaliza: si viene array, toma el primer elemento válido
       const reserva = Array.isArray(data) ? data[0] : data;
-
       if (!reserva) {
         alert("Reserva no encontrada");
         return;
       }
 
+      // Deja pasar el ProtectedRoute
+      localStorage.setItem("usuario", JSON.stringify({ role: "guest-checkin" }));
       localStorage.setItem("reserva", JSON.stringify(reserva));
       navigate("/checkin", { replace: true });
     } catch (err) {
       console.error("Error al consultar reserva:", err);
       alert("Error de conexión con el servidor");
     }
+  };
+
+  // ✅ NUEVO: crear formato en blanco
+  const crearFormatoEnBlanco = () => {
+    localStorage.setItem("usuario", JSON.stringify({ role: "guest-checkin" }));
+    localStorage.setItem("reserva", JSON.stringify({})); // sin datos
+    navigate("/checkin", { replace: true });
   };
 
   return (
@@ -95,6 +101,12 @@ export default function Login() {
           <button style={styles.button} onClick={buscarReserva}>
             Consultar Reserva
           </button>
+          <button
+            style={{ ...styles.button, backgroundColor: "#3b82f6", marginTop: "0.75rem" }}
+            onClick={crearFormatoEnBlanco}
+          >
+            Formato Check-in (en blanco)
+          </button>
         </div>
       </div>
     </div>
@@ -134,7 +146,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: "#111827",
     color: "#f9fafb",
   },
-  buttonGroup: { marginTop: "1.5rem" },
+  buttonGroup: { marginTop: "1.5rem", display: "flex", flexDirection: "column" },
   button: {
     width: "100%",
     padding: "0.75rem",

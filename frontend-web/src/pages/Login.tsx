@@ -10,9 +10,10 @@ export default function Login() {
   const navigate = useNavigate();
 
   const buscarReserva = async () => {
-    const body = tipoBusqueda === "documento"
-      ? { tipoDocumento, numeroDocumento }
-      : { codigoReserva };
+    const body =
+      tipoBusqueda === "documento"
+        ? { tipoDocumento, numeroDocumento }
+        : { codigoReserva };
 
     try {
       const res = await fetch("http://18.206.179.50:4000/api/checkin/buscar", {
@@ -27,8 +28,17 @@ export default function Login() {
       }
 
       const data = await res.json();
-      localStorage.setItem("reserva", JSON.stringify(data));
-      navigate("/checkin");
+
+      // ⚠️ Normaliza: si viene array, toma el primer elemento válido
+      const reserva = Array.isArray(data) ? data[0] : data;
+
+      if (!reserva) {
+        alert("Reserva no encontrada");
+        return;
+      }
+
+      localStorage.setItem("reserva", JSON.stringify(reserva));
+      navigate("/checkin", { replace: true });
     } catch (err) {
       console.error("Error al consultar reserva:", err);
       alert("Error de conexión con el servidor");
@@ -108,16 +118,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "#fff",
     boxShadow: "0 0 20px rgba(0,0,0,0.4)",
   },
-  title: {
-    marginBottom: "1.5rem",
-    textAlign: "center",
-    fontSize: "1.6rem",
-  },
-  inputGroup: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "1rem",
-  },
+  title: { marginBottom: "1.5rem", textAlign: "center", fontSize: "1.6rem" },
+  inputGroup: { display: "flex", flexDirection: "column", gap: "1rem" },
   input: {
     padding: "0.75rem",
     borderRadius: "0.5rem",
@@ -132,9 +134,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: "#111827",
     color: "#f9fafb",
   },
-  buttonGroup: {
-    marginTop: "1.5rem",
-  },
+  buttonGroup: { marginTop: "1.5rem" },
   button: {
     width: "100%",
     padding: "0.75rem",

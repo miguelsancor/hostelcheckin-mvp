@@ -1,16 +1,22 @@
 import { Navigate } from "react-router-dom";
-import type  { ReactNode } from "react";
+import type { ReactNode } from "react";
 
-interface Props {
-  children: ReactNode;
-}
+interface Props { children: ReactNode; }
 
 export function ProtectedRoute({ children }: Props) {
   const usuario = localStorage.getItem("usuario");
+  const rawReserva = localStorage.getItem("reserva");
 
-  if (!usuario) {
-    return <Navigate to="/" replace />;
+  let hasReserva = false;
+  if (rawReserva) {
+    try {
+      const parsed = JSON.parse(rawReserva);
+      hasReserva = Array.isArray(parsed) ? parsed.length > 0 : !!parsed;
+    } catch { /* ignore */ }
   }
 
-  return children;
+  if (!usuario && !hasReserva) {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
 }

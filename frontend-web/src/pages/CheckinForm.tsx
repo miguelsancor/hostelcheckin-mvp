@@ -7,9 +7,12 @@ export default function CheckinForm() {
   useEffect(() => {
     const data = localStorage.getItem("reserva");
     if (data) {
-      const parsed = JSON.parse(data);
-      setReserva(parsed);
-      setFormList([parsed]);
+      try {
+        const parsed = JSON.parse(data);
+        const items = Array.isArray(parsed) ? parsed : [parsed];
+        setFormList(items);
+        setReserva(items[0] ?? null);
+      } catch { /* ignore */ }
     }
   }, []);
 

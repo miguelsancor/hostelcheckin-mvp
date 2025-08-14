@@ -49,7 +49,7 @@ export default function CheckinForm() {
     });
 
     try {
-      const res = await fetch("http://34.75.5.236:4040/api/checkin/guardar-multiple", {
+      const res = await fetch("http://18.206.179.50:4040/api/checkin/guardar-multiple", {
         method: "POST",
         body: form,
       });

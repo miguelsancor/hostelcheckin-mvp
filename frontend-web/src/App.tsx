@@ -1,8 +1,10 @@
+// src/App.tsx
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Login from "./pages/Login";
-import CheckinForm from "./pages/CheckinForm"; // ⬅️ NUEVO: checkin
+import CheckinForm from "./pages/CheckinForm";
 import InstructorDashboard from "./pages/InstructorDashboard";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import TestMCP from "./pages/TestMCP"; // ⬅️ NUEVO
 
 function App() {
   return (
@@ -24,6 +26,15 @@ function App() {
           element={
             <ProtectedRoute>
               <InstructorDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/mcp-test" // ⬅️ NUEVO: sandbox MCP
+          element={
+            <ProtectedRoute>
+              <TestMCP />
             </ProtectedRoute>
           }
         />

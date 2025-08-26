@@ -1,8 +1,40 @@
 import { useEffect, useState } from "react";
 
+/**
+ * Ajusta estos defaults si es necesario:
+ * - VITE_API_BASE: base URL de tu backend (donde está /mcp/*)
+ * - VITE_TTLOCK_LOCK_ID: id de la cerradura por defecto si la reserva no lo trae
+ */
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
+const DEFAULT_LOCK_ID = Number(import.meta.env.VITE_TTLOCK_LOCK_ID || "0");
+
+type Huesped = {
+  nombre?: string;
+  tipoDocumento?: string;
+  numeroDocumento?: string;
+  nacionalidad?: string;
+  direccion?: string;
+  lugarProcedencia?: string;
+  lugarDestino?: string;
+  telefono?: string;
+  email?: string;
+  motivoViaje?: string;
+  fechaIngreso?: string; // "YYYY-MM-DD"
+  fechaSalida?: string;  // "YYYY-MM-DD"
+  archivoAnverso?: File;
+  archivoReverso?: File;
+  archivoFirma?: File;
+};
+
+type Reserva = {
+  numeroReserva?: string;
+  lockId?: number; // si tu backend lo guarda aquí, se usará para MCP
+};
+
 export default function CheckinForm() {
-  const [formList, setFormList] = useState<any[]>([]);
-  const [reserva, setReserva] = useState<any | null>(null);
+  const [formList, setFormList] = useState<Huesped[]>([]);
+  const [reserva, setReserva] = useState<Reserva | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const data = localStorage.getItem("reserva");
@@ -15,14 +47,11 @@ export default function CheckinForm() {
         return;
       } catch { /* ignore */ }
     }
-    // Si no hay nada en localStorage, crea un formulario vacío
     setFormList([{}]);
     setReserva(null);
   }, []);
-  
 
   useEffect(() => {
-    // Si viene reserva por otro medio, guardar en localStorage para mantenerla
     if (reserva && !localStorage.getItem("reserva")) {
       localStorage.setItem("reserva", JSON.stringify(reserva));
     }
@@ -39,39 +68,123 @@ export default function CheckinForm() {
     const { name, files } = e.target;
     if (files && files.length > 0) {
       const updatedList = [...formList];
-      updatedList[index] = { ...updatedList[index], [name]: files[0] };
+      (updatedList[index] as any)[name] = files[0];
       setFormList(updatedList);
     }
   };
 
-  const handleAddGuest = () => {
-    setFormList([...formList, {}]);
-  };
+  const handleAddGuest = () => setFormList([...formList, {}]);
+
+  /** "YYYY-MM-DD" -> epoch(ms) al final del día local (23:59:59.999) */
+  function endOfDayEpochMs(dateStr?: string | null): number | null {
+    if (!dateStr) return null;
+    return new Date(dateStr + "T23:59:59.999").getTime();
+  }
+
+  /** Llama /mcp/create-key en el backend */
+  async function createMcpKey(params: {
+    lockId: number;
+    receiverUsername: string;
+    endAt: number;
+    keyName?: string;
+    remarks?: string;
+    correlationId?: string;
+  }) {
+    const res = await fetch(`${API_BASE}/mcp/create-key`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // credentials: "include",
+      body: JSON.stringify(params),
+    });
+    const json = await res.json().catch(() => ({}));
+    return { ok: res.ok && json?.ok !== false, status: res.status, data: json };
+  }
 
   const handleSubmit = async () => {
+    if (!formList.length) {
+      alert("Agrega al menos un huésped.");
+      return;
+    }
+
+    setLoading(true);
     const form = new FormData();
+
+    // campos con corchetes (primer intento del backend)
     formList.forEach((formData, index) => {
       Object.entries(formData).forEach(([key, value]) => {
         form.append(`huespedes[${index}][${key}]`, value as any);
       });
     });
 
+    // 🔴 Respaldo en JSON (segundo intento del backend)
+    form.append("data", JSON.stringify({ huespedes: formList }));
+
     try {
-      const res = await fetch("http://18.206.179.50:4000/api/checkin/guardar-multiple", {
+      // 1) Guardar huéspedes en tu backend
+      const res = await fetch(`${API_BASE}/api/checkin/guardar-multiple`, {
         method: "POST",
         body: form,
       });
 
-      if (res.ok) {
-        alert("Todos los huéspedes fueron registrados exitosamente.");
-        setFormList([]);
-        localStorage.removeItem("reserva");
-      } else {
+      if (!res.ok) {
         alert("Error al registrar los huéspedes.");
+        setLoading(false);
+        return;
       }
+
+      const saved = await res.json().catch(() => null); // { ok, numeroReserva, total }
+      const numeroReserva = saved?.numeroReserva || reserva?.numeroReserva || "S/N";
+
+      // 2) Crear eKey en TTLock si tenemos datos mínimos
+      const lockId =
+        (reserva?.lockId && Number(reserva.lockId)) ||
+        (DEFAULT_LOCK_ID > 0 ? DEFAULT_LOCK_ID : 0);
+
+      const receiverEmail = (formList[0]?.email || "").trim();
+      const endAtMs = endOfDayEpochMs(formList[0]?.fechaSalida || null);
+
+      const keyName = `Reserva-${numeroReserva}`;
+      const remarks = `AutoCheckin (${formList.length} huésped/es)`;
+      const correlationId = `res-${numeroReserva}-${Date.now()}`;
+
+      let mcpMsg = `Huéspedes registrados ✅\nReserva: ${numeroReserva}\n`;
+
+      if (lockId && receiverEmail && endAtMs) {
+        try {
+          const mcpResp = await createMcpKey({
+            lockId,
+            receiverUsername: receiverEmail,
+            endAt: endAtMs,
+            keyName,
+            remarks,
+            correlationId,
+          });
+
+          if (mcpResp.ok && (mcpResp.data?.result || mcpResp.data?.ok)) {
+            mcpMsg += "🔑 Llave creada y enviada en TTLock (eKey).";
+          } else {
+            console.warn("MCP create-key error:", mcpResp);
+            mcpMsg += "⚠️ No se pudo crear la llave en MCP (revisa permisos TTLock y que el huésped tenga cuenta).";
+          }
+        } catch (e) {
+          console.error("MCP error:", e);
+          mcpMsg += "⚠️ Error llamando a MCP (revisa consola).";
+        }
+      } else {
+        mcpMsg +=
+          "ℹ️ Se omitió creación de llave (faltan lockId, email del huésped o fecha de salida). Define VITE_TTLOCK_LOCK_ID o incluye lockId en la reserva.";
+      }
+
+      alert(mcpMsg);
+
+      // 3) Limpiar estado
+      setFormList([]);
+      localStorage.removeItem("reserva");
     } catch (err) {
       console.error("Error:", err);
       alert("Fallo la conexión al servidor.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -125,8 +238,12 @@ export default function CheckinForm() {
       ))}
 
       <div style={styles.actions}>
-        <button onClick={handleAddGuest} style={{ ...styles.button, backgroundColor: "#8b5cf6", marginRight: "1rem" }}>➕ Agregar Huésped</button>
-        <button onClick={handleSubmit} style={styles.button}>✅ Enviar Registro</button>
+        <button onClick={handleAddGuest} style={{ ...styles.button, backgroundColor: "#8b5cf6", marginRight: "1rem" }} disabled={loading}>
+          ➕ Agregar Huésped
+        </button>
+        <button onClick={handleSubmit} style={styles.button} disabled={loading}>
+          {loading ? "Enviando..." : "✅ Enviar Registro"}
+        </button>
       </div>
     </div>
   );

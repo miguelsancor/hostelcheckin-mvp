@@ -81,7 +81,7 @@ export default function CheckinForm() {
     return new Date(dateStr + "T23:59:59.999").getTime();
   }
 
-  /** Llama /mcp/create-key en el backend */
+  /** (AÚN EXISTE por si lo necesitas) Llama /mcp/create-key en el backend */
   async function createMcpKey(params: {
     lockId: number;
     receiverUsername: string;
@@ -94,6 +94,23 @@ export default function CheckinForm() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       // credentials: "include",
+      body: JSON.stringify(params),
+    });
+    const json = await res.json().catch(() => ({}));
+    return { ok: res.ok && json?.ok !== false, status: res.status, data: json };
+  }
+
+  /** NUEVO: crear passcode como en la app (usa /mcp/create-passcode) */
+  async function createMcpPasscode(params: {
+    lockId: number;
+    endAt: number;
+    startAt?: number;
+    code?: string;   // opcional, 6–9 dígitos; si no lo envías, TTLock lo genera
+    name?: string;   // opcional, nombre del passcode
+  }) {
+    const res = await fetch(`${API_BASE}/mcp/create-passcode`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     });
     const json = await res.json().catch(() => ({}));
@@ -135,36 +152,40 @@ export default function CheckinForm() {
       const saved = await res.json().catch(() => null); // { ok, numeroReserva, total }
       const numeroReserva = saved?.numeroReserva || reserva?.numeroReserva || "S/N";
 
-      // 2) Crear eKey en TTLock si tenemos datos mínimos
+      // 2) Crear PASSCODE en TTLock (no eKey) — como la app
       const lockId =
         (reserva?.lockId && Number(reserva.lockId)) ||
         (DEFAULT_LOCK_ID > 0 ? DEFAULT_LOCK_ID : 0);
 
-      const receiverEmail = (formList[0]?.email || "").trim();
       const endAtMs = endOfDayEpochMs(formList[0]?.fechaSalida || null);
 
-      const keyName = `Reserva-${numeroReserva}`;
-      const remarks = `AutoCheckin (${formList.length} huésped/es)`;
+      const passName = `Reserva-${numeroReserva}`;
       const correlationId = `res-${numeroReserva}-${Date.now()}`;
 
       let mcpMsg = `Huéspedes registrados ✅\nReserva: ${numeroReserva}\n`;
 
-      if (lockId && receiverEmail && endAtMs) {
+      if (lockId && endAtMs) {
         try {
-          const mcpResp = await createMcpKey({
+          // TIP: si quieres forzar un código propio, pasa { code: "735190" }
+          const mcpResp = await createMcpPasscode({
             lockId,
-            receiverUsername: receiverEmail,
+            startAt: Date.now(),
             endAt: endAtMs,
-            keyName,
-            remarks,
-            correlationId,
+            name: passName,
           });
 
           if (mcpResp.ok && (mcpResp.data?.result || mcpResp.data?.ok)) {
-            mcpMsg += "🔑 Llave creada y enviada en TTLock (eKey).";
+            const r = mcpResp.data?.result || {};
+            const code =
+              r.keyboardPwd ?? r.password ?? r.keyboardpwd ?? r.code ?? null;
+
+            mcpMsg += "🔓 Passcode creado en TTLock.";
+            if (code) mcpMsg += `\n🔢 Código: ${code}`;
+            mcpMsg += `\n⏱️ Válido hasta: ${new Date(endAtMs).toLocaleString()}`;
           } else {
-            console.warn("MCP create-key error:", mcpResp);
-            mcpMsg += "⚠️ No se pudo crear la llave en MCP (revisa permisos TTLock y que el huésped tenga cuenta).";
+            console.warn("MCP create-passcode error:", mcpResp);
+            const detail = mcpResp?.data?.error?.errmsg || "revisa permisos TTLock";
+            mcpMsg += `⚠️ No se pudo crear el passcode (${detail}).`;
           }
         } catch (e) {
           console.error("MCP error:", e);
@@ -172,7 +193,7 @@ export default function CheckinForm() {
         }
       } else {
         mcpMsg +=
-          "ℹ️ Se omitió creación de llave (faltan lockId, email del huésped o fecha de salida). Define VITE_TTLOCK_LOCK_ID o incluye lockId en la reserva.";
+          "ℹ️ Se omitió creación de passcode (faltan lockId o fecha de salida). Define VITE_TTLOCK_LOCK_ID o incluye lockId en la reserva.";
       }
 
       alert(mcpMsg);

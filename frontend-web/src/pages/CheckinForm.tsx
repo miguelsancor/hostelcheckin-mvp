@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
  * - VITE_API_BASE: base URL de tu backend (donde está /mcp/*)
  * - VITE_TTLOCK_LOCK_ID: id de la cerradura por defecto si la reserva no lo trae
  */
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
 const DEFAULT_LOCK_ID = Number(import.meta.env.VITE_TTLOCK_LOCK_ID || "0");
 
 type Huesped = {

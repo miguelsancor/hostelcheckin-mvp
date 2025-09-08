@@ -1,20 +1,18 @@
 FROM node:18-alpine
 
-# Establecer directorio de trabajo
 WORKDIR /app
 
-# Copiar solo package.json y package-lock.json primero
+# Copiar definiciones de dependencias
 COPY package*.json ./
 
-# Instalar dependencias
-RUN npm install
+# Instalar dependencias en modo producción
+RUN npm ci --only=production
 
 # Copiar el resto del código
 COPY . .
 
 # Generar Prisma Client
-RUN chmod +x ./node_modules/.bin/prisma \
-  && npx prisma generate
+RUN npx prisma generate
 
 EXPOSE 4000
 

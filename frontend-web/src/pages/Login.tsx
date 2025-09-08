@@ -52,23 +52,25 @@ export default function Login() {
   };
 
   return (
-    <div style={styles.container}>
+    <div  style={styles.container}>
       <div style={styles.card}>
-        <h2 style={styles.title}>🏨 Check-in Digital</h2>
+        <h2 style={styles.title}><img src="https://kuyay.co/wp-content/uploads/2025/02/android-chrome-192x192-1-e1739471996937.png" alt="Kuyay Logo" width="100" height="100"></img></h2>
 
-        <div style={styles.inputGroup}>
-          <select
+        <div className="select-search-type" style={styles.inputGroup}>
+          <label>Buscar por:
+          <select name="Buscar por:"
             value={tipoBusqueda}
             onChange={(e) => setTipoBusqueda(e.target.value)}
             style={styles.select}
           >
-            <option value="documento">Buscar por Documento</option>
-            <option value="codigo">Buscar por Código de Reserva</option>
+            <option value="documento">ID | Documento</option>
+            <option value="codigo">Reservation # | # Reserva</option>
           </select>
+          </label>
 
           {tipoBusqueda === "documento" && (
             <>
-              <select
+              <select className="select-reserv-document"
                 value={tipoDocumento}
                 onChange={(e) => setTipoDocumento(e.target.value)}
                 style={styles.select}
@@ -76,7 +78,7 @@ export default function Login() {
                 <option value="Cédula">Cédula</option>
                 <option value="Pasaporte">Pasaporte</option>
               </select>
-              <input
+              <input className="input-reserv-document"
                 type="text"
                 placeholder="Número de Documento"
                 value={numeroDocumento}
@@ -98,14 +100,14 @@ export default function Login() {
         </div>
 
         <div style={styles.buttonGroup}>
-          <button style={styles.button} onClick={buscarReserva}>
+          <button id="button-reservation" style={styles.button} onClick={buscarReserva}>
             Consultar Reserva
           </button>
-          <button
+          <button id="button-cheking"
             style={{ ...styles.button, backgroundColor: "#3b82f6", marginTop: "0.75rem" }}
             onClick={crearFormatoEnBlanco}
           >
-            Formato Check-in (en blanco)
+            Reservar
           </button>
         </div>
       </div>
@@ -119,7 +121,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    background: "linear-gradient(135deg, #0f172a, #1e293b)",
   },
   card: {
     backgroundColor: "#1f2937",
@@ -127,7 +128,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: "1rem",
     width: "100%",
     maxWidth: "400px",
-    color: "#fff",
+    color: "#333333",
     boxShadow: "0 0 20px rgba(0,0,0,0.4)",
   },
   title: { marginBottom: "1.5rem", textAlign: "center", fontSize: "1.6rem" },
@@ -136,15 +137,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: "0.75rem",
     borderRadius: "0.5rem",
     border: "1px solid #4b5563",
-    backgroundColor: "#111827",
-    color: "#f9fafb",
+    backgroundColor: "#ffffffff",
+    color: "#333333",
   },
   select: {
     padding: "0.75rem",
     borderRadius: "0.5rem",
     border: "1px solid #4b5563",
-    backgroundColor: "#111827",
-    color: "#f9fafb",
+    backgroundColor: "#ffffffff",
+    color: "#333333",
   },
   buttonGroup: { marginTop: "1.5rem", display: "flex", flexDirection: "column" },
   button: {
@@ -152,7 +153,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: "0.75rem",
     border: "none",
     borderRadius: "0.5rem",
-    backgroundColor: "#10b981",
+    backgroundColor: "#f25c93",
     color: "#fff",
     fontWeight: "bold",
     cursor: "pointer",

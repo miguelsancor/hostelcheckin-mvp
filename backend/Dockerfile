@@ -2,20 +2,20 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Copiar definiciones de dependencias
+# Copiar package.json y package-lock.json
 COPY package*.json ./
 
-# Instalar TODAS las dependencias (incluye prisma)
-RUN npm ci
+# Instalar todas las dependencias (incluye prisma)
+RUN npm install
 
 # Copiar el resto del código
 COPY . .
 
-# Dar permisos y generar Prisma Client
-RUN chmod +x ./node_modules/.bin/prisma && npx prisma generate
+# Generar Prisma Client usando node directamente
+RUN node node_modules/prisma/build/index.js generate
 
-# Quitar devDependencies para dejar la imagen liviana
-RUN npm prune --omit=dev
+# (Opcional) limpiar devDependencies para producción
+# RUN npm prune --omit=dev
 
 EXPOSE 4000
 CMD ["npm", "run", "dev"]

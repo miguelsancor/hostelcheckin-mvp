@@ -183,12 +183,32 @@ app.post("/api/checkin/guardar-multiple", upload.any(), async (req, res) => {
 
 // Buscar por número de reserva (devuelve 1 fila — el titular)
 app.post("/api/checkin/buscar", async (req, res) => {
-  const { codigoReserva } = req.body;
+  const { codigoReserva, tipoDocumento, numeroDocumento } = req.body;
+
   try {
-    const huesped = await prisma.huesped.findUnique({
-      where: { numeroReserva: codigoReserva },
-    });
-    if (!huesped) return res.status(404).json({ ok: false, error: "Reserva no encontrada" });
+    let huesped;
+
+    if (codigoReserva) {
+      // Caso A: buscar por numeroReserva (único)
+      huesped = await prisma.huesped.findUnique({
+        where: { numeroReserva: codigoReserva },
+      });
+    } else if (tipoDocumento && numeroDocumento) {
+      // Caso B: buscar por documento (no es único → usar findFirst o findMany)
+      huesped = await prisma.huesped.findFirst({
+        where: {
+          tipoDocumento,
+          numeroDocumento,
+        },
+      });
+    } else {
+      return res.status(400).json({ ok: false, error: "Parámetros insuficientes" });
+    }
+
+    if (!huesped) {
+      return res.status(404).json({ ok: false, error: "Reserva no encontrada" });
+    }
+
     res.json(huesped);
   } catch (error) {
     console.error("❌ /api/checkin/buscar error:", error);

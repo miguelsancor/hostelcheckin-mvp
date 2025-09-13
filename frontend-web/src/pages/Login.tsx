@@ -14,13 +14,13 @@ export default function Login() {
       let reserva = null;
 
       if (tipoBusqueda === "codigo" && codigoReserva) {
-        const res = await fetch(`http://localhost:4000/api/nobeds/reserva/${codigoReserva}`);
+        const res = await fetch(`http://18.206.179.50:4000/api/nobeds/reserva/${codigoReserva}`);
         if (res.ok) {
           const data = await res.json();
           if (data.ok && data.reserva) reserva = data.reserva;
         }
       } else if (tipoBusqueda === "documento" && numeroDocumento) {
-        const res = await fetch("http://localhost:4000/api/checkin/buscar", {
+        const res = await fetch("http://18.206.179.50:4000/api/checkin/buscar", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tipoDocumento, numeroDocumento }),

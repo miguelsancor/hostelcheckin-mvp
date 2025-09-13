@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 
 /**
  * Ajusta estos defaults si es necesario:
- * - VITE_API_BASE: tu backend (localhost:4000)
+ * - VITE_API_BASE: tu backend (18.206.179.50:4000)
  * - VITE_TTLOCK_LOCK_ID: id de la cerradura por defecto
  */
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
 const DEFAULT_LOCK_ID = Number(import.meta.env.VITE_TTLOCK_LOCK_ID || "0");
 
 type Huesped = {

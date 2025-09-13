@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 
 /**
  * Ajusta estos defaults si es necesario:
- * - VITE_API_BASE: base URL de tu backend (donde está /mcp/*)
- * - VITE_TTLOCK_LOCK_ID: id de la cerradura por defecto si la reserva no lo trae
+ * - VITE_API_BASE: tu backend (localhost:4000)
+ * - VITE_TTLOCK_LOCK_ID: id de la cerradura por defecto
  */
-const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 const DEFAULT_LOCK_ID = Number(import.meta.env.VITE_TTLOCK_LOCK_ID || "0");
 
 type Huesped = {
@@ -19,8 +19,8 @@ type Huesped = {
   telefono?: string;
   email?: string;
   motivoViaje?: string;
-  fechaIngreso?: string; // "YYYY-MM-DD"
-  fechaSalida?: string;  // "YYYY-MM-DD"
+  fechaIngreso?: string;
+  fechaSalida?: string;
   archivoAnverso?: File;
   archivoReverso?: File;
   archivoFirma?: File;
@@ -28,7 +28,19 @@ type Huesped = {
 
 type Reserva = {
   numeroReserva?: string;
-  lockId?: number; // si tu backend lo guarda aquí, se usará para MCP
+  lockId?: number;
+  nombre?: string; // mapeo desde NoBeds (name)
+  email?: string;  // mapeo desde NoBeds (emails)
+  telefono?: string; // mapeo desde NoBeds (phone)
+  checkin?: string; // mapeo desde NoBeds
+  checkout?: string; // mapeo desde NoBeds
+};
+
+type LockItem = {
+  lockId: number;
+  lockAlias?: string;
+  keyName?: string;
+  lockName?: string;
 };
 
 export default function CheckinForm() {
@@ -36,16 +48,47 @@ export default function CheckinForm() {
   const [reserva, setReserva] = useState<Reserva | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [locks, setLocks] = useState<LockItem[]>([]);
+
+  // Cargar reserva del localStorage
   useEffect(() => {
     const data = localStorage.getItem("reserva");
     if (data) {
       try {
         const parsed = JSON.parse(data);
-        const items = Array.isArray(parsed) ? parsed : [parsed];
-        setFormList(items.length ? items : [{}]);
-        setReserva(items[0] ?? null);
+
+        // 🔄 Mapeo si la reserva viene de NoBeds
+        if (parsed?.order_id) {
+          const huesped: Huesped = {
+            nombre: parsed.name || "",
+            email: parsed.emails || "",
+            telefono: parsed.phone || "",
+            fechaIngreso: parsed.checkin
+              ? parsed.checkin.slice(0, 10)
+              : undefined,
+            fechaSalida: parsed.checkout
+              ? parsed.checkout.slice(0, 10)
+              : undefined,
+          };
+          setReserva({
+            numeroReserva: String(parsed.order_id),
+            nombre: parsed.name,
+            email: parsed.emails,
+            telefono: parsed.phone,
+            checkin: parsed.checkin,
+            checkout: parsed.checkout,
+          });
+          setFormList([huesped]);
+        } else {
+          // 🔄 Caso reserva local
+          const items = Array.isArray(parsed) ? parsed : [parsed];
+          setFormList(items.length ? items : [{}]);
+          setReserva(items[0] ?? null);
+        }
         return;
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
     setFormList([{}]);
     setReserva(null);
@@ -57,14 +100,36 @@ export default function CheckinForm() {
     }
   }, [reserva]);
 
-  const handleChange = (index: number, e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  // 🔑 cargar cerraduras desde backend
+  useEffect(() => {
+    const fetchLocks = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/mcp/keys`);
+        const data = await res.json();
+        if (Array.isArray(data?.list)) {
+          setLocks(data.list as LockItem[]);
+        }
+      } catch (err) {
+        console.error("Error al cargar cerraduras:", err);
+      }
+    };
+    fetchLocks();
+  }, []);
+
+  const handleChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
     const updatedList = [...formList];
     updatedList[index] = { ...updatedList[index], [name]: value };
     setFormList(updatedList);
   };
 
-  const handleFileChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const { name, files } = e.target;
     if (files && files.length > 0) {
       const updatedList = [...formList];
@@ -75,38 +140,17 @@ export default function CheckinForm() {
 
   const handleAddGuest = () => setFormList([...formList, {}]);
 
-  /** "YYYY-MM-DD" -> epoch(ms) al final del día local (23:59:59.999) */
   function endOfDayEpochMs(dateStr?: string | null): number | null {
     if (!dateStr) return null;
     return new Date(dateStr + "T23:59:59.999").getTime();
   }
 
-  /** (AÚN EXISTE por si lo necesitas) Llama /mcp/create-key en el backend */
-  async function createMcpKey(params: {
-    lockId: number;
-    receiverUsername: string;
-    endAt: number;
-    keyName?: string;
-    remarks?: string;
-    correlationId?: string;
-  }) {
-    const res = await fetch(`${API_BASE}/mcp/create-key`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      // credentials: "include",
-      body: JSON.stringify(params),
-    });
-    const json = await res.json().catch(() => ({}));
-    return { ok: res.ok && json?.ok !== false, status: res.status, data: json };
-  }
-
-  /** NUEVO: crear passcode como en la app (usa /mcp/create-passcode) */
   async function createMcpPasscode(params: {
     lockId: number;
     endAt: number;
     startAt?: number;
-    code?: string;   // opcional, 6–9 dígitos; si no lo envías, TTLock lo genera
-    name?: string;   // opcional, nombre del passcode
+    code?: string;
+    name?: string;
   }) {
     const res = await fetch(`${API_BASE}/mcp/create-passcode`, {
       method: "POST",
@@ -124,51 +168,28 @@ export default function CheckinForm() {
     }
 
     setLoading(true);
-    const form = new FormData();
-
-    // campos con corchetes (primer intento del backend)
-    formList.forEach((formData, index) => {
-      Object.entries(formData).forEach(([key, value]) => {
-        form.append(`huespedes[${index}][${key}]`, value as any);
-      });
-    });
-
-    // 🔴 Respaldo en JSON (segundo intento del backend)
-    form.append("data", JSON.stringify({ huespedes: formList }));
 
     try {
-      // 1) Guardar huéspedes en tu backend
-      const res = await fetch(`${API_BASE}/api/checkin/guardar-multiple`, {
-        method: "POST",
-        body: form,
-      });
+      const numeroReserva =
+        reserva?.numeroReserva || `TEMP-${Date.now().toString().slice(-6)}`;
 
-      if (!res.ok) {
-        alert("Error al registrar los huéspedes.");
-        setLoading(false);
-        return;
-      }
-
-      const saved = await res.json().catch(() => null); // { ok, numeroReserva, total }
-      const numeroReserva = saved?.numeroReserva || reserva?.numeroReserva || "S/N";
-
-      // 2) Crear PASSCODE en TTLock (no eKey) — como la app
-      const lockId =
+      const selectedLockId =
         (reserva?.lockId && Number(reserva.lockId)) ||
         (DEFAULT_LOCK_ID > 0 ? DEFAULT_LOCK_ID : 0);
 
-      const endAtMs = endOfDayEpochMs(formList[0]?.fechaSalida || null);
+      const endAtMs = endOfDayEpochMs(
+        formList[0]?.fechaSalida || reserva?.checkout || null
+      );
 
       const passName = `Reserva-${numeroReserva}`;
       const correlationId = `res-${numeroReserva}-${Date.now()}`;
 
       let mcpMsg = `Huéspedes registrados ✅\nReserva: ${numeroReserva}\n`;
 
-      if (lockId && endAtMs) {
+      if (selectedLockId && endAtMs) {
         try {
-          // TIP: si quieres forzar un código propio, pasa { code: "735190" }
           const mcpResp = await createMcpPasscode({
-            lockId,
+            lockId: selectedLockId,
             startAt: Date.now(),
             endAt: endAtMs,
             name: passName,
@@ -181,10 +202,13 @@ export default function CheckinForm() {
 
             mcpMsg += "🔓 Passcode creado en TTLock.";
             if (code) mcpMsg += `\n🔢 Código: ${code}`;
-            mcpMsg += `\n⏱️ Válido hasta: ${new Date(endAtMs).toLocaleString()}`;
+            mcpMsg += `\n⏱️ Válido hasta: ${new Date(
+              endAtMs
+            ).toLocaleString()}`;
           } else {
             console.warn("MCP create-passcode error:", mcpResp);
-            const detail = mcpResp?.data?.error?.errmsg || "revisa permisos TTLock";
+            const detail =
+              mcpResp?.data?.error?.errmsg || "revisa permisos TTLock";
             mcpMsg += `⚠️ No se pudo crear el passcode (${detail}).`;
           }
         } catch (e) {
@@ -193,12 +217,12 @@ export default function CheckinForm() {
         }
       } else {
         mcpMsg +=
-          "ℹ️ Se omitió creación de passcode (faltan lockId o fecha de salida). Define VITE_TTLOCK_LOCK_ID o incluye lockId en la reserva.";
+          "ℹ️ Se omitió creación de passcode (faltan lockId o fecha de salida).";
       }
 
       alert(mcpMsg);
 
-      // 3) Limpiar estado
+      // limpiar
       setFormList([]);
       localStorage.removeItem("reserva");
     } catch (err) {
@@ -214,52 +238,166 @@ export default function CheckinForm() {
       <h2 style={styles.title}>📄 Registro de Huéspedes</h2>
       {reserva?.numeroReserva && (
         <h3 style={styles.subTitle}>
-          Código de Reserva: <span style={{ color: "#10b981" }}>{reserva.numeroReserva}</span>
+          Código de Reserva:{" "}
+          <span style={{ color: "#10b981" }}>{reserva.numeroReserva}</span>
         </h3>
       )}
+
+      <div style={styles.card}>
+        <label style={{ display: "block", marginBottom: "0.5rem" }}>
+          Seleccionar Cerradura (TTLock)
+        </label>
+        <select
+          value={reserva?.lockId ?? ""}
+          onChange={(e) =>
+            setReserva({ ...(reserva || {}), lockId: Number(e.target.value) })
+          }
+          style={styles.input}
+        >
+          <option value="">-- Selecciona una cerradura --</option>
+          {locks.map((lock) => (
+            <option key={lock.lockId} value={lock.lockId}>
+              {lock.lockAlias ||
+                lock.keyName ||
+                lock.lockName ||
+                `Lock-${lock.lockId}`}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {formList.map((formData, index) => (
         <div key={index} style={styles.card}>
           <div style={styles.row}>
-            <input name="nombre" value={formData.nombre || ""} onChange={(e) => handleChange(index, e)} placeholder="Nombre completo" style={styles.input} />
-            <select name="tipoDocumento" value={formData.tipoDocumento || ""} onChange={(e) => handleChange(index, e)} style={styles.input}>
+            <input
+              name="nombre"
+              value={formData.nombre || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Nombre completo"
+              style={styles.input}
+            />
+            <select
+              name="tipoDocumento"
+              value={formData.tipoDocumento || ""}
+              onChange={(e) => handleChange(index, e)}
+              style={styles.input}
+            >
               <option value="Cédula">Cédula</option>
               <option value="Pasaporte">Pasaporte</option>
             </select>
-            <input name="numeroDocumento" value={formData.numeroDocumento || ""} onChange={(e) => handleChange(index, e)} placeholder="Número documento" style={styles.input} />
-            <input name="nacionalidad" value={formData.nacionalidad || ""} onChange={(e) => handleChange(index, e)} placeholder="Colombia" style={styles.input} />
+            <input
+              name="numeroDocumento"
+              value={formData.numeroDocumento || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Número documento"
+              style={styles.input}
+            />
+            <input
+              name="nacionalidad"
+              value={formData.nacionalidad || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Colombia"
+              style={styles.input}
+            />
           </div>
 
           <div style={styles.row}>
-            <input name="direccion" value={formData.direccion || ""} onChange={(e) => handleChange(index, e)} placeholder="Dirección" style={styles.input} />
-            <input name="lugarProcedencia" value={formData.lugarProcedencia || ""} onChange={(e) => handleChange(index, e)} placeholder="Lugar procedencia" style={styles.input} />
-            <input name="lugarDestino" value={formData.lugarDestino || ""} onChange={(e) => handleChange(index, e)} placeholder="Lugar destino" style={styles.input} />
+            <input
+              name="direccion"
+              value={formData.direccion || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Dirección"
+              style={styles.input}
+            />
+            <input
+              name="lugarProcedencia"
+              value={formData.lugarProcedencia || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Lugar procedencia"
+              style={styles.input}
+            />
+            <input
+              name="lugarDestino"
+              value={formData.lugarDestino || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Lugar destino"
+              style={styles.input}
+            />
           </div>
 
           <div style={styles.row}>
-            <input name="telefono" value={formData.telefono || ""} onChange={(e) => handleChange(index, e)} placeholder="Teléfono" style={styles.input} />
-            <input name="email" value={formData.email || ""} onChange={(e) => handleChange(index, e)} placeholder="Email" type="email" style={styles.input} />
-            <select name="motivoViaje" value={formData.motivoViaje || ""} onChange={(e) => handleChange(index, e)} style={styles.input}>
+            <input
+              name="telefono"
+              value={formData.telefono || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Teléfono"
+              style={styles.input}
+            />
+            <input
+              name="email"
+              value={formData.email || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Email"
+              type="email"
+              style={styles.input}
+            />
+            <select
+              name="motivoViaje"
+              value={formData.motivoViaje || ""}
+              onChange={(e) => handleChange(index, e)}
+              style={styles.input}
+            >
               <option value="Turismo">Turismo</option>
               <option value="Negocios">Negocios</option>
             </select>
           </div>
 
           <div style={styles.row}>
-            <input type="date" name="fechaIngreso" value={formData.fechaIngreso || ""} onChange={(e) => handleChange(index, e)} style={styles.input} />
-            <input type="date" name="fechaSalida" value={formData.fechaSalida || ""} onChange={(e) => handleChange(index, e)} style={styles.input} />
+            <input
+              type="date"
+              name="fechaIngreso"
+              value={formData.fechaIngreso || ""}
+              onChange={(e) => handleChange(index, e)}
+              style={styles.input}
+            />
+            <input
+              type="date"
+              name="fechaSalida"
+              value={formData.fechaSalida || ""}
+              onChange={(e) => handleChange(index, e)}
+              style={styles.input}
+            />
           </div>
 
           <div style={styles.row}>
-            <input type="file" name="archivoAnverso" onChange={(e) => handleFileChange(index, e)} style={styles.input} />
-            <input type="file" name="archivoReverso" onChange={(e) => handleFileChange(index, e)} style={styles.input} />
-            <input type="file" name="archivoFirma" onChange={(e) => handleFileChange(index, e)} style={styles.input} />
+            <input
+              type="file"
+              name="archivoAnverso"
+              onChange={(e) => handleFileChange(index, e)}
+              style={styles.input}
+            />
+            <input
+              type="file"
+              name="archivoReverso"
+              onChange={(e) => handleFileChange(index, e)}
+              style={styles.input}
+            />
+            <input
+              type="file"
+              name="archivoFirma"
+              onChange={(e) => handleFileChange(index, e)}
+              style={styles.input}
+            />
           </div>
         </div>
       ))}
 
       <div style={styles.actions}>
-        <button onClick={handleAddGuest} style={{ ...styles.button, backgroundColor: "#8b5cf6", marginRight: "1rem" }} disabled={loading}>
+        <button
+          onClick={handleAddGuest}
+          style={{ ...styles.button, backgroundColor: "#8b5cf6", marginRight: "1rem" }}
+          disabled={loading}
+        >
           ➕ Agregar Huésped
         </button>
         <button onClick={handleSubmit} style={styles.button} disabled={loading}>
@@ -280,14 +418,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexDirection: "column",
     alignItems: "center",
   },
-  title: {
-    fontSize: "2rem",
-    marginBottom: "0.5rem",
-  },
-  subTitle: {
-    fontSize: "1.2rem",
-    marginBottom: "2rem",
-  },
+  title: { fontSize: "2rem", marginBottom: "0.5rem" },
+  subTitle: { fontSize: "1.2rem", marginBottom: "2rem" },
   card: {
     border: "1px solid #ccc",
     padding: "2rem",
@@ -312,10 +444,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: "#1f2937",
     color: "#f9fafb",
   },
-  actions: {
-    marginTop: "1.5rem",
-    textAlign: "center",
-  },
+  actions: { marginTop: "1.5rem", textAlign: "center" },
   button: {
     padding: "0.75rem 2rem",
     border: "none",

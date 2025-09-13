@@ -59,7 +59,7 @@ function parseGuestsFromFormData(body, files = []) {
   return guests.filter(Boolean);
 }
 
-// Helpers para tu modelo (fechas String y 1 fila por reserva @unique)
+// Helpers para tu modelo
 const toStr = (v) => (v === undefined || v === null ? "" : String(v));
 const toDateStr = (v, fallbackDate) => {
   const d = v ? new Date(v) : fallbackDate;
@@ -68,12 +68,8 @@ const toDateStr = (v, fallbackDate) => {
 };
 
 /* =======================================================================
-   API Check-in — compatible con tu schema:
-   - Guarda SOLO el PRIMER huésped (titular) por `numeroReserva @unique`
-   - Guarda `fechaIngreso` y `fechaSalida` como String "YYYY-MM-DD"
+   API Check-in
    ======================================================================= */
-
-// Versión clásica JSON+archivos
 app.post(
   "/api/checkin",
   upload.fields([{ name: "anverso" }, { name: "reverso" }, { name: "firma" }]),
@@ -86,48 +82,39 @@ app.post(
         return res.status(400).json({ ok: false, error: "No llegaron huéspedes" });
       }
 
-      const titular = huespedes[0]; // ← SOLO 1 fila por reserva
+      const titular = huespedes[0];
       const numeroReserva = generarNumeroReserva();
 
       const fIng = toDateStr(titular?.fechaIngreso ?? fechaIngreso, new Date());
       const fSal = toDateStr(titular?.fechaSalida ?? fechaSalida, new Date());
 
       const payload = {
-        nombre:           toStr(titular?.nombre),
-        tipoDocumento:    toStr(titular?.tipoDocumento),
-        numeroDocumento:  toStr(titular?.numeroDocumento),
-        nacionalidad:     toStr(titular?.nacionalidad),
-        direccion:        toStr(titular?.direccion),
+        nombre: toStr(titular?.nombre),
+        tipoDocumento: toStr(titular?.tipoDocumento),
+        numeroDocumento: toStr(titular?.numeroDocumento),
+        nacionalidad: toStr(titular?.nacionalidad),
+        direccion: toStr(titular?.direccion),
         lugarProcedencia: toStr(titular?.lugarProcedencia),
-        lugarDestino:     toStr(titular?.lugarDestino),
-        telefono:         toStr(titular?.telefono),
-        email:            toStr(titular?.email),
-        motivoViaje:      toStr(titular?.motivoViaje),
-        fechaIngreso:     fIng, // String
-        fechaSalida:      fSal, // String
-        numeroReserva,          // @unique
-        creadoEn:         new Date(),
+        lugarDestino: toStr(titular?.lugarDestino),
+        telefono: toStr(titular?.telefono),
+        email: toStr(titular?.email),
+        motivoViaje: toStr(titular?.motivoViaje),
+        fechaIngreso: fIng,
+        fechaSalida: fSal,
+        numeroReserva,
+        creadoEn: new Date(),
       };
 
       await prisma.huesped.create({ data: payload });
 
-      res.json({
-        ok: true,
-        numeroReserva,
-        total: 1,
-        note: "Con el schema actual (numeroReserva @unique) se guardó solo el titular.",
-      });
+      res.json({ ok: true, numeroReserva, total: 1 });
     } catch (e) {
       console.error("❌ /api/checkin error:", e);
-      if (e.code === "P2002") {
-        return res.status(409).json({ ok: false, error: "numeroReserva duplicado (único)" });
-      }
       res.status(500).json({ ok: false, error: e?.message || "Error al registrar el check-in" });
     }
   }
 );
 
-// FormData con corchetes + respaldo JSON en "data"
 app.post("/api/checkin/guardar-multiple", upload.any(), async (req, res) => {
   try {
     let guests = parseGuestsFromFormData(req.body, req.files);
@@ -141,78 +128,93 @@ app.post("/api/checkin/guardar-multiple", upload.any(), async (req, res) => {
       return res.status(400).json({ ok: false, error: "No llegaron huéspedes" });
     }
 
-    const titular = guests[0]; // ← SOLO 1 fila por reserva
+    const titular = guests[0];
     const numeroReserva = generarNumeroReserva();
 
     const fIng = toDateStr(titular?.fechaIngreso, new Date());
     const fSal = toDateStr(titular?.fechaSalida, new Date());
 
     const payload = {
-      nombre:           toStr(titular?.nombre),
-      tipoDocumento:    toStr(titular?.tipoDocumento),
-      numeroDocumento:  toStr(titular?.numeroDocumento),
-      nacionalidad:     toStr(titular?.nacionalidad),
-      direccion:        toStr(titular?.direccion),
+      nombre: toStr(titular?.nombre),
+      tipoDocumento: toStr(titular?.tipoDocumento),
+      numeroDocumento: toStr(titular?.numeroDocumento),
+      nacionalidad: toStr(titular?.nacionalidad),
+      direccion: toStr(titular?.direccion),
       lugarProcedencia: toStr(titular?.lugarProcedencia),
-      lugarDestino:     toStr(titular?.lugarDestino),
-      telefono:         toStr(titular?.telefono),
-      email:            toStr(titular?.email),
-      motivoViaje:      toStr(titular?.motivoViaje),
-      fechaIngreso:     fIng, // String
-      fechaSalida:      fSal, // String
-      numeroReserva,          // @unique
-      creadoEn:         new Date(),
+      lugarDestino: toStr(titular?.lugarDestino),
+      telefono: toStr(titular?.telefono),
+      email: toStr(titular?.email),
+      motivoViaje: toStr(titular?.motivoViaje),
+      fechaIngreso: fIng,
+      fechaSalida: fSal,
+      numeroReserva,
+      creadoEn: new Date(),
     };
 
     await prisma.huesped.create({ data: payload });
-
-    res.json({
-      ok: true,
-      numeroReserva,
-      total: 1,
-      note: "Con el schema actual (numeroReserva @unique) se guardó solo el titular.",
-    });
+    res.json({ ok: true, numeroReserva, total: 1 });
   } catch (e) {
     console.error("❌ guardar-multiple error:", e);
-    if (e.code === "P2002") {
-      return res.status(409).json({ ok: false, error: "numeroReserva duplicado (único)" });
-    }
     res.status(500).json({ ok: false, error: e?.message || "Error al guardar huéspedes" });
   }
 });
 
-// Buscar por número de reserva (devuelve 1 fila — el titular)
 app.post("/api/checkin/buscar", async (req, res) => {
   const { codigoReserva, tipoDocumento, numeroDocumento } = req.body;
-
   try {
     let huesped;
-
     if (codigoReserva) {
-      // Caso A: buscar por numeroReserva (único)
-      huesped = await prisma.huesped.findUnique({
-        where: { numeroReserva: codigoReserva },
-      });
+      huesped = await prisma.huesped.findUnique({ where: { numeroReserva: codigoReserva } });
     } else if (tipoDocumento && numeroDocumento) {
-      // Caso B: buscar por documento (no es único → usar findFirst o findMany)
-      huesped = await prisma.huesped.findFirst({
-        where: {
-          tipoDocumento,
-          numeroDocumento,
-        },
-      });
+      huesped = await prisma.huesped.findFirst({ where: { tipoDocumento, numeroDocumento } });
     } else {
       return res.status(400).json({ ok: false, error: "Parámetros insuficientes" });
     }
-
-    if (!huesped) {
-      return res.status(404).json({ ok: false, error: "Reserva no encontrada" });
-    }
-
+    if (!huesped) return res.status(404).json({ ok: false, error: "Reserva no encontrada" });
     res.json(huesped);
   } catch (error) {
     console.error("❌ /api/checkin/buscar error:", error);
     res.status(500).json({ ok: false, error: "Error al buscar reserva" });
+  }
+});
+
+/* =======================================================================
+   Integración NoBeds
+   ======================================================================= */
+const NOBEDS_API = process.env.NOBEDS_API || "https://api.nobeds.com/api/Bookings";
+const NOBEDS_TOKEN = process.env.NOBEDS_TOKEN || "";
+
+app.get("/api/nobeds/reserva/:orderId", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!orderId) return res.status(400).json({ ok: false, error: "Falta orderId" });
+
+    const url = `${NOBEDS_API}/${NOBEDS_TOKEN}?order_id=${orderId}`;
+    console.log("🔗 Consultando NoBeds:", url);
+
+    const { data } = await axios.get(url, { timeout: 20000 });
+    console.log("✅ Respuesta NoBeds:", data);
+
+    if (!data || !Array.isArray(data) || !data.length) {
+      return res.status(404).json({ ok: false, error: "Reserva no encontrada en NoBeds" });
+    }
+
+    res.json({ ok: true, reserva: data[0] });
+  } catch (err) {
+    console.error("❌ /api/nobeds/reserva error:", err.response?.data || err.message);
+    res.status(500).json({ ok: false, error: err.response?.data || err.message });
+  }
+});
+
+
+app.get("/api/nobeds/reservas", async (_req, res) => {
+  try {
+    const url = `${NOBEDS_API}/${NOBEDS_TOKEN}`;
+    const { data } = await axios.get(url, { timeout: 20000 });
+    res.json({ ok: true, reservas: data });
+  } catch (err) {
+    console.error("❌ /api/nobeds/reservas error:", err.message);
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
@@ -227,10 +229,7 @@ async function getAccessToken() {
   const needs = !_tt_token || Date.now() > _tt_expiresAt - 30000;
   if (!needs) return _tt_token;
 
-  const md5Pass = crypto
-    .createHash("md5")
-    .update(process.env.TTLOCK_PASSWORD || "")
-    .digest("hex");
+  const md5Pass = crypto.createHash("md5").update(process.env.TTLOCK_PASSWORD || "").digest("hex");
 
   const form = new URLSearchParams({
     clientId: process.env.TTLOCK_CLIENT_ID || "",
@@ -247,7 +246,7 @@ async function getAccessToken() {
 
   if (!data?.access_token) throw new Error("No access_token from TTLock");
   _tt_token = data.access_token;
-  _tt_expiresAt = Date.now() + (parseInt(data.expires_in || "7200", 10) * 1000);
+  _tt_expiresAt = Date.now() + parseInt(data.expires_in || "7200", 10) * 1000;
   return _tt_token;
 }
 
@@ -260,146 +259,6 @@ async function ttPost(pathUrl, formBody) {
   return data;
 }
 
-// Enviar eKey
-app.post("/mcp/create-key", async (req, res) => {
-  try {
-    const { lockId, receiverUsername, endAt, startAt, keyName, remarks, correlationId } = req.body || {};
-    if (!lockId || !receiverUsername || !endAt) {
-      console.log("→ /mcp/create-key FALTAN CAMPOS", { body:req.body });
-      return res.status(400).json({ ok:false, error:"lockId, receiverUsername y endAt son requeridos" });
-    }
-
-    const accessToken = await getAccessToken();
-
-    const r = await ttPost("/v3/key/send", {
-      clientId: process.env.TTLOCK_CLIENT_ID,
-      accessToken,
-      lockId,
-      receiverUsername,
-      keyName: keyName || "GuestKey",
-      remarks: remarks || "",
-      startDate: startAt || nowMs(),
-      endDate: endAt,
-      date: nowMs(),
-    });
-
-    if (r?.errcode && r.errcode !== 0) {
-      console.error("TTLock key/send ERROR:", r, {
-        base: TTLOCK_BASE,
-        clientId: process.env.TTLOCK_CLIENT_ID,
-        body: req.body,
-      });
-      // Reenvía el detalle para verlo en Network → Response
-      return res.status(400).json({
-        ok: false,
-        provider: "ttlock",
-        ...r,
-      });
-    }
-
-    res.json({ ok: true, provider: "ttlock", correlationId, result: r });
-  } catch (e) {
-    console.error("mcp/create-key exception:", e?.response?.data || e.message);
-    res.status(500).json({ ok:false, error: e?.response?.data || e.message });
-  }
-});
-
-// === Crear PASSCODE (como en la app TTLock) ===
-// Modo A: TTLock genera el código (keyboardPwdType=3)
-// Modo B: Tú eliges el código 6–9 dígitos (keyboardPwdType=2 con 'keyboardPwd')
-app.post("/mcp/create-passcode", async (req, res) => {
-  try {
-    const { lockId, endAt, startAt, code, name } = req.body || {};
-    if (!lockId || !endAt) {
-      return res.status(400).json({ ok: false, error: "lockId y endAt son requeridos" });
-    }
-
-    const accessToken = await getAccessToken();
-    const base = {
-      clientId: process.env.TTLOCK_CLIENT_ID,
-      accessToken,
-      lockId,
-      startDate: startAt || nowMs(),
-      endDate: endAt,
-      date: nowMs(),
-    };
-
-    let r;
-
-    // ¿Te pasan un código propio?
-    if (code !== undefined && code !== null && String(code).trim() !== "") {
-      const pwd = String(code).trim();
-      if (!/^\d{6,9}$/.test(pwd)) {
-        return res.status(400).json({ ok: false, error: "El code debe ser 6–9 dígitos" });
-      }
-      r = await ttPost("/v3/keyboardPwd/add", {
-        ...base,
-        keyboardPwdType: 2,                 // custom
-        keyboardPwd: pwd,                   // **campo correcto**
-        keyboardPwdName: name || "AutoCheckin",
-      });
-    } else {
-      // Generado por TTLock
-      r = await ttPost("/v3/keyboardPwd/get", {
-        ...base,
-        keyboardPwdType: 3,                 // time-limited generado
-      });
-    }
-
-    if (parseInt(r?.errcode ?? 0, 10) !== 0) {
-      return res.status(400).json({ ok: false, error: r });
-    }
-    res.json({ ok: true, provider: "ttlock", result: r });
-  } catch (e) {
-    console.error("mcp/create-passcode error:", e?.response?.data || e.message);
-    res.status(500).json({ ok: false, error: e?.response?.data || e.message });
-  }
-});
-
-// Apertura remota
-app.post("/mcp/open-lock", async (req, res) => {
-  try {
-    const { lockId, correlationId } = req.body || {};
-    if (!lockId) return res.status(400).json({ ok: false, error: "lockId requerido" });
-
-    const accessToken = await getAccessToken();
-    const r = await ttPost("/v3/lock/remoteUnlock", {
-      clientId: process.env.TTLOCK_CLIENT_ID,
-      accessToken,
-      lockId,
-      date: nowMs(),
-    });
-    if (parseInt(r.errcode ?? -1, 10) !== 0) return res.status(400).json({ ok: false, error: r });
-    res.json({ ok: true, provider: "ttlock", correlationId, result: r });
-  } catch (e) {
-    console.error("mcp/open-lock error:", e?.response?.data || e.message);
-    res.status(500).json({ ok: false, error: e?.response?.data || e.message });
-  }
-});
-
-// Revocar eKey
-app.post("/mcp/revoke-key", async (req, res) => {
-  try {
-    const { keyId, remarks, correlationId } = req.body || {};
-    if (!keyId) return res.status(400).json({ ok: false, error: "keyId requerido" });
-
-    const accessToken = await getAccessToken();
-    const r = await ttPost("/v3/key/delete", {
-      clientId: process.env.TTLOCK_CLIENT_ID,
-      accessToken,
-      keyId,
-      remarks: remarks || "",
-      date: nowMs(),
-    });
-    if (parseInt(r.errcode ?? -1, 10) !== 0) return res.status(400).json({ ok: false, error: r });
-    res.json({ ok: true, provider: "ttlock", correlationId, result: r });
-  } catch (e) {
-    console.error("mcp/revoke-key error:", e?.response?.data || e.message);
-    res.status(500).json({ ok: false, error: e?.response?.data || e.message });
-  }
-});
-
-// Listados útiles
 app.get("/mcp/locks", async (_req, res) => {
   try {
     const accessToken = await getAccessToken();
@@ -445,30 +304,10 @@ app.get("/mcp/debug/env", (_req, res) => {
   });
 });
 
-app.get("/mcp/debug/token-raw", async (_req, res) => {
-  try {
-    const md5Pass = crypto.createHash("md5").update(process.env.TTLOCK_PASSWORD || "").digest("hex");
-    const form = new URLSearchParams({
-      clientId: process.env.TTLOCK_CLIENT_ID,
-      clientSecret: process.env.TTLOCK_CLIENT_SECRET,
-      username: process.env.TTLOCK_USERNAME,
-      password: md5Pass,
-      date: String(Date.now()),
-    });
-    const { data } = await axios.post(`${TTLOCK_BASE}/oauth2/token`, form, {
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      timeout: 20000,
-    });
-    res.json({ raw: data });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e?.response?.data || e.message });
-  }
-});
-
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 /* ================ Start ================ */
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () =>
-  console.log(`✅ Backend corriendo en http://18.206.179.50:${PORT}`)
+  console.log(`✅ Backend corriendo en http://localhost:${PORT}`)
 );

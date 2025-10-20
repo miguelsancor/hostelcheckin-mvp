@@ -24,13 +24,25 @@ type Huesped = {
   archivoAnverso?: File;
   archivoReverso?: File;
   archivoFirma?: File;
+
+  // 🔹 Nuevos campos desde NoBeds
+  referral?: string;
+  status?: string;
+  nights?: number;
+  guests?: number;
+  price?: number;
+  total?: number;
+  b_extras?: string;
+  b_smoking?: string;
+  b_meal?: string;
+  comment?: string;
 };
 
 type Reserva = {
   numeroReserva?: string;
   lockId?: number;
   nombre?: string; // mapeo desde NoBeds (name)
-  email?: string;  // mapeo desde NoBeds (emails)
+  email?: string;  // mapeo desde NoBeds (email)
   telefono?: string; // mapeo desde NoBeds (phone)
   checkin?: string; // mapeo desde NoBeds
   checkout?: string; // mapeo desde NoBeds
@@ -61,7 +73,7 @@ export default function CheckinForm() {
         if (parsed?.order_id) {
           const huesped: Huesped = {
             nombre: parsed.name || "",
-            email: parsed.emails || "",
+            email: parsed.email || "",
             telefono: parsed.phone || "",
             fechaIngreso: parsed.checkin
               ? parsed.checkin.slice(0, 10)
@@ -69,11 +81,24 @@ export default function CheckinForm() {
             fechaSalida: parsed.checkout
               ? parsed.checkout.slice(0, 10)
               : undefined,
+
+            // 🔹 Nuevos campos automapeados desde NoBeds
+            referral: parsed.referral || "",
+            status: parsed.status || "",
+            nights: parsed.nights || 0,
+            guests: parsed.guests || 0,
+            price: parsed.price || 0,
+            total: parsed.total || 0,
+            b_extras: parsed.b_extras || "",
+            b_smoking: parsed.b_smoking || "",
+            b_meal: parsed.b_meal || "",
+            comment: parsed.comment || "",
           };
+
           setReserva({
             numeroReserva: String(parsed.order_id),
             nombre: parsed.name,
-            email: parsed.emails,
+            email: parsed.email,
             telefono: parsed.phone,
             checkin: parsed.checkin,
             checkout: parsed.checkout,
@@ -268,6 +293,7 @@ export default function CheckinForm() {
 
       {formList.map((formData, index) => (
         <div key={index} style={styles.card}>
+          {/* Campos originales */}
           <div style={styles.row}>
             <input
               name="nombre"
@@ -325,6 +351,78 @@ export default function CheckinForm() {
             />
           </div>
 
+          {/* 🔹 Nuevos campos visuales */}
+          <div style={styles.row}>
+            <input
+              name="referral"
+              value={formData.referral || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Origen de reserva (Booking, Expedia...)"
+              style={styles.input}
+            />
+            <input
+              name="status"
+              value={formData.status || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Estado de la reserva"
+              style={styles.input}
+            />
+            <input
+              name="nights"
+              type="number"
+              value={formData.nights || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Noches"
+              style={styles.input}
+            />
+            <input
+              name="guests"
+              type="number"
+              value={formData.guests || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Huéspedes"
+              style={styles.input}
+            />
+          </div>
+
+          <div style={styles.row}>
+            <input
+              name="price"
+              type="number"
+              value={formData.price || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Precio por noche"
+              style={styles.input}
+            />
+            <input
+              name="total"
+              type="number"
+              value={formData.total || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Total reserva"
+              style={styles.input}
+            />
+            <input
+              name="b_extras"
+              value={formData.b_extras || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Extras o impuestos"
+              style={styles.input}
+            />
+          </div>
+
+          <div style={styles.row}>
+            <input
+              name="b_smoking"
+              value={formData.b_smoking || ""}
+              onChange={(e) => handleChange(index, e)}
+              placeholder="Fumador (SI/NO)"
+              style={styles.input}
+            />
+
+          </div>
+
+          {/* Campos originales finales */}
           <div style={styles.row}>
             <input
               name="telefono"
@@ -389,6 +487,26 @@ export default function CheckinForm() {
               style={styles.input}
             />
           </div>
+
+
+           <div>            
+            <textarea
+              name="b_meal"
+              value={formData.b_meal || ""}
+              onChange={(e) => handleChange(index, e as any)}
+              placeholder="Comidas incluidas"
+              style={styles.input}
+            />
+            <textarea
+              name="comment"
+              value={formData.comment || ""}
+              onChange={(e) => handleChange(index, e as any)}
+              placeholder="Comentarios"
+              style={styles.input}
+            />
+            </div>
+
+
         </div>
       ))}
 

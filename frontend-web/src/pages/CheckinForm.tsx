@@ -263,7 +263,7 @@ export default function CheckinForm() {
 
       {/* Botón para volver al login */}
       <button
-        onClick={() => window.location.href = "/login"}
+        onClick={() => window.location.href = "/"}
         style={{
           alignSelf: "flex-start",
           marginBottom: "1rem",

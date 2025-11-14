@@ -260,7 +260,27 @@ export default function CheckinForm() {
 
   return (
     <div style={styles.container}>
+
+      {/* Botón para volver al login */}
+      <button
+        onClick={() => window.location.href = "/login"}
+        style={{
+          alignSelf: "flex-start",
+          marginBottom: "1rem",
+          padding: "0.5rem 1rem",
+          borderRadius: "0.5rem",
+          border: "1px solid #4b5563",
+          backgroundColor: "#1f2937",
+          color: "#f9fafb",
+          cursor: "pointer",
+          fontSize: "0.9rem"
+        }}
+      >
+        Volver al Login
+      </button>
+
       <h2 style={styles.title}>📄 Registro de Huéspedes</h2>
+
       {reserva?.numeroReserva && (
         <h3 style={styles.subTitle}>
           Código de Reserva:{" "}

@@ -1,4 +1,3 @@
-// backend/src/index.js
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
@@ -59,12 +58,11 @@ function parseGuestsFromFormData(body, files = []) {
   return guests.filter(Boolean);
 }
 
-// Helpers para tu modelo
 const toStr = (v) => (v === undefined || v === null ? "" : String(v));
 const toDateStr = (v, fallbackDate) => {
   const d = v ? new Date(v) : fallbackDate;
   if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0, 10); // "YYYY-MM-DD"
+  return d.toISOString().slice(0, 10);
 };
 
 /* =======================================================================
@@ -109,8 +107,8 @@ app.post(
 
       res.json({ ok: true, numeroReserva, total: 1 });
     } catch (e) {
-      console.error("❌ /api/checkin error:", e);
-      res.status(500).json({ ok: false, error: e?.message || "Error al registrar el check-in" });
+      console.error("error /api/checkin:", e);
+      res.status(500).json({ ok: false, error: "Error al registrar el check-in" });
     }
   }
 );
@@ -154,27 +152,97 @@ app.post("/api/checkin/guardar-multiple", upload.any(), async (req, res) => {
     await prisma.huesped.create({ data: payload });
     res.json({ ok: true, numeroReserva, total: 1 });
   } catch (e) {
-    console.error("❌ guardar-multiple error:", e);
-    res.status(500).json({ ok: false, error: e?.message || "Error al guardar huéspedes" });
+    console.error("error guardar-multiple:", e);
+    res.status(500).json({ ok: false, error: "Error al guardar huéspedes" });
   }
 });
 
 app.post("/api/checkin/buscar", async (req, res) => {
   const { codigoReserva, tipoDocumento, numeroDocumento } = req.body;
+
   try {
     let huesped;
+
     if (codigoReserva) {
-      huesped = await prisma.huesped.findUnique({ where: { numeroReserva: codigoReserva } });
+      huesped = await prisma.huesped.findUnique({
+        where: { numeroReserva: codigoReserva },
+      });
     } else if (tipoDocumento && numeroDocumento) {
-      huesped = await prisma.huesped.findFirst({ where: { tipoDocumento, numeroDocumento } });
+      huesped = await prisma.huesped.findFirst({
+        where: { tipoDocumento, numeroDocumento },
+      });
     } else {
       return res.status(400).json({ ok: false, error: "Parámetros insuficientes" });
     }
-    if (!huesped) return res.status(404).json({ ok: false, error: "Reserva no encontrada" });
+
+    if (!huesped)
+      return res.status(404).json({ ok: false, error: "Reserva no encontrada" });
+
     res.json(huesped);
   } catch (error) {
-    console.error("❌ /api/checkin/buscar error:", error);
+    console.error("error /api/checkin/buscar:", error);
     res.status(500).json({ ok: false, error: "Error al buscar reserva" });
+  }
+});
+
+/* ================================================================
+   Búsqueda combinada Teléfono/Email → BD → NoBeds
+=============================================================== */
+app.get("/api/checkin/buscar-combinado/:valor", async (req, res) => {
+  try {
+    const { valor } = req.params;
+
+    if (!valor) {
+      return res.status(400).json({ ok: false, error: "Falta valor" });
+    }
+
+    // Buscar en base de datos local
+    let huesped = await prisma.huesped.findFirst({
+      where: {
+        OR: [
+          { telefono: valor },
+          { email: valor }
+        ]
+      }
+    });
+
+    if (huesped) {
+      return res.json({
+        ok: true,
+        origen: "local",
+        data: huesped
+      });
+    }
+
+    // Buscar en NoBeds
+    const url = `${process.env.NOBEDS_API}/${process.env.NOBEDS_TOKEN}`;
+    const { data } = await axios.get(url, { timeout: 20000 });
+
+    if (Array.isArray(data)) {
+      const match = data.find((r) =>
+        (r.email && r.email.toLowerCase() === valor.toLowerCase()) ||
+        (r.phone && String(r.phone).trim() === valor.trim())
+      );
+
+      if (match) {
+        return res.json({
+          ok: true,
+          origen: "nobeds",
+          data: match
+        });
+      }
+    }
+
+    return res.status(404).json({
+      ok: false,
+      error: "No encontrado"
+    });
+  } catch (error) {
+    console.error("buscar-combinado error:", error);
+    return res.status(500).json({
+      ok: false,
+      error: "Error interno del servidor"
+    });
   }
 });
 
@@ -190,22 +258,20 @@ app.get("/api/nobeds/reserva/:orderId", async (req, res) => {
     if (!orderId) return res.status(400).json({ ok: false, error: "Falta orderId" });
 
     const url = `${NOBEDS_API}/${NOBEDS_TOKEN}?order_id=${orderId}`;
-    console.log("🔗 Consultando NoBeds:", url);
+    console.log("Consultando NoBeds:", url);
 
     const { data } = await axios.get(url, { timeout: 20000 });
-    console.log("✅ Respuesta NoBeds:", data);
 
     if (!data || !Array.isArray(data) || !data.length) {
-      return res.status(404).json({ ok: false, error: "Reserva no encontrada en NoBeds" });
+      return res.status(404).json({ ok: false, error: "Reserva no encontrada" });
     }
 
     res.json({ ok: true, reserva: data[0] });
   } catch (err) {
-    console.error("❌ /api/nobeds/reserva error:", err.response?.data || err.message);
-    res.status(500).json({ ok: false, error: err.response?.data || err.message });
+    console.error("error /api/nobeds/reserva:", err.message);
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
-
 
 app.get("/api/nobeds/reservas", async (_req, res) => {
   try {
@@ -213,13 +279,13 @@ app.get("/api/nobeds/reservas", async (_req, res) => {
     const { data } = await axios.get(url, { timeout: 20000 });
     res.json({ ok: true, reservas: data });
   } catch (err) {
-    console.error("❌ /api/nobeds/reservas error:", err.message);
+    console.error("error /api/nobeds/reservas:", err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
 
 /* =======================================================================
-   MCP ↔ TTLock
+   MCP y TTLock
    ======================================================================= */
 const TTLOCK_BASE = process.env.TTLOCK_BASE || "https://api.ttlock.com";
 let _tt_token = null;
@@ -229,7 +295,10 @@ async function getAccessToken() {
   const needs = !_tt_token || Date.now() > _tt_expiresAt - 30000;
   if (!needs) return _tt_token;
 
-  const md5Pass = crypto.createHash("md5").update(process.env.TTLOCK_PASSWORD || "").digest("hex");
+  const md5Pass = crypto
+    .createHash("md5")
+    .update(process.env.TTLOCK_PASSWORD || "")
+    .digest("hex");
 
   const form = new URLSearchParams({
     clientId: process.env.TTLOCK_CLIENT_ID || "",
@@ -293,13 +362,13 @@ app.get("/mcp/keys", async (_req, res) => {
 
 /* ================== Debug & Health ================== */
 app.get("/mcp/debug/env", (_req, res) => {
-  const mask = (s) => (s ? s.slice(0, 4) + "****" + s.slice(-4) : "(vacío)");
+  const mask = (s) => (s ? s.slice(0, 4) + "****" + s.slice(-4) : "(vacio)");
   res.json({
     PORT: process.env.PORT || 4000,
     TTLOCK_BASE: TTLOCK_BASE,
-    TTLOCK_CLIENT_ID: process.env.TTLOCK_CLIENT_ID || "(vacío)",
+    TTLOCK_CLIENT_ID: process.env.TTLOCK_CLIENT_ID || "(vacio)",
     TTLOCK_CLIENT_SECRET: mask(process.env.TTLOCK_CLIENT_SECRET || ""),
-    TTLOCK_USERNAME: process.env.TTLOCK_USERNAME || "(vacío)",
+    TTLOCK_USERNAME: process.env.TTLOCK_USERNAME || "(vacio)",
     TTLOCK_PASSWORD: "(oculto)",
   });
 });
@@ -309,5 +378,5 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 /* ================ Start ================ */
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () =>
-  console.log(`✅ Backend corriendo en http://18.206.179.50:${PORT}`)
+  console.log(`Backend corriendo en http://18.206.179.50:${PORT}`)
 );

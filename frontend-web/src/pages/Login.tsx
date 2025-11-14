@@ -11,23 +11,42 @@ export default function Login() {
 
   const buscarReserva = async () => {
     try {
-      let reserva = null;
+      let reserva: any = null;
 
+      // Búsqueda por código de reserva (NoBeds)
       if (tipoBusqueda === "codigo" && codigoReserva) {
-        const res = await fetch(`http://18.206.179.50:4000/api/nobeds/reserva/${codigoReserva}`);
+        const res = await fetch(
+          `http://18.206.179.50:4000/api/nobeds/reserva/${codigoReserva}`
+        );
         if (res.ok) {
           const data = await res.json();
-          if (data.ok && data.reserva) reserva = data.reserva;
+          if (data.ok) reserva = data.reserva;
         }
-      } else if (tipoBusqueda === "documento" && numeroDocumento) {
+      }
+
+      // Búsqueda por documento (BD interna)
+      else if (tipoBusqueda === "documento" && numeroDocumento) {
         const res = await fetch("http://18.206.179.50:4000/api/checkin/buscar", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tipoDocumento, numeroDocumento }),
         });
+
         if (res.ok) {
           const data = await res.json();
           reserva = data;
+        }
+      }
+
+      // Búsqueda combinada Teléfono/Email (BD → NoBeds)
+      else if (tipoBusqueda === "telefono" && numeroDocumento) {
+        const res = await fetch(
+          `http://18.206.179.50:4000/api/checkin/buscar-combinado/${numeroDocumento}`
+        );
+
+        if (res.ok) {
+          const data = await res.json();
+          reserva = data.data;
         }
       }
 
@@ -36,9 +55,13 @@ export default function Login() {
         return;
       }
 
-      localStorage.setItem("usuario", JSON.stringify({ role: "guest-checkin" }));
+      localStorage.setItem(
+        "usuario",
+        JSON.stringify({ role: "guest-checkin" })
+      );
       localStorage.setItem("reserva", JSON.stringify(reserva));
       navigate("/checkin", { replace: true });
+
     } catch (err) {
       console.error("Error al consultar reserva:", err);
       alert("Error de conexión con el servidor");
@@ -73,6 +96,7 @@ export default function Login() {
             >
               <option value="documento">ID | Documento</option>
               <option value="codigo">Reservation # | # Reserva</option>
+              <option value="telefono">Teléfono / Email</option>
             </select>
           </label>
 
@@ -86,6 +110,7 @@ export default function Login() {
                 <option value="Cédula">Cédula</option>
                 <option value="Pasaporte">Pasaporte</option>
               </select>
+
               <input
                 type="text"
                 placeholder="Número de Documento"
@@ -105,14 +130,29 @@ export default function Login() {
               style={styles.input}
             />
           )}
+
+          {tipoBusqueda === "telefono" && (
+            <input
+              type="text"
+              placeholder="Teléfono o Email"
+              value={numeroDocumento}
+              onChange={(e) => setNumeroDocumento(e.target.value)}
+              style={styles.input}
+            />
+          )}
         </div>
 
         <div style={styles.buttonGroup}>
           <button style={styles.button} onClick={buscarReserva}>
             Consultar Reserva
           </button>
+
           <button
-            style={{ ...styles.button, backgroundColor: "#3b82f6", marginTop: "0.75rem" }}
+            style={{
+              ...styles.button,
+              backgroundColor: "#3b82f6",
+              marginTop: "0.75rem",
+            }}
             onClick={crearFormatoEnBlanco}
           >
             Reservar
@@ -124,7 +164,12 @@ export default function Login() {
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
-  container: { height: "100vh", display: "flex", justifyContent: "center", alignItems: "center" },
+  container: {
+    height: "100vh",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   card: {
     backgroundColor: "#1f2937",
     padding: "2rem",
@@ -134,8 +179,16 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "#333333",
     boxShadow: "0 0 20px rgba(0,0,0,0.4)",
   },
-  title: { marginBottom: "1.5rem", textAlign: "center", fontSize: "1.6rem" },
-  inputGroup: { display: "flex", flexDirection: "column", gap: "1rem" },
+  title: {
+    marginBottom: "1.5rem",
+    textAlign: "center",
+    fontSize: "1.6rem",
+  },
+  inputGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1rem",
+  },
   input: {
     padding: "0.75rem",
     borderRadius: "0.5rem",
@@ -150,7 +203,11 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: "#fff",
     color: "#333333",
   },
-  buttonGroup: { marginTop: "1.5rem", display: "flex", flexDirection: "column" },
+  buttonGroup: {
+    marginTop: "1.5rem",
+    display: "flex",
+    flexDirection: "column",
+  },
   button: {
     width: "100%",
     padding: "0.75rem",

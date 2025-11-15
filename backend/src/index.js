@@ -77,14 +77,22 @@ app.post(
       const { huespedes = [], fechaIngreso, fechaSalida } = parsed;
 
       if (!Array.isArray(huespedes) || !huespedes.length) {
-        return res.status(400).json({ ok: false, error: "No llegaron huéspedes" });
+        return res
+          .status(400)
+          .json({ ok: false, error: "No llegaron huéspedes" });
       }
 
       const titular = huespedes[0];
       const numeroReserva = generarNumeroReserva();
 
-      const fIng = toDateStr(titular?.fechaIngreso ?? fechaIngreso, new Date());
-      const fSal = toDateStr(titular?.fechaSalida ?? fechaSalida, new Date());
+      const fIng = toDateStr(
+        titular?.fechaIngreso ?? fechaIngreso,
+        new Date()
+      );
+      const fSal = toDateStr(
+        titular?.fechaSalida ?? fechaSalida,
+        new Date()
+      );
 
       const payload = {
         nombre: toStr(titular?.nombre),
@@ -108,7 +116,9 @@ app.post(
       res.json({ ok: true, numeroReserva, total: 1 });
     } catch (e) {
       console.error("error /api/checkin:", e);
-      res.status(500).json({ ok: false, error: "Error al registrar el check-in" });
+      res
+        .status(500)
+        .json({ ok: false, error: "Error al registrar el check-in" });
     }
   }
 );
@@ -123,7 +133,9 @@ app.post("/api/checkin/guardar-multiple", upload.any(), async (req, res) => {
       } catch {}
     }
     if (!guests.length) {
-      return res.status(400).json({ ok: false, error: "No llegaron huéspedes" });
+      return res
+        .status(400)
+        .json({ ok: false, error: "No llegaron huéspedes" });
     }
 
     const titular = guests[0];
@@ -153,7 +165,9 @@ app.post("/api/checkin/guardar-multiple", upload.any(), async (req, res) => {
     res.json({ ok: true, numeroReserva, total: 1 });
   } catch (e) {
     console.error("error guardar-multiple:", e);
-    res.status(500).json({ ok: false, error: "Error al guardar huéspedes" });
+    res
+      .status(500)
+      .json({ ok: false, error: "Error al guardar huéspedes" });
   }
 });
 
@@ -172,11 +186,15 @@ app.post("/api/checkin/buscar", async (req, res) => {
         where: { tipoDocumento, numeroDocumento },
       });
     } else {
-      return res.status(400).json({ ok: false, error: "Parámetros insuficientes" });
+      return res
+        .status(400)
+        .json({ ok: false, error: "Parámetros insuficientes" });
     }
 
     if (!huesped)
-      return res.status(404).json({ ok: false, error: "Reserva no encontrada" });
+      return res
+        .status(404)
+        .json({ ok: false, error: "Reserva no encontrada" });
 
     res.json(huesped);
   } catch (error) {
@@ -185,9 +203,41 @@ app.post("/api/checkin/buscar", async (req, res) => {
   }
 });
 
-/* ================================================================
+/* ===================================================================
+   NUEVA API: huéspedes registrados HOY
+   =================================================================== */
+app.get("/api/checkin/hoy", async (_req, res) => {
+  try {
+    const inicio = new Date();
+    inicio.setHours(0, 0, 0, 0);
+
+    const fin = new Date();
+    fin.setHours(23, 59, 59, 999);
+
+    const lista = await prisma.huesped.findMany({
+      where: {
+        creadoEn: {
+          gte: inicio,
+          lte: fin,
+        },
+      },
+      orderBy: { creadoEn: "desc" },
+    });
+
+    return res.json({
+      ok: true,
+      total: lista.length,
+      huespedes: lista, // IMPORTANTE: propiedad se llama "huespedes"
+    });
+  } catch (err) {
+    console.error("error /api/checkin/hoy:", err);
+    return res.status(500).json({ ok: false, error: "Error interno" });
+  }
+});
+
+/* ===================================================================
    Búsqueda combinada Teléfono/Email → BD → NoBeds
-=============================================================== */
+   =================================================================== */
 app.get("/api/checkin/buscar-combinado/:valor", async (req, res) => {
   try {
     const { valor } = req.params;
@@ -199,49 +249,46 @@ app.get("/api/checkin/buscar-combinado/:valor", async (req, res) => {
     // Buscar en base de datos local
     let huesped = await prisma.huesped.findFirst({
       where: {
-        OR: [
-          { telefono: valor },
-          { email: valor }
-        ]
-      }
+        OR: [{ telefono: valor }, { email: valor }],
+      },
     });
 
     if (huesped) {
       return res.json({
         ok: true,
         origen: "local",
-        data: huesped
+        data: huesped,
       });
     }
 
-    // Buscar en NoBeds
     const url = `${process.env.NOBEDS_API}/${process.env.NOBEDS_TOKEN}`;
     const { data } = await axios.get(url, { timeout: 20000 });
 
     if (Array.isArray(data)) {
-      const match = data.find((r) =>
-        (r.email && r.email.toLowerCase() === valor.toLowerCase()) ||
-        (r.phone && String(r.phone).trim() === valor.trim())
+      const match = data.find(
+        (r) =>
+          (r.email && r.email.toLowerCase() === valor.toLowerCase()) ||
+          (r.phone && String(r.phone).trim() === valor.trim())
       );
 
       if (match) {
         return res.json({
           ok: true,
           origen: "nobeds",
-          data: match
+          data: match,
         });
       }
     }
 
     return res.status(404).json({
       ok: false,
-      error: "No encontrado"
+      error: "No encontrado",
     });
   } catch (error) {
     console.error("buscar-combinado error:", error);
     return res.status(500).json({
       ok: false,
-      error: "Error interno del servidor"
+      error: "Error interno del servidor",
     });
   }
 });
@@ -249,13 +296,15 @@ app.get("/api/checkin/buscar-combinado/:valor", async (req, res) => {
 /* =======================================================================
    Integración NoBeds
    ======================================================================= */
-const NOBEDS_API = process.env.NOBEDS_API || "https://api.nobeds.com/api/Bookings";
+const NOBEDS_API =
+  process.env.NOBEDS_API || "https://api.nobeds.com/api/Bookings";
 const NOBEDS_TOKEN = process.env.NOBEDS_TOKEN || "";
 
 app.get("/api/nobeds/reserva/:orderId", async (req, res) => {
   try {
     const { orderId } = req.params;
-    if (!orderId) return res.status(400).json({ ok: false, error: "Falta orderId" });
+    if (!orderId)
+      return res.status(400).json({ ok: false, error: "Falta orderId" });
 
     const url = `${NOBEDS_API}/${NOBEDS_TOKEN}?order_id=${orderId}`;
     console.log("Consultando NoBeds:", url);
@@ -263,7 +312,9 @@ app.get("/api/nobeds/reserva/:orderId", async (req, res) => {
     const { data } = await axios.get(url, { timeout: 20000 });
 
     if (!data || !Array.isArray(data) || !data.length) {
-      return res.status(404).json({ ok: false, error: "Reserva no encontrada" });
+      return res
+        .status(404)
+        .json({ ok: false, error: "Reserva no encontrada" });
     }
 
     res.json({ ok: true, reserva: data[0] });
@@ -323,7 +374,10 @@ async function ttPost(pathUrl, formBody) {
   const { data } = await axios.post(
     `${TTLOCK_BASE}${pathUrl}`,
     new URLSearchParams(formBody),
-    { headers: { "Content-Type": "application/x-www-form-urlencoded" }, timeout: 20000 }
+    {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      timeout: 20000,
+    }
   );
   return data;
 }

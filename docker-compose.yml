@@ -7,7 +7,7 @@ services:
     ports:
       - "4000:4000"
     environment:
-      # Puedes poner localhost si lo usas desde la misma VM
+      # Puedes poner 18.206.179.50 si lo usas desde la misma VM
       # o la IP pública si lo abrirás desde fuera
       PORT: 4000
     volumes:

@@ -1,10 +1,5 @@
 import { useEffect, useState } from "react";
 
-/**
- * Ajusta estos defaults si es necesario:
- * - VITE_API_BASE: tu backend (18.206.179.50:4000)
- * - VITE_TTLOCK_LOCK_ID: id de la cerradura por defecto
- */
 const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
 const DEFAULT_LOCK_ID = Number(import.meta.env.VITE_TTLOCK_LOCK_ID || "0");
 
@@ -25,7 +20,6 @@ type Huesped = {
   archivoReverso?: File;
   archivoFirma?: File;
 
-  // 🔹 Nuevos campos desde NoBeds
   referral?: string;
   status?: string;
   nights?: number;
@@ -41,11 +35,11 @@ type Huesped = {
 type Reserva = {
   numeroReserva?: string;
   lockId?: number;
-  nombre?: string; // mapeo desde NoBeds (name)
-  email?: string;  // mapeo desde NoBeds (email)
-  telefono?: string; // mapeo desde NoBeds (phone)
-  checkin?: string; // mapeo desde NoBeds
-  checkout?: string; // mapeo desde NoBeds
+  nombre?: string;
+  email?: string;
+  telefono?: string;
+  checkin?: string;
+  checkout?: string;
 };
 
 type LockItem = {
@@ -55,34 +49,117 @@ type LockItem = {
   lockName?: string;
 };
 
+type HuespedBD = {
+  id: number;
+  nombre: string;
+  numeroReserva: string;
+  creadoEn: string;
+};
+
 export default function CheckinForm() {
   const [formList, setFormList] = useState<Huesped[]>([]);
   const [reserva, setReserva] = useState<Reserva | null>(null);
   const [loading, setLoading] = useState(false);
-
   const [locks, setLocks] = useState<LockItem[]>([]);
+  const [huespedesHoy, setHuespedesHoy] = useState<HuespedBD[]>([]);
 
-  // Cargar reserva del localStorage
+  // ================= MODAL =================
+  const [showModal, setShowModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState("");
+
+  // Modal flotante FUERA DEL CONTENEDOR
+  const modal = showModal ? (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(0,0,0,0.75)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 99999,
+        padding: "2rem",
+      }}
+    >
+      <div
+        style={{
+          background: "#1f2937",
+          borderRadius: "1rem",
+          width: "100%",
+          maxWidth: "500px",
+          padding: "2rem",
+          border: "1px solid #444",
+        }}
+      >
+        <h2 style={{ marginBottom: "1rem", fontSize: "1.5rem", color: "#fff" }}>
+          Registro Completado
+        </h2>
+
+        <pre
+          style={{
+            background: "#111",
+            color: "#fff",
+            border: "1px solid #333",
+            borderRadius: "0.5rem",
+            padding: "1rem",
+            whiteSpace: "pre-wrap",
+            marginBottom: "2rem",
+            fontSize: "0.9rem",
+          }}
+        >
+          {modalMessage}
+        </pre>
+
+        <button
+          onClick={() => setShowModal(false)}
+          style={{
+            padding: "0.75rem 2rem",
+            background: "#10b981",
+            color: "#fff",
+            border: "none",
+            width: "100%",
+            borderRadius: "0.5rem",
+            marginBottom: "1rem",
+            cursor: "pointer",
+            fontWeight: "bold",
+          }}
+        >
+          Cerrar
+        </button>
+
+        <button
+          onClick={() => (window.location.href = "/")}
+          style={{
+            padding: "0.75rem 2rem",
+            background: "#2563eb",
+            color: "#fff",
+            border: "none",
+            width: "100%",
+            borderRadius: "0.5rem",
+            cursor: "pointer",
+            fontWeight: "bold",
+          }}
+        >
+          Volver al inicio
+        </button>
+      </div>
+    </div>
+  ) : null;
+
+  // ========================== LOCAL STORAGE ==========================
   useEffect(() => {
     const data = localStorage.getItem("reserva");
     if (data) {
       try {
         const parsed = JSON.parse(data);
 
-        // 🔄 Mapeo si la reserva viene de NoBeds
         if (parsed?.order_id) {
           const huesped: Huesped = {
             nombre: parsed.name || "",
             email: parsed.email || "",
             telefono: parsed.phone || "",
-            fechaIngreso: parsed.checkin
-              ? parsed.checkin.slice(0, 10)
-              : undefined,
-            fechaSalida: parsed.checkout
-              ? parsed.checkout.slice(0, 10)
-              : undefined,
-
-            // 🔹 Nuevos campos automapeados desde NoBeds
+            fechaIngreso: parsed.checkin ? parsed.checkin.slice(0, 10) : "",
+            fechaSalida: parsed.checkout ? parsed.checkout.slice(0, 10) : "",
             referral: parsed.referral || "",
             status: parsed.status || "",
             nights: parsed.nights || 0,
@@ -103,449 +180,461 @@ export default function CheckinForm() {
             checkin: parsed.checkin,
             checkout: parsed.checkout,
           });
+
           setFormList([huesped]);
         } else {
-          // 🔄 Caso reserva local
           const items = Array.isArray(parsed) ? parsed : [parsed];
           setFormList(items.length ? items : [{}]);
           setReserva(items[0] ?? null);
         }
         return;
-      } catch {
-        /* ignore */
-      }
+      } catch {}
     }
+
     setFormList([{}]);
     setReserva(null);
   }, []);
 
   useEffect(() => {
-    if (reserva && !localStorage.getItem("reserva")) {
+    if (reserva) {
       localStorage.setItem("reserva", JSON.stringify(reserva));
     }
   }, [reserva]);
 
-  // 🔑 cargar cerraduras desde backend
+  // ========================== TTLOCK ==========================
   useEffect(() => {
     const fetchLocks = async () => {
       try {
         const res = await fetch(`${API_BASE}/mcp/keys`);
         const data = await res.json();
-        if (Array.isArray(data?.list)) {
-          setLocks(data.list as LockItem[]);
-        }
-      } catch (err) {
-        console.error("Error al cargar cerraduras:", err);
-      }
+        if (Array.isArray(data?.list)) setLocks(data.list);
+      } catch {}
     };
     fetchLocks();
   }, []);
 
-  const handleChange = (
-    index: number,
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    const updatedList = [...formList];
-    updatedList[index] = { ...updatedList[index], [name]: value };
-    setFormList(updatedList);
+  // ========================== HANDLERS ==========================
+  const handleChange = (index: number, e: any) => {
+    const updated = [...formList];
+    updated[index] = { ...updated[index], [e.target.name]: e.target.value };
+    setFormList(updated);
   };
 
-  const handleFileChange = (
-    index: number,
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const { name, files } = e.target;
-    if (files && files.length > 0) {
-      const updatedList = [...formList];
-      (updatedList[index] as any)[name] = files[0];
-      setFormList(updatedList);
-    }
+  const handleFileChange = (index: number, e: any) => {
+    if (!e.target.files?.length) return;
+    const updated = [...formList];
+    updated[index] = { ...updated[index], [e.target.name]: e.target.files[0] };
+    setFormList(updated);
   };
 
   const handleAddGuest = () => setFormList([...formList, {}]);
 
-  function endOfDayEpochMs(dateStr?: string | null): number | null {
+  function endOfDayEpochMs(dateStr?: string): number | null {
     if (!dateStr) return null;
     return new Date(dateStr + "T23:59:59.999").getTime();
   }
 
-  async function createMcpPasscode(params: {
-    lockId: number;
-    endAt: number;
-    startAt?: number;
-    code?: string;
-    name?: string;
-  }) {
+  async function createMcpPasscode(params: any) {
     const res = await fetch(`${API_BASE}/mcp/create-passcode`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     });
     const json = await res.json().catch(() => ({}));
-    return { ok: res.ok && json?.ok !== false, status: res.status, data: json };
+    return { ok: res.ok && json?.ok !== false, data: json };
   }
 
   const handleSubmit = async () => {
-    if (!formList.length) {
-      alert("Agrega al menos un huésped.");
-      return;
-    }
+    if (!formList.length) return alert("Agrega al menos un huésped.");
 
     setLoading(true);
-
     try {
-      const numeroReserva =
-        reserva?.numeroReserva || `TEMP-${Date.now().toString().slice(-6)}`;
+      const titular = formList[0];
 
-      const selectedLockId =
-        (reserva?.lockId && Number(reserva.lockId)) ||
-        (DEFAULT_LOCK_ID > 0 ? DEFAULT_LOCK_ID : 0);
-
-      const endAtMs = endOfDayEpochMs(
-        formList[0]?.fechaSalida || reserva?.checkout || null
+      const fd = new FormData();
+      fd.append(
+        "data",
+        JSON.stringify({
+          huespedes: formList,
+          fechaIngreso: titular.fechaIngreso || null,
+          fechaSalida: titular.fechaSalida || null,
+        })
       );
 
-      const passName = `Reserva-${numeroReserva}`;
-      const correlationId = `res-${numeroReserva}-${Date.now()}`;
+      const res = await fetch(`${API_BASE}/api/checkin`, {
+        method: "POST",
+        body: fd,
+      });
+      const json = await res.json();
 
-      let mcpMsg = `Huéspedes registrados ✅\nReserva: ${numeroReserva}\n`;
-
-      if (selectedLockId && endAtMs) {
-        try {
-          const mcpResp = await createMcpPasscode({
-            lockId: selectedLockId,
-            startAt: Date.now(),
-            endAt: endAtMs,
-            name: passName,
-          });
-
-          if (mcpResp.ok && (mcpResp.data?.result || mcpResp.data?.ok)) {
-            const r = mcpResp.data?.result || {};
-            const code =
-              r.keyboardPwd ?? r.password ?? r.keyboardpwd ?? r.code ?? null;
-
-            mcpMsg += "🔓 Passcode creado en TTLock.";
-            if (code) mcpMsg += `\n🔢 Código: ${code}`;
-            mcpMsg += `\n⏱️ Válido hasta: ${new Date(
-              endAtMs
-            ).toLocaleString()}`;
-          } else {
-            console.warn("MCP create-passcode error:", mcpResp);
-            const detail =
-              mcpResp?.data?.error?.errmsg || "revisa permisos TTLock";
-            mcpMsg += `⚠️ No se pudo crear el passcode (${detail}).`;
-          }
-        } catch (e) {
-          console.error("MCP error:", e);
-          mcpMsg += "⚠️ Error llamando a MCP (revisa consola).";
-        }
-      } else {
-        mcpMsg +=
-          "ℹ️ Se omitió creación de passcode (faltan lockId o fecha de salida).";
+      if (!res.ok || !json.ok) {
+        alert("Error guardando check-in.");
+        return;
       }
 
-      alert(mcpMsg);
+      const numeroReserva = json.numeroReserva;
 
-      // limpiar
-      setFormList([]);
-      localStorage.removeItem("reserva");
-    } catch (err) {
-      console.error("Error:", err);
-      alert("Fallo la conexión al servidor.");
+      setReserva((prev) => ({
+        ...(prev || {}),
+        numeroReserva,
+      }));
+
+      let msg = `Huéspedes registrados\nReserva: ${numeroReserva}\n`;
+
+      const selectedLockId =
+        reserva?.lockId || DEFAULT_LOCK_ID || 0;
+
+      const endAt = endOfDayEpochMs(
+        titular.fechaSalida || reserva?.checkout || ""
+      );
+
+      if (selectedLockId && endAt) {
+        const resp = await createMcpPasscode({
+          lockId: selectedLockId,
+          startAt: Date.now(),
+          endAt,
+          name: `Reserva-${numeroReserva}`,
+        });
+
+        if (resp.ok) {
+          const r = resp.data?.result || {};
+          const code = r.keyboardPwd || r.password || r.code;
+          msg += "Passcode creado.\n";
+          if (code) msg += "Código: " + code;
+        } else {
+          msg += "No se pudo crear passcode.";
+        }
+      } else {
+        msg += "Cerradura o fecha no válida.";
+      }
+
+      // Mostrar modal
+      setModalMessage(msg);
+      setShowModal(true);
+    } catch (e) {
+      alert("Error en conexión.");
     } finally {
       setLoading(false);
     }
   };
 
+  const cargarHuespedesHoy = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/checkin/hoy`);
+      const json = await res.json();
+      setHuespedesHoy(json?.huespedes || []);
+    } catch {
+      setHuespedesHoy([]);
+    }
+  };
+
+  // ========================== UI ==========================
   return (
-    <div style={styles.container}>
+    <>
+      {modal}
 
-      {/* Botón para volver al login */}
-      <button
-        onClick={() => window.location.href = "/"}
-        style={{
-          alignSelf: "flex-start",
-          marginBottom: "1rem",
-          padding: "0.5rem 1rem",
-          borderRadius: "0.5rem",
-          border: "1px solid #4b5563",
-          backgroundColor: "#1f2937",
-          color: "#f9fafb",
-          cursor: "pointer",
-          fontSize: "0.9rem"
-        }}
-      >
-        Volver al Login
-      </button>
+      <div style={styles.container}>
+        <h2 style={styles.title}>Registro de Huéspedes</h2>
 
-      <h2 style={styles.title}>📄 Registro de Huéspedes</h2>
-
-      {reserva?.numeroReserva && (
-        <h3 style={styles.subTitle}>
-          Código de Reserva:{" "}
-          <span style={{ color: "#10b981" }}>{reserva.numeroReserva}</span>
-        </h3>
-      )}
-
-      <div style={styles.card}>
-        <label style={{ display: "block", marginBottom: "0.5rem" }}>
-          Seleccionar Cerradura (TTLock)
-        </label>
-        <select
-          value={reserva?.lockId ?? ""}
-          onChange={(e) =>
-            setReserva({ ...(reserva || {}), lockId: Number(e.target.value) })
-          }
-          style={styles.input}
+        <button
+          onClick={cargarHuespedesHoy}
+          style={{
+            marginBottom: "1.5rem",
+            padding: "0.75rem 2rem",
+            background: "#2563eb",
+            borderRadius: "0.5rem",
+            border: "none",
+            color: "white",
+            fontWeight: "bold",
+            cursor: "pointer",
+          }}
         >
-          <option value="">-- Selecciona una cerradura --</option>
-          {locks.map((lock) => (
-            <option key={lock.lockId} value={lock.lockId}>
-              {lock.lockAlias ||
-                lock.keyName ||
-                lock.lockName ||
-                `Lock-${lock.lockId}`}
-            </option>
-          ))}
-        </select>
-      </div>
+          Ver huéspedes registrados hoy
+        </button>
 
-      {formList.map((formData, index) => (
-        <div key={index} style={styles.card}>
-          {/* Campos originales */}
-          <div style={styles.row}>
-            <input
-              name="nombre"
-              value={formData.nombre || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Nombre completo"
-              style={styles.input}
-            />
-            <select
-              name="tipoDocumento"
-              value={formData.tipoDocumento || ""}
-              onChange={(e) => handleChange(index, e)}
-              style={styles.input}
-            >
-              <option value="Cédula">Cédula</option>
-              <option value="Pasaporte">Pasaporte</option>
-            </select>
-            <input
-              name="numeroDocumento"
-              value={formData.numeroDocumento || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Número documento"
-              style={styles.input}
-            />
-            <input
-              name="nacionalidad"
-              value={formData.nacionalidad || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Colombia"
-              style={styles.input}
-            />
+        {huespedesHoy.length > 0 && (
+          <div style={styles.card}>
+            <h3 style={{ marginBottom: "1rem" }}>
+              Huéspedes registrados hoy
+            </h3>
+            <ul>
+              {huespedesHoy.map((h) => (
+                <li key={h.id}>
+                  {h.nombre} – {h.numeroReserva} –{" "}
+                  {new Date(h.creadoEn).toLocaleString()}
+                </li>
+              ))}
+            </ul>
           </div>
+        )}
 
-          <div style={styles.row}>
-            <input
-              name="direccion"
-              value={formData.direccion || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Dirección"
-              style={styles.input}
-            />
-            <input
-              name="lugarProcedencia"
-              value={formData.lugarProcedencia || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Lugar procedencia"
-              style={styles.input}
-            />
-            <input
-              name="lugarDestino"
-              value={formData.lugarDestino || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Lugar destino"
-              style={styles.input}
-            />
-          </div>
+        {reserva?.numeroReserva && (
+          <h3 style={styles.subTitle}>
+            Código de Reserva:{" "}
+            <span style={{ color: "#10b981" }}>{reserva.numeroReserva}</span>
+          </h3>
+        )}
 
-          {/* 🔹 Nuevos campos visuales */}
-          <div style={styles.row}>
-            <input
-              name="referral"
-              value={formData.referral || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Origen de reserva (Booking, Expedia...)"
-              style={styles.input}
-            />
-            <input
-              name="status"
-              value={formData.status || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Estado de la reserva"
-              style={styles.input}
-            />
-            <input
-              name="nights"
-              type="number"
-              value={formData.nights || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Noches"
-              style={styles.input}
-            />
-            <input
-              name="guests"
-              type="number"
-              value={formData.guests || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Huéspedes"
-              style={styles.input}
-            />
-          </div>
+        <div style={styles.card}>
+          <label style={{ marginBottom: "0.5rem", display: "block" }}>
+            Seleccionar Cerradura
+          </label>
 
-          <div style={styles.row}>
-            <input
-              name="price"
-              type="number"
-              value={formData.price || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Precio por noche"
-              style={styles.input}
-            />
-            <input
-              name="total"
-              type="number"
-              value={formData.total || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Total reserva"
-              style={styles.input}
-            />
-            <input
-              name="b_extras"
-              value={formData.b_extras || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Extras o impuestos"
-              style={styles.input}
-            />
-          </div>
+          <select
+            value={reserva?.lockId ?? ""}
+            onChange={(e) =>
+              setReserva({ ...(reserva || {}), lockId: Number(e.target.value) })
+            }
+            style={styles.input}
+          >
+            <option value="">-- Selecciona --</option>
+            {locks.map((l) => (
+              <option value={l.lockId} key={l.lockId}>
+                {l.lockAlias || l.keyName || l.lockName}
+              </option>
+            ))}
+          </select>
+        </div>
 
-          <div style={styles.row}>
-            <input
-              name="b_smoking"
-              value={formData.b_smoking || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Fumador (SI/NO)"
-              style={styles.input}
-            />
-
-          </div>
-
-          {/* Campos originales finales */}
-          <div style={styles.row}>
-            <input
-              name="telefono"
-              value={formData.telefono || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Teléfono"
-              style={styles.input}
-            />
-            <input
-              name="email"
-              value={formData.email || ""}
-              onChange={(e) => handleChange(index, e)}
-              placeholder="Email"
-              type="email"
-              style={styles.input}
-            />
-            <select
-              name="motivoViaje"
-              value={formData.motivoViaje || ""}
-              onChange={(e) => handleChange(index, e)}
-              style={styles.input}
-            >
-              <option value="Turismo">Turismo</option>
-              <option value="Negocios">Negocios</option>
-            </select>
-          </div>
-
-          <div style={styles.row}>
-            <input
-              type="date"
-              name="fechaIngreso"
-              value={formData.fechaIngreso || ""}
-              onChange={(e) => handleChange(index, e)}
-              style={styles.input}
-            />
-            <input
-              type="date"
-              name="fechaSalida"
-              value={formData.fechaSalida || ""}
-              onChange={(e) => handleChange(index, e)}
-              style={styles.input}
-            />
-          </div>
-
-          <div style={styles.row}>
-            <input
-              type="file"
-              name="archivoAnverso"
-              onChange={(e) => handleFileChange(index, e)}
-              style={styles.input}
-            />
-            <input
-              type="file"
-              name="archivoReverso"
-              onChange={(e) => handleFileChange(index, e)}
-              style={styles.input}
-            />
-            <input
-              type="file"
-              name="archivoFirma"
-              onChange={(e) => handleFileChange(index, e)}
-              style={styles.input}
-            />
-          </div>
-
-
-           <div>            
-            <textarea
-              name="b_meal"
-              value={formData.b_meal || ""}
-              onChange={(e) => handleChange(index, e as any)}
-              placeholder="Comidas incluidas"
-              style={styles.input}
-            />
-            <textarea
-              name="comment"
-              value={formData.comment || ""}
-              onChange={(e) => handleChange(index, e as any)}
-              placeholder="Comentarios"
-              style={styles.input}
-            />
+        {/* FORMULARIOS */}
+        {formList.map((formData, index) => (
+          <div key={index} style={styles.card}>
+            <div style={styles.row}>
+              <input
+                name="nombre"
+                value={formData.nombre || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Nombre completo"
+                style={styles.input}
+              />
+              <select
+                name="tipoDocumento"
+                value={formData.tipoDocumento || ""}
+                onChange={(e) => handleChange(index, e)}
+                style={styles.input}
+              >
+                <option value="Cédula">Cédula</option>
+                <option value="Pasaporte">Pasaporte</option>
+              </select>
+              <input
+                name="numeroDocumento"
+                value={formData.numeroDocumento || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Número documento"
+                style={styles.input}
+              />
+              <input
+                name="nacionalidad"
+                value={formData.nacionalidad || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Colombia"
+                style={styles.input}
+              />
             </div>
 
+            <div style={styles.row}>
+              <input
+                name="direccion"
+                value={formData.direccion || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Dirección"
+                style={styles.input}
+              />
+              <input
+                name="lugarProcedencia"
+                value={formData.lugarProcedencia || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Lugar procedencia"
+                style={styles.input}
+              />
+              <input
+                name="lugarDestino"
+                value={formData.lugarDestino || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Lugar destino"
+                style={styles.input}
+              />
+            </div>
 
+            <div style={styles.row}>
+              <input
+                name="referral"
+                value={formData.referral || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Origen reserva"
+                style={styles.input}
+              />
+              <input
+                name="status"
+                value={formData.status || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Estado"
+                style={styles.input}
+              />
+              <input
+                name="nights"
+                type="number"
+                value={formData.nights || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Noches"
+                style={styles.input}
+              />
+              <input
+                name="guests"
+                type="number"
+                value={formData.guests || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Huéspedes"
+                style={styles.input}
+              />
+            </div>
+
+            <div style={styles.row}>
+              <input
+                name="price"
+                type="number"
+                value={formData.price || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Precio noche"
+                style={styles.input}
+              />
+              <input
+                name="total"
+                type="number"
+                value={formData.total || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Total"
+                style={styles.input}
+              />
+              <input
+                name="b_extras"
+                value={formData.b_extras || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Extras"
+                style={styles.input}
+              />
+            </div>
+
+            <div style={styles.row}>
+              <input
+                name="b_smoking"
+                value={formData.b_smoking || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Fumador"
+                style={styles.input}
+              />
+            </div>
+
+            <div style={styles.row}>
+              <input
+                name="telefono"
+                value={formData.telefono || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Teléfono"
+                style={styles.input}
+              />
+              <input
+                name="email"
+                value={formData.email || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Email"
+                style={styles.input}
+              />
+              <select
+                name="motivoViaje"
+                value={formData.motivoViaje || ""}
+                onChange={(e) => handleChange(index, e)}
+                style={styles.input}
+              >
+                <option value="Turismo">Turismo</option>
+                <option value="Negocios">Negocios</option>
+              </select>
+            </div>
+
+            <div style={styles.row}>
+              <input
+                type="date"
+                name="fechaIngreso"
+                value={formData.fechaIngreso || ""}
+                onChange={(e) => handleChange(index, e)}
+                style={styles.input}
+              />
+              <input
+                type="date"
+                name="fechaSalida"
+                value={formData.fechaSalida || ""}
+                onChange={(e) => handleChange(index, e)}
+                style={styles.input}
+              />
+            </div>
+
+            <div style={styles.row}>
+              <input
+                type="file"
+                name="archivoAnverso"
+                onChange={(e) => handleFileChange(index, e)}
+                style={styles.input}
+              />
+              <input
+                type="file"
+                name="archivoReverso"
+                onChange={(e) => handleFileChange(index, e)}
+                style={styles.input}
+              />
+              <input
+                type="file"
+                name="archivoFirma"
+                onChange={(e) => handleFileChange(index, e)}
+                style={styles.input}
+              />
+            </div>
+
+            <div>
+              <textarea
+                name="b_meal"
+                value={formData.b_meal || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Comidas incluidas"
+                style={styles.input}
+              />
+              <textarea
+                name="comment"
+                value={formData.comment || ""}
+                onChange={(e) => handleChange(index, e)}
+                placeholder="Comentarios"
+                style={styles.input}
+              />
+            </div>
+          </div>
+        ))}
+
+        <div style={styles.actions}>
+          <button
+            onClick={handleAddGuest}
+            style={{
+              ...styles.button,
+              backgroundColor: "#8b5cf6",
+              marginRight: "1rem",
+            }}
+            disabled={loading}
+          >
+            Agregar Huésped
+          </button>
+
+          <button
+            onClick={handleSubmit}
+            style={styles.button}
+            disabled={loading}
+          >
+            {loading ? "Enviando..." : "Enviar Registro"}
+          </button>
         </div>
-      ))}
-
-      <div style={styles.actions}>
-        <button
-          onClick={handleAddGuest}
-          style={{ ...styles.button, backgroundColor: "#8b5cf6", marginRight: "1rem" }}
-          disabled={loading}
-        >
-          ➕ Agregar Huésped
-        </button>
-        <button onClick={handleSubmit} style={styles.button} disabled={loading}>
-          {loading ? "Enviando..." : "✅ Enviar Registro"}
-        </button>
       </div>
-    </div>
+    </>
   );
 }
 
+// ========================== ESTILOS ==========================
 const styles: { [key: string]: React.CSSProperties } = {
   container: {
     background: "#000",

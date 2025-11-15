@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
+
 export default function Login() {
-  const [tipoBusqueda, setTipoBusqueda] = useState("documento");
+  const [tipoBusqueda, setTipoBusqueda] = useState<"documento" | "codigo" | "contacto">("documento");
   const [tipoDocumento, setTipoDocumento] = useState("Cédula");
   const [numeroDocumento, setNumeroDocumento] = useState("");
   const [codigoReserva, setCodigoReserva] = useState("");
+  const [valorContacto, setValorContacto] = useState("");
 
   const navigate = useNavigate();
 
@@ -13,40 +16,29 @@ export default function Login() {
     try {
       let reserva: any = null;
 
-      // Búsqueda por código de reserva (NoBeds)
       if (tipoBusqueda === "codigo" && codigoReserva) {
-        const res = await fetch(
-          `http://18.206.179.50:4000/api/nobeds/reserva/${codigoReserva}`
-        );
+        const res = await fetch(`${API_BASE}/api/nobeds/reserva/${codigoReserva}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.ok) reserva = data.reserva;
+          if (data.ok && data.reserva) reserva = data.reserva;
         }
-      }
-
-      // Búsqueda por documento (BD interna)
-      else if (tipoBusqueda === "documento" && numeroDocumento) {
-        const res = await fetch("http://18.206.179.50:4000/api/checkin/buscar", {
+      } else if (tipoBusqueda === "documento" && numeroDocumento) {
+        const res = await fetch(`${API_BASE}/api/checkin/buscar`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tipoDocumento, numeroDocumento }),
         });
-
         if (res.ok) {
           const data = await res.json();
           reserva = data;
         }
-      }
-
-      // Búsqueda combinada Teléfono/Email (BD → NoBeds)
-      else if (tipoBusqueda === "telefono" && numeroDocumento) {
+      } else if (tipoBusqueda === "contacto" && valorContacto) {
         const res = await fetch(
-          `http://18.206.179.50:4000/api/checkin/buscar-combinado/${numeroDocumento}`
+          `${API_BASE}/api/checkin/buscar-combinado/${encodeURIComponent(valorContacto)}`
         );
-
         if (res.ok) {
           const data = await res.json();
-          reserva = data.data;
+          if (data.ok && data.data) reserva = data.data;
         }
       }
 
@@ -55,13 +47,9 @@ export default function Login() {
         return;
       }
 
-      localStorage.setItem(
-        "usuario",
-        JSON.stringify({ role: "guest-checkin" })
-      );
+      localStorage.setItem("usuario", JSON.stringify({ role: "guest-checkin" }));
       localStorage.setItem("reserva", JSON.stringify(reserva));
       navigate("/checkin", { replace: true });
-
     } catch (err) {
       console.error("Error al consultar reserva:", err);
       alert("Error de conexión con el servidor");
@@ -91,12 +79,12 @@ export default function Login() {
             Buscar por:
             <select
               value={tipoBusqueda}
-              onChange={(e) => setTipoBusqueda(e.target.value)}
+              onChange={(e) => setTipoBusqueda(e.target.value as any)}
               style={styles.select}
             >
               <option value="documento">ID | Documento</option>
-              <option value="codigo">Reservation # | # Reserva</option>
-              <option value="telefono">Teléfono / Email</option>
+              <option value="codigo">Reservation # | Nº Reserva</option>
+              <option value="contacto">Email o Teléfono</option>
             </select>
           </label>
 
@@ -110,7 +98,6 @@ export default function Login() {
                 <option value="Cédula">Cédula</option>
                 <option value="Pasaporte">Pasaporte</option>
               </select>
-
               <input
                 type="text"
                 placeholder="Número de Documento"
@@ -131,12 +118,12 @@ export default function Login() {
             />
           )}
 
-          {tipoBusqueda === "telefono" && (
+          {tipoBusqueda === "contacto" && (
             <input
               type="text"
-              placeholder="Teléfono o Email"
-              value={numeroDocumento}
-              onChange={(e) => setNumeroDocumento(e.target.value)}
+              placeholder="Email o teléfono"
+              value={valorContacto}
+              onChange={(e) => setValorContacto(e.target.value)}
               style={styles.input}
             />
           )}
@@ -146,13 +133,8 @@ export default function Login() {
           <button style={styles.button} onClick={buscarReserva}>
             Consultar Reserva
           </button>
-
           <button
-            style={{
-              ...styles.button,
-              backgroundColor: "#3b82f6",
-              marginTop: "0.75rem",
-            }}
+            style={{ ...styles.button, backgroundColor: "#3b82f6", marginTop: "0.75rem" }}
             onClick={crearFormatoEnBlanco}
           >
             Reservar
@@ -164,12 +146,7 @@ export default function Login() {
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
-  container: {
-    height: "100vh",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  container: { height: "100vh", display: "flex", justifyContent: "center", alignItems: "center" },
   card: {
     backgroundColor: "#1f2937",
     padding: "2rem",
@@ -179,16 +156,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "#333333",
     boxShadow: "0 0 20px rgba(0,0,0,0.4)",
   },
-  title: {
-    marginBottom: "1.5rem",
-    textAlign: "center",
-    fontSize: "1.6rem",
-  },
-  inputGroup: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "1rem",
-  },
+  title: { marginBottom: "1.5rem", textAlign: "center", fontSize: "1.6rem" },
+  inputGroup: { display: "flex", flexDirection: "column", gap: "1rem" },
   input: {
     padding: "0.75rem",
     borderRadius: "0.5rem",
@@ -203,11 +172,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: "#fff",
     color: "#333333",
   },
-  buttonGroup: {
-    marginTop: "1.5rem",
-    display: "flex",
-    flexDirection: "column",
-  },
+  buttonGroup: { marginTop: "1.5rem", display: "flex", flexDirection: "column" },
   button: {
     width: "100%",
     padding: "0.75rem",

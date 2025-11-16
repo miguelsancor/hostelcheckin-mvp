@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 const DEFAULT_LOCK_ID = Number(import.meta.env.VITE_TTLOCK_LOCK_ID || "0");
 
 type Huesped = {
@@ -57,96 +57,20 @@ type HuespedBD = {
 };
 
 export default function CheckinForm() {
+  // ======================= ESTADOS PRINCIPALES =======================
   const [formList, setFormList] = useState<Huesped[]>([]);
   const [reserva, setReserva] = useState<Reserva | null>(null);
   const [loading, setLoading] = useState(false);
   const [locks, setLocks] = useState<LockItem[]>([]);
   const [huespedesHoy, setHuespedesHoy] = useState<HuespedBD[]>([]);
 
-  // ================= MODAL =================
+  // ======================= MODALES =======================
   const [showModal, setShowModal] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
 
-  // Modal flotante FUERA DEL CONTENEDOR
-  const modal = showModal ? (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        backgroundColor: "rgba(0,0,0,0.75)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 99999,
-        padding: "2rem",
-      }}
-    >
-      <div
-        style={{
-          background: "#1f2937",
-          borderRadius: "1rem",
-          width: "100%",
-          maxWidth: "500px",
-          padding: "2rem",
-          border: "1px solid #444",
-        }}
-      >
-        <h2 style={{ marginBottom: "1rem", fontSize: "1.5rem", color: "#fff" }}>
-          Registro Completado
-        </h2>
+  const [showModalHoy, setShowModalHoy] = useState(false);
 
-        <pre
-          style={{
-            background: "#111",
-            color: "#fff",
-            border: "1px solid #333",
-            borderRadius: "0.5rem",
-            padding: "1rem",
-            whiteSpace: "pre-wrap",
-            marginBottom: "2rem",
-            fontSize: "0.9rem",
-          }}
-        >
-          {modalMessage}
-        </pre>
-
-        <button
-          onClick={() => setShowModal(false)}
-          style={{
-            padding: "0.75rem 2rem",
-            background: "#10b981",
-            color: "#fff",
-            border: "none",
-            width: "100%",
-            borderRadius: "0.5rem",
-            marginBottom: "1rem",
-            cursor: "pointer",
-            fontWeight: "bold",
-          }}
-        >
-          Cerrar
-        </button>
-
-        <button
-          onClick={() => (window.location.href = "/")}
-          style={{
-            padding: "0.75rem 2rem",
-            background: "#2563eb",
-            color: "#fff",
-            border: "none",
-            width: "100%",
-            borderRadius: "0.5rem",
-            cursor: "pointer",
-            fontWeight: "bold",
-          }}
-        >
-          Volver al inicio
-        </button>
-      </div>
-    </div>
-  ) : null;
-
-  // ========================== LOCAL STORAGE ==========================
+  // ======================= CARGA RESERVA =======================
   useEffect(() => {
     const data = localStorage.getItem("reserva");
     if (data) {
@@ -158,18 +82,18 @@ export default function CheckinForm() {
             nombre: parsed.name || "",
             email: parsed.email || "",
             telefono: parsed.phone || "",
-            fechaIngreso: parsed.checkin ? parsed.checkin.slice(0, 10) : "",
-            fechaSalida: parsed.checkout ? parsed.checkout.slice(0, 10) : "",
-            referral: parsed.referral || "",
-            status: parsed.status || "",
-            nights: parsed.nights || 0,
-            guests: parsed.guests || 0,
-            price: parsed.price || 0,
-            total: parsed.total || 0,
-            b_extras: parsed.b_extras || "",
-            b_smoking: parsed.b_smoking || "",
-            b_meal: parsed.b_meal || "",
-            comment: parsed.comment || "",
+            fechaIngreso: parsed.checkin?.slice(0, 10),
+            fechaSalida: parsed.checkout?.slice(0, 10),
+            referral: parsed.referral,
+            status: parsed.status,
+            nights: parsed.nights,
+            guests: parsed.guests,
+            price: parsed.price,
+            total: parsed.total,
+            b_extras: parsed.b_extras,
+            b_smoking: parsed.b_smoking,
+            b_meal: parsed.b_meal,
+            comment: parsed.comment,
           };
 
           setReserva({
@@ -183,9 +107,9 @@ export default function CheckinForm() {
 
           setFormList([huesped]);
         } else {
-          const items = Array.isArray(parsed) ? parsed : [parsed];
-          setFormList(items.length ? items : [{}]);
-          setReserva(items[0] ?? null);
+          const arr = Array.isArray(parsed) ? parsed : [parsed];
+          setFormList(arr.length ? arr : [{}]);
+          setReserva(arr[0] ?? null);
         }
         return;
       } catch {}
@@ -196,24 +120,19 @@ export default function CheckinForm() {
   }, []);
 
   useEffect(() => {
-    if (reserva) {
-      localStorage.setItem("reserva", JSON.stringify(reserva));
-    }
+    if (reserva) localStorage.setItem("reserva", JSON.stringify(reserva));
   }, [reserva]);
 
-  // ========================== TTLOCK ==========================
+  // ======================= TTLOCK =======================
   useEffect(() => {
-    const fetchLocks = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/mcp/keys`);
-        const data = await res.json();
-        if (Array.isArray(data?.list)) setLocks(data.list);
-      } catch {}
-    };
-    fetchLocks();
+    fetch(`${API_BASE}/mcp/keys`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (Array.isArray(json?.list)) setLocks(json.list);
+      })
+      .catch(() => {});
   }, []);
 
-  // ========================== HANDLERS ==========================
   const handleChange = (index: number, e: any) => {
     const updated = [...formList];
     updated[index] = { ...updated[index], [e.target.name]: e.target.value };
@@ -229,9 +148,9 @@ export default function CheckinForm() {
 
   const handleAddGuest = () => setFormList([...formList, {}]);
 
-  function endOfDayEpochMs(dateStr?: string): number | null {
-    if (!dateStr) return null;
-    return new Date(dateStr + "T23:59:59.999").getTime();
+  function endOfDayEpochMs(date?: string) {
+    if (!date) return null;
+    return new Date(date + "T23:59:59.999").getTime();
   }
 
   async function createMcpPasscode(params: any) {
@@ -244,10 +163,12 @@ export default function CheckinForm() {
     return { ok: res.ok && json?.ok !== false, data: json };
   }
 
+  // ======================= SUBMIT =======================
   const handleSubmit = async () => {
     if (!formList.length) return alert("Agrega al menos un huésped.");
 
     setLoading(true);
+
     try {
       const titular = formList[0];
 
@@ -267,8 +188,8 @@ export default function CheckinForm() {
       });
       const json = await res.json();
 
-      if (!res.ok || !json.ok) {
-        alert("Error guardando check-in.");
+      if (!json.ok) {
+        alert("Error guardando en la base de datos.");
         return;
       }
 
@@ -281,38 +202,35 @@ export default function CheckinForm() {
 
       let msg = `Huéspedes registrados\nReserva: ${numeroReserva}\n`;
 
-      const selectedLockId =
-        reserva?.lockId || DEFAULT_LOCK_ID || 0;
-
+      const lockId = reserva?.lockId || DEFAULT_LOCK_ID;
       const endAt = endOfDayEpochMs(
         titular.fechaSalida || reserva?.checkout || ""
       );
 
-      if (selectedLockId && endAt) {
-        const resp = await createMcpPasscode({
-          lockId: selectedLockId,
+      if (lockId && endAt) {
+        const r = await createMcpPasscode({
+          lockId,
           startAt: Date.now(),
           endAt,
           name: `Reserva-${numeroReserva}`,
         });
 
-        if (resp.ok) {
-          const r = resp.data?.result || {};
-          const code = r.keyboardPwd || r.password || r.code;
+        if (r.ok) {
+          const data = r.data?.result || {};
+          const code = data.keyboardPwd || data.password || data.code;
           msg += "Passcode creado.\n";
           if (code) msg += "Código: " + code;
         } else {
           msg += "No se pudo crear passcode.";
         }
       } else {
-        msg += "Cerradura o fecha no válida.";
+        msg += "Cerradura o fecha inválida.";
       }
 
-      // Mostrar modal
       setModalMessage(msg);
       setShowModal(true);
-    } catch (e) {
-      alert("Error en conexión.");
+    } catch {
+      alert("Error de conexión.");
     } finally {
       setLoading(false);
     }
@@ -322,22 +240,85 @@ export default function CheckinForm() {
     try {
       const res = await fetch(`${API_BASE}/api/checkin/hoy`);
       const json = await res.json();
-      setHuespedesHoy(json?.huespedes || []);
+      setHuespedesHoy(json.huespedes || []);
     } catch {
       setHuespedesHoy([]);
     }
   };
 
-  // ========================== UI ==========================
+  // ======================= UI =======================
   return (
     <>
-      {modal}
+      {/* ========== MODAL CHECK-IN ========== */}
+      {showModal && (
+        <div style={modalOverlay}>
+          <div style={modalBox}>
+            <h2 style={{ fontSize: "1.5rem", marginBottom: "1rem" }}>
+              Registro Completado
+            </h2>
 
+            <pre style={modalPre}>{modalMessage}</pre>
+
+            <button onClick={() => setShowModal(false)} style={btnPrimary}>
+              Cerrar
+            </button>
+
+            <button
+              onClick={() => (window.location.href = "/")}
+              style={btnSecondary}
+            >
+              Volver al inicio
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========== MODAL HUÉSPEDES HOY ========== */}
+      {showModalHoy && (
+        <div style={modalOverlay}>
+          <div style={{ ...modalBox, maxWidth: "600px", maxHeight: "80vh", overflowY: "auto" }}>
+            <h2 style={{ fontSize: "1.5rem", marginBottom: "1rem" }}>
+              Huéspedes registrados hoy
+            </h2>
+
+            {huespedesHoy.length === 0 ? (
+              <p>No hay registros hoy.</p>
+            ) : (
+              <ul style={{ paddingLeft: "1rem", lineHeight: "1.8rem" }}>
+                {huespedesHoy.map((h) => (
+                  <li key={h.id}>
+                    <strong style={{ color: "#10b981" }}>{h.nombre}</strong>
+                    <br />
+                    {h.numeroReserva} — {new Date(h.creadoEn).toLocaleString()}
+                    <hr style={{ borderColor: "#333", margin: "0.8rem 0" }} />
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <button onClick={() => setShowModalHoy(false)} style={btnPrimary}>
+              Cerrar
+            </button>
+
+            <button
+              onClick={() => (window.location.href = "/")}
+              style={btnSecondary}
+            >
+              Volver al inicio
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========== CONTENIDO PRINCIPAL ========== */}
       <div style={styles.container}>
         <h2 style={styles.title}>Registro de Huéspedes</h2>
 
         <button
-          onClick={cargarHuespedesHoy}
+          onClick={async () => {
+            await cargarHuespedesHoy();
+            setShowModalHoy(true);
+          }}
           style={{
             marginBottom: "1.5rem",
             padding: "0.75rem 2rem",
@@ -352,22 +333,6 @@ export default function CheckinForm() {
           Ver huéspedes registrados hoy
         </button>
 
-        {huespedesHoy.length > 0 && (
-          <div style={styles.card}>
-            <h3 style={{ marginBottom: "1rem" }}>
-              Huéspedes registrados hoy
-            </h3>
-            <ul>
-              {huespedesHoy.map((h) => (
-                <li key={h.id}>
-                  {h.nombre} – {h.numeroReserva} –{" "}
-                  {new Date(h.creadoEn).toLocaleString()}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
         {reserva?.numeroReserva && (
           <h3 style={styles.subTitle}>
             Código de Reserva:{" "}
@@ -375,21 +340,24 @@ export default function CheckinForm() {
           </h3>
         )}
 
+        {/* CERRADURA */}
         <div style={styles.card}>
           <label style={{ marginBottom: "0.5rem", display: "block" }}>
             Seleccionar Cerradura
           </label>
-
           <select
             value={reserva?.lockId ?? ""}
             onChange={(e) =>
-              setReserva({ ...(reserva || {}), lockId: Number(e.target.value) })
+              setReserva({
+                ...(reserva || {}),
+                lockId: Number(e.target.value),
+              })
             }
             style={styles.input}
           >
             <option value="">-- Selecciona --</option>
             {locks.map((l) => (
-              <option value={l.lockId} key={l.lockId}>
+              <option key={l.lockId} value={l.lockId}>
                 {l.lockAlias || l.keyName || l.lockName}
               </option>
             ))}
@@ -620,7 +588,6 @@ export default function CheckinForm() {
           >
             Agregar Huésped
           </button>
-
           <button
             onClick={handleSubmit}
             style={styles.button}
@@ -634,7 +601,61 @@ export default function CheckinForm() {
   );
 }
 
-// ========================== ESTILOS ==========================
+// ======================= ESTILOS =======================
+const modalOverlay: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  backgroundColor: "rgba(0,0,0,0.75)",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  zIndex: 99999,
+  padding: "2rem",
+};
+
+const modalBox: React.CSSProperties = {
+  background: "#1f2937",
+  borderRadius: "1rem",
+  width: "100%",
+  maxWidth: "500px",
+  padding: "2rem",
+  border: "1px solid #444",
+  color: "white",
+};
+
+const modalPre: React.CSSProperties = {
+  whiteSpace: "pre-wrap",
+  background: "#111",
+  padding: "1rem",
+  borderRadius: "0.5rem",
+  border: "1px solid #333",
+  marginBottom: "1.5rem",
+  fontSize: "0.9rem",
+};
+
+const btnPrimary: React.CSSProperties = {
+  padding: "0.75rem 2rem",
+  width: "100%",
+  background: "#10b981",
+  color: "white",
+  borderRadius: "0.5rem",
+  border: "none",
+  fontWeight: "bold",
+  cursor: "pointer",
+  marginBottom: "1rem",
+};
+
+const btnSecondary: React.CSSProperties = {
+  padding: "0.75rem 2rem",
+  width: "100%",
+  background: "#2563eb",
+  color: "white",
+  borderRadius: "0.5rem",
+  border: "none",
+  fontWeight: "bold",
+  cursor: "pointer",
+};
+
 const styles: { [key: string]: React.CSSProperties } = {
   container: {
     background: "#000",
@@ -648,7 +669,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   title: { fontSize: "2rem", marginBottom: "0.5rem" },
   subTitle: { fontSize: "1.2rem", marginBottom: "2rem" },
   card: {
-    border: "1px solid #ccc",
+    border: "1px solid #444",
     padding: "2rem",
     borderRadius: "1rem",
     backgroundColor: "#111",

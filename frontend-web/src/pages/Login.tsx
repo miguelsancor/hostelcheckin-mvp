@@ -1,23 +1,34 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ContactAutocomplete from "../components/ContactAutocomplete";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
 export default function Login() {
-  const [tipoBusqueda, setTipoBusqueda] = useState<"documento" | "codigo" | "contacto">("documento");
+  const [tipoBusqueda, setTipoBusqueda] = useState<
+    "documento" | "codigo" | "contacto"
+  >("documento");
+
   const [tipoDocumento, setTipoDocumento] = useState("Cédula");
   const [numeroDocumento, setNumeroDocumento] = useState("");
   const [codigoReserva, setCodigoReserva] = useState("");
+
+  // 🔥 valor ingresado desde el autocompletado
   const [valorContacto, setValorContacto] = useState("");
 
   const navigate = useNavigate();
 
+  /* ===================================================
+      BUSCAR RESERVA ORIGINAL — SIN CAMBIOS
+  =================================================== */
   const buscarReserva = async () => {
     try {
       let reserva: any = null;
 
       if (tipoBusqueda === "codigo" && codigoReserva) {
-        const res = await fetch(`${API_BASE}/api/nobeds/reserva/${codigoReserva}`);
+        const res = await fetch(
+          `${API_BASE}/api/nobeds/reserva/${codigoReserva}`
+        );
         if (res.ok) {
           const data = await res.json();
           if (data.ok && data.reserva) reserva = data.reserva;
@@ -29,12 +40,13 @@ export default function Login() {
           body: JSON.stringify({ tipoDocumento, numeroDocumento }),
         });
         if (res.ok) {
-          const data = await res.json();
-          reserva = data;
+          reserva = await res.json();
         }
       } else if (tipoBusqueda === "contacto" && valorContacto) {
         const res = await fetch(
-          `${API_BASE}/api/checkin/buscar-combinado/${encodeURIComponent(valorContacto)}`
+          `${API_BASE}/api/checkin/buscar-combinado/${encodeURIComponent(
+            valorContacto
+          )}`
         );
         if (res.ok) {
           const data = await res.json();
@@ -47,17 +59,22 @@ export default function Login() {
         return;
       }
 
-      localStorage.setItem("usuario", JSON.stringify({ role: "guest-checkin" }));
+      localStorage.setItem(
+        "usuario",
+        JSON.stringify({ role: "guest-checkin" })
+      );
       localStorage.setItem("reserva", JSON.stringify(reserva));
       navigate("/checkin", { replace: true });
     } catch (err) {
-      console.error("Error al consultar reserva:", err);
-      alert("Error de conexión con el servidor");
+      alert("Error de conexión");
     }
   };
 
   const crearFormatoEnBlanco = () => {
-    localStorage.setItem("usuario", JSON.stringify({ role: "guest-checkin" }));
+    localStorage.setItem(
+      "usuario",
+      JSON.stringify({ role: "guest-checkin" })
+    );
     localStorage.setItem("reserva", JSON.stringify({}));
     navigate("/checkin", { replace: true });
   };
@@ -88,6 +105,9 @@ export default function Login() {
             </select>
           </label>
 
+          {/* ================================
+              🔹 BUSCAR POR DOCUMENTO
+          ================================= */}
           {tipoBusqueda === "documento" && (
             <>
               <select
@@ -98,6 +118,7 @@ export default function Login() {
                 <option value="Cédula">Cédula</option>
                 <option value="Pasaporte">Pasaporte</option>
               </select>
+
               <input
                 type="text"
                 placeholder="Número de Documento"
@@ -108,6 +129,9 @@ export default function Login() {
             </>
           )}
 
+          {/* ================================
+              🔹 BUSCAR POR CÓDIGO RESERVA
+          ================================= */}
           {tipoBusqueda === "codigo" && (
             <input
               type="text"
@@ -118,14 +142,20 @@ export default function Login() {
             />
           )}
 
+          {/* ================================
+              🔹 BUSCAR POR CONTACTO (AUTOCOMPLETE)
+          ================================= */}
           {tipoBusqueda === "contacto" && (
-            <input
-              type="text"
-              placeholder="Email o teléfono"
-              value={valorContacto}
-              onChange={(e) => setValorContacto(e.target.value)}
-              style={styles.input}
-            />
+            <div style={{ position: "relative" }}>
+              <ContactAutocomplete
+                value={valorContacto}
+                onChange={setValorContacto}
+                onSelectSuggestion={(c) => {
+                  // puedes disparar consulta automática si quieres
+                  console.log("Seleccionado:", c);
+                }}
+              />
+            </div>
           )}
         </div>
 
@@ -133,8 +163,13 @@ export default function Login() {
           <button style={styles.button} onClick={buscarReserva}>
             Consultar Reserva
           </button>
+
           <button
-            style={{ ...styles.button, backgroundColor: "#3b82f6", marginTop: "0.75rem" }}
+            style={{
+              ...styles.button,
+              backgroundColor: "#3b82f6",
+              marginTop: "0.75rem",
+            }}
             onClick={crearFormatoEnBlanco}
           >
             Reservar
@@ -145,15 +180,23 @@ export default function Login() {
   );
 }
 
+/* ========================
+      ESTILOS INLINE
+======================== */
 const styles: { [key: string]: React.CSSProperties } = {
-  container: { height: "100vh", display: "flex", justifyContent: "center", alignItems: "center" },
+  container: {
+    height: "100vh",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   card: {
     backgroundColor: "#1f2937",
     padding: "2rem",
     borderRadius: "1rem",
     width: "100%",
     maxWidth: "400px",
-    color: "#333333",
+    color: "#333",
     boxShadow: "0 0 20px rgba(0,0,0,0.4)",
   },
   title: { marginBottom: "1.5rem", textAlign: "center", fontSize: "1.6rem" },
@@ -163,16 +206,20 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: "0.5rem",
     border: "1px solid #4b5563",
     backgroundColor: "#fff",
-    color: "#333333",
+    color: "#333",
   },
   select: {
     padding: "0.75rem",
     borderRadius: "0.5rem",
     border: "1px solid #4b5563",
     backgroundColor: "#fff",
-    color: "#333333",
+    color: "#333",
   },
-  buttonGroup: { marginTop: "1.5rem", display: "flex", flexDirection: "column" },
+  buttonGroup: {
+    marginTop: "1.5rem",
+    display: "flex",
+    flexDirection: "column",
+  },
   button: {
     width: "100%",
     padding: "0.75rem",

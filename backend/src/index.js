@@ -29,7 +29,6 @@ function generarNumeroReserva() {
   return `${timestamp}-RES-${random}`;
 }
 
-// Lee campos tipo huespedes[0][nombre] + archivos
 function parseGuestsFromFormData(body, files = []) {
   const guests = [];
   const re = /^huespedes\[(\d+)\]\[(.+)\]$/;
@@ -171,6 +170,9 @@ app.post("/api/checkin/guardar-multiple", upload.any(), async (req, res) => {
   }
 });
 
+/* =======================================================================
+   Buscar reserva
+   ======================================================================= */
 app.post("/api/checkin/buscar", async (req, res) => {
   const { codigoReserva, tipoDocumento, numeroDocumento } = req.body;
 
@@ -203,9 +205,9 @@ app.post("/api/checkin/buscar", async (req, res) => {
   }
 });
 
-/* ===================================================================
-   NUEVA API: huéspedes registrados HOY
-   =================================================================== */
+/* =======================================================================
+   Huéspedes de hoy
+   ======================================================================= */
 app.get("/api/checkin/hoy", async (_req, res) => {
   try {
     const inicio = new Date();
@@ -227,7 +229,7 @@ app.get("/api/checkin/hoy", async (_req, res) => {
     return res.json({
       ok: true,
       total: lista.length,
-      huespedes: lista, // IMPORTANTE: propiedad se llama "huespedes"
+      huespedes: lista,
     });
   } catch (err) {
     console.error("error /api/checkin/hoy:", err);
@@ -235,9 +237,96 @@ app.get("/api/checkin/hoy", async (_req, res) => {
   }
 });
 
-/* ===================================================================
-   Búsqueda combinada Teléfono/Email → BD → NoBeds
-   =================================================================== */
+/* =======================================================================
+   AUTOCOMPLETE / PREDICTIVO (versión segura)
+   ======================================================================= */
+   app.get("/api/checkin/contactos", async (req, res) => {
+    try {
+      let { query } = req.query;
+  
+      if (!query) return res.json([]);
+  
+      query = String(query).trim().toLowerCase();
+  
+      /* ==========================================
+         1) BUSCAR EN SQLITE
+      ========================================== */
+      const rawSqlite = await prisma.huesped.findMany({
+        where: {
+          OR: [
+            { telefono: { contains: query } },
+            { email: { contains: query } }
+          ]
+        },
+        select: {
+          id: true,
+          nombre: true,
+          telefono: true,
+          email: true,
+          numeroReserva: true,
+        },
+        take: 20,
+      });
+  
+      // Normalizar resultados
+      const sqliteResults = rawSqlite.map((r) => ({
+        origen: "sqlite",
+        id: r.id,
+        nombre: r.nombre,
+        telefono: r.telefono,
+        email: r.email,
+        numeroReserva: r.numeroReserva,
+      }));
+  
+      /* ==========================================
+         2) BUSCAR EN NOBEDS
+      ========================================== */
+      const NOBEDS_URL = `${process.env.NOBEDS_API}/${process.env.NOBEDS_TOKEN}`;
+  
+      let nobeds = [];
+      try {
+        const nbRes = await axios.get(NOBEDS_URL, { timeout: 20000 });
+  
+        if (Array.isArray(nbRes.data)) {
+          nobeds = nbRes.data
+            .filter((r) => {
+              return (
+                (r.email &&
+                  r.email.toLowerCase().includes(query)) ||
+                (r.phone &&
+                  String(r.phone).toLowerCase().includes(query))
+              );
+            })
+            .map((r) => ({
+              origen: "nobeds",
+              id: r.id || `nb-${r.phone || r.email}`,
+              nombre: r.first_name + " " + r.last_name,
+              telefono: r.phone,
+              email: r.email,
+              numeroReserva: r.order_id,
+            }));
+        }
+      } catch (err) {
+        console.error("Error obteniendo NoBeds:", err.message);
+      }
+  
+      /* ==========================================
+         3) COMBINAR RESULTADOS
+      ========================================== */
+      const combinados = [...sqliteResults, ...nobeds].slice(0, 20);
+  
+      return res.json(combinados);
+    } catch (error) {
+      console.error("ERROR /api/checkin/contactos:", error);
+      return res.status(500).json({ error: "Error interno" });
+    }
+  });
+  
+  
+
+/* =======================================================================
+   Búsqueda combinada local + NoBeds
+   ======================================================================= */
 app.get("/api/checkin/buscar-combinado/:valor", async (req, res) => {
   try {
     const { valor } = req.params;
@@ -246,7 +335,6 @@ app.get("/api/checkin/buscar-combinado/:valor", async (req, res) => {
       return res.status(400).json({ ok: false, error: "Falta valor" });
     }
 
-    // Buscar en base de datos local
     let huesped = await prisma.huesped.findFirst({
       where: {
         OR: [{ telefono: valor }, { email: valor }],
@@ -294,7 +382,7 @@ app.get("/api/checkin/buscar-combinado/:valor", async (req, res) => {
 });
 
 /* =======================================================================
-   Integración NoBeds
+   NoBeds API
    ======================================================================= */
 const NOBEDS_API =
   process.env.NOBEDS_API || "https://api.nobeds.com/api/Bookings";
@@ -336,7 +424,7 @@ app.get("/api/nobeds/reservas", async (_req, res) => {
 });
 
 /* =======================================================================
-   MCP y TTLock
+   MCP + TTLOCK
    ======================================================================= */
 const TTLOCK_BASE = process.env.TTLOCK_BASE || "https://api.ttlock.com";
 let _tt_token = null;
@@ -366,7 +454,8 @@ async function getAccessToken() {
 
   if (!data?.access_token) throw new Error("No access_token from TTLock");
   _tt_token = data.access_token;
-  _tt_expiresAt = Date.now() + parseInt(data.expires_in || "7200", 10) * 1000;
+  _tt_expiresAt =
+    Date.now() + parseInt(data.expires_in || "7200", 10) * 1000;
   return _tt_token;
 }
 
@@ -432,5 +521,5 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 /* ================ Start ================ */
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () =>
-  console.log(`Backend corriendo en http://18.206.179.50:${PORT}`)
+  console.log(`Backend corriendo en http://localhost:${PORT}`)
 );

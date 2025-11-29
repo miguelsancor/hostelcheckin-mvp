@@ -1,12 +1,8 @@
+// frontend-web/src/pages/CheckinForm.hook.ts
 import { useEffect, useState } from "react";
-import type {
-  Huesped,
-  Reserva,
-  LockItem,
-  HuespedBD,
-} from "./CheckinForm.types";
+import type { Huesped, Reserva, LockItem, HuespedBD } from "./CheckinForm.types";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 const DEFAULT_LOCK_ID = Number(import.meta.env.VITE_TTLOCK_LOCK_ID || "0");
 
 // ======================= MAPA DE CERRADURAS POR room_id =======================
@@ -34,6 +30,7 @@ const ROOM_LOCK_MAP: Record<number, number> = {
   2512557: 506, // Pod in Sami 2
 };
 
+// ======================= HELPERS =======================
 function endOfDayEpochMs(date?: string) {
   if (!date) return null;
   return new Date(date + "T23:59:59.999").getTime();
@@ -53,11 +50,11 @@ function getQueryParams() {
   if (typeof window === "undefined") return { orderId: null as string | null };
   const params = new URLSearchParams(window.location.search);
   return {
-    // puedes usar ?orderId= o ?reserva= en la URL
     orderId: params.get("orderId") || params.get("reserva"),
   };
 }
 
+// ======================= HOOK PRINCIPAL =======================
 export function useCheckinForm() {
   const [formList, setFormList] = useState<Huesped[]>([]);
   const [reserva, setReserva] = useState<Reserva | null>(null);
@@ -73,13 +70,10 @@ export function useCheckinForm() {
   useEffect(() => {
     const { orderId } = getQueryParams();
 
-    // 1) Si viene orderId en la URL → cargar desde NoBeds
     if (orderId) {
       (async () => {
         try {
-          const resp = await fetch(
-            `${API_BASE}/api/nobeds/reserva/${orderId}`
-          );
+          const resp = await fetch(`${API_BASE}/api/nobeds/reserva/${orderId}`);
           const json = await resp.json();
 
           if (!json.ok || !json.reserva) {
@@ -118,11 +112,11 @@ export function useCheckinForm() {
             checkin: p.checkin,
             checkout: p.checkout,
             lockId: autoLockId,
+            room_id: p.room_id,
           });
 
           setFormList([huesped]);
 
-          // Guardamos también en localStorage por si vuelve sin URL
           const reservaToStore = {
             order_id: p.order_id,
             name: p.name,
@@ -152,7 +146,7 @@ export function useCheckinForm() {
       return;
     }
 
-    // 2) Si NO hay orderId en URL → usar localStorage (comportamiento anterior)
+    // 2) Si NO hay orderId en URL → usar localStorage
     fallbackFromLocalStorage();
   }, []);
 
@@ -163,6 +157,8 @@ export function useCheckinForm() {
         const parsed = JSON.parse(data);
 
         if (parsed?.order_id) {
+          const autoLockId = ROOM_LOCK_MAP[parsed.room_id] || DEFAULT_LOCK_ID;
+
           const huesped: Huesped = {
             nombre: parsed.name || "",
             email: parsed.email || "",
@@ -181,9 +177,6 @@ export function useCheckinForm() {
             comment: parsed.comment,
           };
 
-          const autoLockId =
-            ROOM_LOCK_MAP[parsed.room_id] || DEFAULT_LOCK_ID;
-
           setReserva({
             numeroReserva: String(parsed.order_id),
             nombre: parsed.name,
@@ -191,13 +184,14 @@ export function useCheckinForm() {
             telefono: parsed.phone,
             checkin: parsed.checkin,
             checkout: parsed.checkout,
+            room_id: parsed.room_id,     // 🔥 FIX AÚN MÁS IMPORTANTE
             lockId: autoLockId,
           });
 
           setFormList([huesped]);
         } else {
           const arr = Array.isArray(parsed) ? parsed : [parsed];
-          setFormList(arr.length ? arr : [{}]);
+          setFormList(arr.length ? arr : [{} as Huesped]);
           setReserva(arr[0] ?? null);
         }
         return;
@@ -206,7 +200,7 @@ export function useCheckinForm() {
       }
     }
 
-    setFormList([{}]);
+    setFormList([{} as Huesped]);
     setReserva(null);
   }
 
@@ -215,7 +209,7 @@ export function useCheckinForm() {
     if (reserva) localStorage.setItem("reserva", JSON.stringify(reserva));
   }, [reserva]);
 
-  // ======================= TTLOCK =======================
+  // ======================= TTLOCK: CARGAR CERRADURAS =======================
   useEffect(() => {
     fetch(`${API_BASE}/mcp/keys`)
       .then((res) => res.json())
@@ -225,6 +219,7 @@ export function useCheckinForm() {
       .catch(() => {});
   }, []);
 
+  // ======================= HANDLERS DE FORM =======================
   const handleChange = (index: number, e: any) => {
     const updated = [...formList];
     updated[index] = { ...updated[index], [e.target.name]: e.target.value };
@@ -238,14 +233,16 @@ export function useCheckinForm() {
     setFormList(updated);
   };
 
-  const handleAddGuest = () => setFormList((prev) => [...prev, {}]);
+  const handleAddGuest = () => setFormList((prev) => [...prev, {} as Huesped]);
 
+  // ======================= HUESPEDES HOY =======================
   const cargarHuespedesHoy = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/checkin/hoy`);
       const json = await res.json();
       setHuespedesHoy(json.huespedes || []);
-    } catch {
+    } catch (err) {
+      console.error("Error cargando huespedes de hoy:", err);
       setHuespedesHoy([]);
     } finally {
       setShowModalHoy(true);
@@ -256,7 +253,10 @@ export function useCheckinForm() {
 
   // ======================= SUBMIT =======================
   const handleSubmit = async () => {
-    if (!formList.length) return alert("Agrega al menos un huésped.");
+    if (!formList.length) {
+      alert("Agrega al menos un huésped.");
+      return;
+    }
 
     setLoading(true);
 
@@ -293,7 +293,9 @@ export function useCheckinForm() {
 
       let msg = `Huéspedes registrados\nReserva: ${numeroReserva}\n`;
 
-      const lockId = reserva?.lockId || DEFAULT_LOCK_ID;
+      const lockId =
+        reserva?.lockId || (reserva?.room_id && ROOM_LOCK_MAP[reserva.room_id]) || DEFAULT_LOCK_ID;
+
       const endAt = endOfDayEpochMs(
         titular.fechaSalida || reserva?.checkout || ""
       );
@@ -320,7 +322,8 @@ export function useCheckinForm() {
 
       setModalMessage(msg);
       setShowModal(true);
-    } catch {
+    } catch (err) {
+      console.error("Error en handleSubmit:", err);
       alert("Error de conexión.");
     } finally {
       setLoading(false);

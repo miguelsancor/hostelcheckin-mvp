@@ -25,32 +25,25 @@ export default function CheckinForm() {
 
   return (
     <>
-      {/* MODAL RESULTADO */}
+      {/* ======================= MODAL RESULTADO ======================= */}
       <ResultModal
         show={showModal}
         message={modalMessage}
         onClose={() => setShowModal(false)}
       />
 
-      {/* MODAL HUÉSPEDES HOY */}
+      {/* ======================= MODAL HUÉSPEDES HOY ======================= */}
       <GuestsTodayModal
         show={showModalHoy}
         huespedes={huespedesHoy}
         onClose={cerrarModalHoy}
       />
 
-      <div
-        style={styles.container}
-        className="mobile-container"
-      >
-        <h2
-          style={styles.title}
-          className="mobile-title"
-        >
-          Registro de Huéspedes
-        </h2>
+      {/* ======================= CONTENEDOR PRINCIPAL ======================= */}
+      <div style={styles.container}>
+        <h2 style={styles.title}>Registro de Huéspedes</h2>
 
-        {/* BOTÓN VER HUÉSPEDES HOY */}
+        {/* BOTÓN PARA VER HUÉSPEDES HOY */}
         <button
           onClick={cargarHuespedesHoy}
           style={{
@@ -63,48 +56,34 @@ export default function CheckinForm() {
             fontWeight: "bold",
             cursor: "pointer",
           }}
-          className="mobile-button"
         >
           Ver huéspedes registrados hoy
         </button>
 
-        {/* RESERVA */}
+        {/* NÚMERO DE RESERVA */}
         {reserva?.numeroReserva && (
-          <h3
-            style={styles.subTitle}
-            className="mobile-subtitle"
-          >
+          <h3 style={styles.subTitle}>
             Código de Reserva:{" "}
-            <span style={{ color: "#10b981" }}>
-              {reserva.numeroReserva}
-            </span>
+            <span style={{ color: "#10b981" }}>{reserva.numeroReserva}</span>
           </h3>
         )}
 
-        {/* CERRADURA */}
-        <div
-          style={styles.card}
-          className="mobile-card"
-        >
-          <label
-            style={{ marginBottom: "0.5rem", display: "block" }}
-          >
+        {/* ======================= CERRADURA ======================= */}
+        <div style={styles.card}>
+          <label style={{ marginBottom: "0.5rem", display: "block" }}>
             Seleccionar Cerradura
           </label>
 
           <select
-              value={reserva?.lockId !== undefined ? reserva.lockId : ""}
-              disabled
-              className="checkin-input"
-              style={{
-                ...styles.input,
-                backgroundColor: "#1f2937",
-                opacity: 0.8,
-                cursor: "not-allowed",
-                width: "100%",
-              }}
-            >
-
+            value={reserva?.lockId !== undefined ? reserva.lockId : ""}
+            disabled
+            style={{
+              ...styles.input,
+              backgroundColor: "#1f2937",
+              opacity: 0.8,
+              cursor: "not-allowed",
+            }}
+          >
             <option value="">-- Selecciona --</option>
             {locks.map((l) => (
               <option key={l.lockId} value={l.lockId}>
@@ -114,7 +93,7 @@ export default function CheckinForm() {
           </select>
         </div>
 
-        {/* FORMULARIOS DE HUÉSPEDES */}
+        {/* ======================= FORM DE HUÉSPEDES ======================= */}
         {formList.map((formData, index) => (
           <GuestCard
             key={index}
@@ -125,11 +104,8 @@ export default function CheckinForm() {
           />
         ))}
 
-        {/* ACCIONES */}
-        <div
-          style={styles.actions}
-          className="mobile-actions"
-        >
+        {/* ======================= BOTONES ======================= */}
+        <div style={styles.actions}>
           <button
             onClick={handleAddGuest}
             style={{
@@ -137,7 +113,6 @@ export default function CheckinForm() {
               backgroundColor: "#8b5cf6",
               marginRight: "1rem",
             }}
-            className="mobile-button"
             disabled={loading}
           >
             Agregar Huésped
@@ -146,7 +121,6 @@ export default function CheckinForm() {
           <button
             onClick={handleSubmit}
             style={styles.button}
-            className="mobile-button"
             disabled={loading}
           >
             {loading ? "Enviando..." : "Enviar Registro"}

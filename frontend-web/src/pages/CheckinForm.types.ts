@@ -35,6 +35,7 @@ export type Huesped = {
     telefono?: string;
     checkin?: string;
     checkout?: string;
+    room_id?: number;
   };
   
   export type LockItem = {

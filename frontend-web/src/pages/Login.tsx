@@ -2,7 +2,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ContactAutocomplete from "../components/ContactAutocomplete";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
+// @ts-ignore
+import * as QRCode from "qrcode";
+
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
 export default function Login() {
   const [tipoBusqueda, setTipoBusqueda] = useState<
@@ -13,14 +16,45 @@ export default function Login() {
   const [numeroDocumento, setNumeroDocumento] = useState("");
   const [codigoReserva, setCodigoReserva] = useState("");
 
-  // 🔥 valor ingresado desde el autocompletado
   const [valorContacto, setValorContacto] = useState("");
+
+  // link + qr
+  const [linkCheckin, setLinkCheckin] = useState<string | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  // reserva encontrada
+  const [reservaEncontrada, setReservaEncontrada] = useState<any>(null);
 
   const navigate = useNavigate();
 
-  /* ===================================================
-      BUSCAR RESERVA ORIGINAL — SIN CAMBIOS
-  =================================================== */
+  /* ===============================================
+      GENERAR LINK + QR
+  =============================================== */
+  const generarLinkYQR = async (reserva: any) => {
+    if (!reserva) return;
+
+    const numero =
+      reserva.numeroReserva || reserva.order_id || reserva.numero || null;
+
+    if (!numero) return;
+
+    const link = `http://localhost:5173/checkin?reserva=${numero}`;
+    setLinkCheckin(link);
+
+    try {
+      const url = await QRCode.toDataURL(link, {
+        width: 280,
+        margin: 2,
+      });
+      setQrDataUrl(url);
+    } catch (err) {
+      console.error("Error QR:", err);
+    }
+  };
+
+  /* ===============================================
+      BUSCAR RESERVA
+  =============================================== */
   const buscarReserva = async () => {
     try {
       let reserva: any = null;
@@ -33,16 +67,18 @@ export default function Login() {
           const data = await res.json();
           if (data.ok && data.reserva) reserva = data.reserva;
         }
-      } else if (tipoBusqueda === "documento" && numeroDocumento) {
+      }
+
+      if (tipoBusqueda === "documento" && numeroDocumento) {
         const res = await fetch(`${API_BASE}/api/checkin/buscar`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tipoDocumento, numeroDocumento }),
         });
-        if (res.ok) {
-          reserva = await res.json();
-        }
-      } else if (tipoBusqueda === "contacto" && valorContacto) {
+        if (res.ok) reserva = await res.json();
+      }
+
+      if (tipoBusqueda === "contacto" && valorContacto) {
         const res = await fetch(
           `${API_BASE}/api/checkin/buscar-combinado/${encodeURIComponent(
             valorContacto
@@ -59,15 +95,30 @@ export default function Login() {
         return;
       }
 
-      localStorage.setItem(
-        "usuario",
-        JSON.stringify({ role: "guest-checkin" })
-      );
-      localStorage.setItem("reserva", JSON.stringify(reserva));
-      navigate("/checkin", { replace: true });
+      // guardar
+      setReservaEncontrada(reserva);
+
+      // generar link + qr
+      await generarLinkYQR(reserva);
+
     } catch (err) {
       alert("Error de conexión");
     }
+  };
+
+  /* ===============================================
+      CONTINUAR AL FORMULARIO CHECKIN
+  =============================================== */
+  const continuarAlCheckin = () => {
+    if (!reservaEncontrada) return;
+
+    localStorage.setItem(
+      "usuario",
+      JSON.stringify({ role: "guest-checkin" })
+    );
+    localStorage.setItem("reserva", JSON.stringify(reservaEncontrada));
+
+    navigate("/checkin", { replace: true });
   };
 
   const crearFormatoEnBlanco = () => {
@@ -76,6 +127,7 @@ export default function Login() {
       JSON.stringify({ role: "guest-checkin" })
     );
     localStorage.setItem("reserva", JSON.stringify({}));
+
     navigate("/checkin", { replace: true });
   };
 
@@ -85,12 +137,12 @@ export default function Login() {
         <h2 style={styles.title}>
           <img
             src="https://kuyay.co/wp-content/uploads/2025/02/android-chrome-192x192-1-e1739471996937.png"
-            alt="Kuyay Logo"
             width="100"
             height="100"
           />
         </h2>
 
+        {/* -------------------- INPUTS ------------------ */}
         <div style={styles.inputGroup}>
           <label>
             Buscar por:
@@ -99,15 +151,12 @@ export default function Login() {
               onChange={(e) => setTipoBusqueda(e.target.value as any)}
               style={styles.select}
             >
-              <option value="documento">ID | Documento</option>
-              <option value="codigo">Reservation # | Nº Reserva</option>
-              <option value="contacto">Email o Teléfono</option>
+              <option value="documento">ID / Documento</option>
+              <option value="codigo">Número de Reserva</option>
+              <option value="contacto">Email / Teléfono</option>
             </select>
           </label>
 
-          {/* ================================
-              🔹 BUSCAR POR DOCUMENTO
-          ================================= */}
           {tipoBusqueda === "documento" && (
             <>
               <select
@@ -129,9 +178,6 @@ export default function Login() {
             </>
           )}
 
-          {/* ================================
-              🔹 BUSCAR POR CÓDIGO RESERVA
-          ================================= */}
           {tipoBusqueda === "codigo" && (
             <input
               type="text"
@@ -142,23 +188,16 @@ export default function Login() {
             />
           )}
 
-          {/* ================================
-              🔹 BUSCAR POR CONTACTO (AUTOCOMPLETE)
-          ================================= */}
           {tipoBusqueda === "contacto" && (
-            <div style={{ position: "relative" }}>
-              <ContactAutocomplete
-                value={valorContacto}
-                onChange={setValorContacto}
-                onSelectSuggestion={(c) => {
-                  // puedes disparar consulta automática si quieres
-                  console.log("Seleccionado:", c);
-                }}
-              />
-            </div>
+            <ContactAutocomplete
+              value={valorContacto}
+              onChange={setValorContacto}
+              onSelectSuggestion={() => {}}
+            />
           )}
         </div>
 
+        {/* -------------------- BOTONES ------------------ */}
         <div style={styles.buttonGroup}>
           <button style={styles.button} onClick={buscarReserva}>
             Consultar Reserva
@@ -175,14 +214,63 @@ export default function Login() {
             Reservar
           </button>
         </div>
+
+        {/* -------------------- LINK + QR ------------------ */}
+        {linkCheckin && (
+          <div style={{ marginTop: "1.5rem", textAlign: "center" }}>
+            <p style={{ color: "#fff" }}>Link para completar check-in:</p>
+
+            <div
+              style={{
+                background: "#111",
+                padding: "0.8rem",
+                borderRadius: "8px",
+                wordBreak: "break-all",
+                color: "#0bf",
+              }}
+            >
+              {linkCheckin}
+            </div>
+
+            <button
+              style={{
+                ...styles.button,
+                backgroundColor: "#10b981",
+                marginTop: "0.8rem",
+              }}
+              onClick={() => navigator.clipboard.writeText(linkCheckin)}
+            >
+              Copiar Link
+            </button>
+
+            {qrDataUrl && (
+              <div style={{ marginTop: "1rem" }}>
+                <img
+                  src={qrDataUrl}
+                  alt="QR Code"
+                  style={{ width: "180px", height: "180px" }}
+                />
+              </div>
+            )}
+
+            <button
+              style={{
+                ...styles.button,
+                backgroundColor: "#f59e0b",
+                marginTop: "1rem",
+              }}
+              onClick={continuarAlCheckin}
+            >
+              Continuar al Check-in
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-/* ========================
-      ESTILOS INLINE
-======================== */
+/* ======================= ESTILOS ======================= */
 const styles: { [key: string]: React.CSSProperties } = {
   container: {
     height: "100vh",
@@ -196,7 +284,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: "1rem",
     width: "100%",
     maxWidth: "400px",
-    color: "#333",
+    color: "#fff",
     boxShadow: "0 0 20px rgba(0,0,0,0.4)",
   },
   title: { marginBottom: "1.5rem", textAlign: "center", fontSize: "1.6rem" },

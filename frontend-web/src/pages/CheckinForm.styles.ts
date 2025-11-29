@@ -1,5 +1,8 @@
 import type React from "react";
 
+/* ============================================================
+   MODALES
+============================================================ */
 export const modalOverlay: React.CSSProperties = {
   position: "fixed",
   inset: 0,
@@ -8,7 +11,7 @@ export const modalOverlay: React.CSSProperties = {
   justifyContent: "center",
   alignItems: "center",
   zIndex: 99999,
-  padding: "2rem",
+  padding: "1rem",
 };
 
 export const modalBox: React.CSSProperties = {
@@ -16,7 +19,7 @@ export const modalBox: React.CSSProperties = {
   borderRadius: "1rem",
   width: "100%",
   maxWidth: "500px",
-  padding: "2rem",
+  padding: "1.5rem",
   border: "1px solid #444",
   color: "white",
 };
@@ -54,6 +57,9 @@ export const btnSecondary: React.CSSProperties = {
   cursor: "pointer",
 };
 
+/* ============================================================
+   ESTILOS PRINCIPALES CHECKINFORM
+============================================================ */
 export const styles: { [key: string]: React.CSSProperties } = {
   container: {
     background: "#000",
@@ -63,24 +69,42 @@ export const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
+
+    // El fondo que ya tenías
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
   },
-  title: { fontSize: "2rem", marginBottom: "0.5rem" },
-  subTitle: { fontSize: "1.2rem", marginBottom: "2rem" },
+
+  title: {
+    fontSize: "2rem",
+    marginBottom: "1rem",
+    textAlign: "center",
+  },
+
+  subTitle: {
+    fontSize: "1.2rem",
+    marginBottom: "2rem",
+    textAlign: "center",
+  },
+
   card: {
     border: "1px solid #444",
     padding: "2rem",
     borderRadius: "1rem",
-    backgroundColor: "#111",
-    maxWidth: "90%",
-    width: "1100px",
+    backgroundColor: "rgba(0,0,0,0.7)",
+    width: "100%",
+    maxWidth: "900px",  // ESCRITORIO intacto
     marginBottom: "2rem",
   },
+
   row: {
     display: "flex",
     flexWrap: "wrap",
     gap: "1rem",
     marginBottom: "1rem",
   },
+
   input: {
     flex: "1",
     minWidth: "180px",
@@ -89,8 +113,14 @@ export const styles: { [key: string]: React.CSSProperties } = {
     border: "1px solid #4b5563",
     backgroundColor: "#1f2937",
     color: "#f9fafb",
+    fontSize: "1rem",
   },
-  actions: { marginTop: "1.5rem", textAlign: "center" },
+
+  actions: {
+    marginTop: "1.5rem",
+    textAlign: "center",
+  },
+
   button: {
     padding: "0.75rem 2rem",
     border: "none",
@@ -102,3 +132,35 @@ export const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "1rem",
   },
 };
+
+/* ============================================================
+   MEDIA QUERIES PARA MÓVIL — NO AFECTAN ESCRITORIO
+============================================================ */
+const mobileCss = `
+@media (max-width: 768px) {
+
+  /* Contenedor principal */
+  .checkin-container {
+    padding: 1rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Tarjeta */
+  .checkin-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 1rem !important;
+  }
+
+  /* Inputs full width */
+  .checkin-input {
+    min-width: 100% !important;
+    width: 100% !important;
+  }
+}
+`;
+
+const styleTag = document.createElement("style");
+styleTag.innerHTML = mobileCss;
+document.head.appendChild(styleTag);

@@ -12,20 +12,9 @@ type GuestCardProps = {
     >
   ) => void;
   onFile: (index: number, e: React.ChangeEvent<HTMLInputElement>) => void;
-
-  // 🔥 NUEVO: props para usar el modal de motivos
-  motivoDetallado: string;
-  onOpenMotivoModal: () => void;
 };
 
-export function GuestCard({
-  data,
-  index,
-  onChange,
-  onFile,
-  motivoDetallado,
-  onOpenMotivoModal,
-}: GuestCardProps) {
+export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -37,6 +26,7 @@ export function GuestCard({
 
   return (
     <div style={styles.card}>
+
       {/* ===================== DATOS BÁSICOS ===================== */}
       <div style={styles.row}>
         <input
@@ -71,7 +61,7 @@ export function GuestCard({
         />
       </div>
 
-      {/* ===================== NUEVO: FECHA NACIMIENTO ===================== */}
+      {/* ===================== FECHA NACIMIENTO ===================== */}
       <div style={styles.row}>
         <input
           type="date"
@@ -82,7 +72,7 @@ export function GuestCard({
         />
       </div>
 
-      {/* ===================== ORIGEN Y DESTINO ===================== */}
+      {/* ===================== ORIGEN / DESTINO ===================== */}
       <div style={styles.row}>
         <input
           name="paisOrigen"
@@ -224,27 +214,6 @@ export function GuestCard({
         </select>
       </div>
 
-      {/* ===================== MOTIVO DETALLADO (USAR MODAL) ===================== */}
-      <div style={{ marginTop: "1rem" }}>
-        <label style={{ color: "white", fontWeight: "bold" }}>
-          Motivo detallado:
-        </label>
-
-        <div
-          onClick={onOpenMotivoModal}
-          style={{
-            marginTop: "0.5rem",
-            background: "#1f2937",
-            padding: "0.75rem",
-            borderRadius: "0.5rem",
-            cursor: "pointer",
-            color: motivoDetallado ? "#10b981" : "#9ca3af",
-          }}
-        >
-          {motivoDetallado || "Seleccionar"}
-        </div>
-      </div>
-
       {/* ===================== FECHAS ===================== */}
       <div style={styles.row}>
         <input
@@ -265,21 +234,34 @@ export function GuestCard({
 
       {/* ===================== ARCHIVOS ===================== */}
       <div style={styles.row}>
-        <input type="file" name="archivoAnverso" onChange={handleFile} style={styles.input} />
-        <input type="file" name="archivoReverso" onChange={handleFile} style={styles.input} />
-        <input type="file" name="archivoFirma" onChange={handleFile} style={styles.input} />
-      </div>
-
-      {/* ===================== COMENTARIOS ===================== */}
-      <div>
-        <textarea
-          name="comment"
-          value={data.comment || ""}
-          onChange={handleChange}
-          placeholder="Comentarios"
+        <input
+          type="file"
+          name="archivoAnverso"
+          onChange={handleFile}
+          style={styles.input}
+        />
+        <input
+          type="file"
+          name="archivoReverso"
+          onChange={handleFile}
+          style={styles.input}
+        />
+        <input
+          type="file"
+          name="archivoFirma"
+          onChange={handleFile}
           style={styles.input}
         />
       </div>
+
+      {/* ===================== COMENTARIOS ===================== */}
+      <textarea
+        name="comment"
+        value={data.comment || ""}
+        onChange={handleChange}
+        placeholder="Comentarios"
+        style={styles.input}
+      />
     </div>
   );
 }

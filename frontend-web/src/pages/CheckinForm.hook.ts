@@ -1,34 +1,10 @@
 // frontend-web/src/pages/CheckinForm.hook.ts
 import { useEffect, useState } from "react";
 import type { Huesped, Reserva, LockItem, HuespedBD } from "./CheckinForm.types";
+import { roomMapping } from "./roomMapping";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 const DEFAULT_LOCK_ID = Number(import.meta.env.VITE_TTLOCK_LOCK_ID || "0");
-
-// ======================= MAPA DE CERRADURAS POR room_id =======================
-const ROOM_LOCK_MAP: Record<number, number> = {
-  2457340: 101, // Kalpa
-  2470380: 102, // Kusi
-  2468950: 103, // Kanchi
-  2465274: 104, // Allyn
-
-  2463146: 201, // Pod in Wasi 1
-  2496688: 202, // Pod in Wasi 2
-
-  2457300: 301, // Bed in Wasi 1
-
-  2457341: 401, // Suyana
-
-  2502145: 105, // Allpa
-  2502147: 106, // Unu
-  2502148: 107, // Sonqo
-  2502149: 108, // Inti
-  2502150: 109, // Llampu
-
-  2504850: 501, // Sami
-  2512556: 505, // Pod in Sami 1
-  2512557: 506, // Pod in Sami 2
-};
 
 // ======================= HELPERS =======================
 function endOfDayEpochMs(date?: string) {
@@ -52,6 +28,11 @@ function getQueryParams() {
   return {
     orderId: params.get("orderId") || params.get("reserva"),
   };
+}
+
+// normaliza nombres para comparar
+function normalizeName(name?: string | null) {
+  return (name || "").trim().toUpperCase();
 }
 
 // ======================= HOOK PRINCIPAL =======================
@@ -84,8 +65,6 @@ export function useCheckinForm() {
 
           const p = json.reserva;
 
-          const autoLockId = ROOM_LOCK_MAP[p.room_id] || DEFAULT_LOCK_ID;
-
           const huesped: Huesped = {
             nombre: p.name || "",
             email: p.email || "",
@@ -104,6 +83,7 @@ export function useCheckinForm() {
             comment: p.comment,
           };
 
+          // ⚠️ IMPORTANTE: aquí NO calculamos lockId todavía.
           setReserva({
             numeroReserva: String(p.order_id),
             nombre: p.name,
@@ -111,8 +91,8 @@ export function useCheckinForm() {
             telefono: p.phone,
             checkin: p.checkin,
             checkout: p.checkout,
-            lockId: autoLockId,
             room_id: p.room_id,
+            lockId: undefined,
           });
 
           setFormList([huesped]);
@@ -157,8 +137,6 @@ export function useCheckinForm() {
         const parsed = JSON.parse(data);
 
         if (parsed?.order_id) {
-          const autoLockId = ROOM_LOCK_MAP[parsed.room_id] || DEFAULT_LOCK_ID;
-
           const huesped: Huesped = {
             nombre: parsed.name || "",
             email: parsed.email || "",
@@ -184,8 +162,8 @@ export function useCheckinForm() {
             telefono: parsed.phone,
             checkin: parsed.checkin,
             checkout: parsed.checkout,
-            room_id: parsed.room_id,     // 🔥 FIX AÚN MÁS IMPORTANTE
-            lockId: autoLockId,
+            room_id: parsed.room_id,
+            lockId: undefined, // se resuelve luego con locks + roomMapping
           });
 
           setFormList([huesped]);
@@ -218,6 +196,37 @@ export function useCheckinForm() {
       })
       .catch(() => {});
   }, []);
+
+  // ======================= RESOLVER lockId A PARTIR DE room_id + locks + Excel =======================
+  useEffect(() => {
+    if (!reserva?.room_id || !locks.length) return;
+
+    const roomNameFromExcel = roomMapping[String(reserva.room_id)];
+
+    // Si no existe o explícitamente dice que no tiene cerradura → dejar sin lockId
+    if (
+      !roomNameFromExcel ||
+      roomNameFromExcel.toLowerCase().includes("no tiene cerradura")
+    ) {
+      if (reserva.lockId !== undefined) {
+        setReserva((prev) => (prev ? { ...prev, lockId: undefined } : prev));
+      }
+      return;
+    }
+
+    const target = normalizeName(roomNameFromExcel);
+
+    const match = locks.find((l) => {
+      const alias = normalizeName(l.lockAlias);
+      const keyName = normalizeName((l as any).keyName);
+      const lockName = normalizeName((l as any).lockName);
+      return alias === target || keyName === target || lockName === target;
+    });
+
+    if (match && match.lockId !== reserva.lockId) {
+      setReserva((prev) => (prev ? { ...prev, lockId: match.lockId } : prev));
+    }
+  }, [reserva?.room_id, locks]);
 
   // ======================= HANDLERS DE FORM =======================
   const handleChange = (index: number, e: any) => {
@@ -293,8 +302,8 @@ export function useCheckinForm() {
 
       let msg = `Huéspedes registrados\nReserva: ${numeroReserva}\n`;
 
-      const lockId =
-        reserva?.lockId || (reserva?.room_id && ROOM_LOCK_MAP[reserva.room_id]) || DEFAULT_LOCK_ID;
+      // 👉 Ahora usamos directamente reserva.lockId (ya resuelto por el useEffect anterior)
+      const lockId = reserva?.lockId || (DEFAULT_LOCK_ID || 0);
 
       const endAt = endOfDayEpochMs(
         titular.fechaSalida || reserva?.checkout || ""

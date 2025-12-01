@@ -53,8 +53,15 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
     } as any);
   };
 
+  /* =========================================================
+     DETECTAR DOCUMENTO PARA MOSTRAR ARCHIVOS
+     ========================================================= */
+  const esCedula = data.tipoDocumento === "Cédula";
+  const esPasaporte = data.tipoDocumento === "Pasaporte";
+
   return (
     <div style={styles.card}>
+
       {/* ===================== DATOS BÁSICOS ===================== */}
       <div style={styles.row}>
         <input
@@ -93,7 +100,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
       <div style={styles.row}>
         <div style={{ width: "100%" }}>
           <label style={{ color: "white", fontSize: "0.85rem" }}>
-            Fecha de nacimiento :  
+            Fecha de nacimiento :
           </label>
           <input
             type="date"
@@ -191,7 +198,6 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           placeholder="Precio noche"
           style={styles.input}
         />
-
         <input
           name="total"
           value={formatCurrency(data.total)}
@@ -199,13 +205,9 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           placeholder="Total"
           style={styles.input}
         />
-
-
       </div>
 
-
-
-      {/* ===================== TELÉFONO / EMAIL / MOTIVO GENERAL ===================== */}
+      {/* ===================== TELÉFONO / EMAIL ===================== */}
       <div style={styles.row}>
         <input
           name="telefono"
@@ -221,7 +223,6 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           placeholder="Email"
           style={styles.input}
         />
-
       </div>
 
       {/* ===================== FECHAS ===================== */}
@@ -242,28 +243,67 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
         />
       </div>
 
-      {/* ===================== ARCHIVOS ===================== */}
-      <div style={styles.row}>
-        <input
-          type="file"
-          name="archivoAnverso"
-          onChange={handleFile}
-          style={styles.input}
-        />
-        <input
-          type="file"
-          name="archivoReverso"
-          onChange={handleFile}
-          style={styles.input}
-        />
-        <input
-          type="file"
-          name="archivoFirma"
-          onChange={handleFile}
-          style={styles.input}
-        />
-      </div>
+      {/* ===================== ARCHIVOS (SEGÚN DOCUMENTO) ===================== */}
+      <div style={{ ...styles.row, flexDirection: "column", gap: "0.75rem" }}>
 
+        {/* === TEXTO EXPLICATIVO === */}
+        {esCedula && (
+          <p style={{ color: "white", fontSize: "0.9rem", marginBottom: "0.25rem" }}>
+            Para <strong>Cédula</strong>: suba la foto <strong>delantera (anverso)</strong> y la foto <strong>trasera (reverso)</strong>.
+          </p>
+        )}
+
+        {esPasaporte && (
+          <p style={{ color: "white", fontSize: "0.9rem", marginBottom: "0.25rem" }}>
+            Para <strong>Pasaporte</strong>: suba una <strong>única foto del documento</strong>.
+          </p>
+        )}
+
+        {/* === INPUTS DE ARCHIVOS === */}
+        <div style={{ display: "flex", width: "100%", gap: "1rem" }}>
+          {esCedula && (
+            <>
+              <div style={{ flex: 1 }}>
+                <label style={{ color: "white", fontSize: "0.8rem" }}>
+                  Foto anverso:
+                </label>
+                <input
+                  type="file"
+                  name="archivoAnverso"
+                  onChange={handleFile}
+                  style={styles.input}
+                />
+              </div>
+
+              <div style={{ flex: 1 }}>
+                <label style={{ color: "white", fontSize: "0.8rem" }}>
+                  Foto reverso:
+                </label>
+                <input
+                  type="file"
+                  name="archivoReverso"
+                  onChange={handleFile}
+                  style={styles.input}
+                />
+              </div>
+            </>
+          )}
+
+          {esPasaporte && (
+            <div style={{ width: "100%" }}>
+              <label style={{ color: "white", fontSize: "0.8rem" }}>
+                Foto del pasaporte:
+              </label>
+              <input
+                type="file"
+                name="archivoPasaporte"
+                onChange={handleFile}
+                style={styles.input}
+              />
+            </div>
+          )}
+        </div>
+      </div>
 
     </div>
   );

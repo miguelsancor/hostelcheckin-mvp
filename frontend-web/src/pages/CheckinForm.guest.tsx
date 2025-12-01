@@ -133,15 +133,19 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           placeholder="Total"
           style={styles.input}
         />
-        <input
+
+        {/** ❌ ELIMINADO b_extras */}
+        {/* <input
           name="b_extras"
           value={data.b_extras || ""}
           onChange={handleChange}
           placeholder="Extras"
           style={styles.input}
-        />
+        /> */}
       </div>
 
+      {/** ❌ ELIMINADO b_smoking */}
+      {/* 
       <div style={styles.row}>
         <input
           name="b_smoking"
@@ -151,6 +155,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           style={styles.input}
         />
       </div>
+      */}
 
       <div style={styles.row}>
         <input
@@ -217,6 +222,8 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
       </div>
 
       <div>
+        {/** ❌ ELIMINADO b_meal */}
+        {/* 
         <textarea
           name="b_meal"
           value={data.b_meal || ""}
@@ -224,6 +231,8 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           placeholder="Comidas incluidas"
           style={styles.input}
         />
+        */}
+
         <textarea
           name="comment"
           value={data.comment || ""}

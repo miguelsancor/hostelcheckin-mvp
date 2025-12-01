@@ -26,6 +26,8 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
 
   return (
     <div style={styles.card}>
+
+      {/* ===================== DATOS BÁSICOS ===================== */}
       <div style={styles.row}>
         <input
           name="nombre"
@@ -54,11 +56,41 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           name="nacionalidad"
           value={data.nacionalidad || ""}
           onChange={handleChange}
-          placeholder="Colombia"
+          placeholder="Nacionalidad"
           style={styles.input}
         />
       </div>
 
+      {/* ===================== NUEVO: FECHA NACIMIENTO ===================== */}
+      <div style={styles.row}>
+        <input
+          type="date"
+          name="fechaNacimiento"
+          value={data.fechaNacimiento || ""}
+          onChange={handleChange}
+          style={styles.input}
+        />
+      </div>
+
+      {/* ===================== NUEVO: ORIGEN Y DESTINO (EXTRANJEROS) ===================== */}
+      <div style={styles.row}>
+        <input
+          name="paisOrigen"
+          value={data.paisOrigen || ""}
+          onChange={handleChange}
+          placeholder="País de origen"
+          style={styles.input}
+        />
+        <input
+          name="paisDestino"
+          value={data.paisDestino || ""}
+          onChange={handleChange}
+          placeholder="País de destino"
+          style={styles.input}
+        />
+      </div>
+
+      {/* ===================== DIRECCIONES ===================== */}
       <div style={styles.row}>
         <input
           name="direccion"
@@ -83,6 +115,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
         />
       </div>
 
+      {/* ===================== RESERVA ===================== */}
       <div style={styles.row}>
         <input
           name="referral"
@@ -116,6 +149,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
         />
       </div>
 
+      {/* ===================== PRECIOS ===================== */}
       <div style={styles.row}>
         <input
           name="price"
@@ -133,19 +167,16 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           placeholder="Total"
           style={styles.input}
         />
-
-        {/** ❌ ELIMINADO b_extras */}
-        {/* <input
+        <input
           name="b_extras"
           value={data.b_extras || ""}
           onChange={handleChange}
           placeholder="Extras"
           style={styles.input}
-        /> */}
+        />
       </div>
 
-      {/** ❌ ELIMINADO b_smoking */}
-      {/* 
+      {/* ===================== FUMADOR ===================== */}
       <div style={styles.row}>
         <input
           name="b_smoking"
@@ -155,8 +186,8 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           style={styles.input}
         />
       </div>
-      */}
 
+      {/* ===================== TELÉFONO / EMAIL ===================== */}
       <div style={styles.row}>
         <input
           name="telefono"
@@ -183,6 +214,37 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
         </select>
       </div>
 
+      {/* ===================== NUEVO: MOTIVO DETALLADO (CHECKBOX) ===================== */}
+      <div style={{ ...styles.row, flexDirection: "column", gap: "0.5rem" }}>
+        <label style={{ color: "white" }}>Motivo detallado:</label>
+
+        {[
+          "Tourism",
+          "Medical check up",
+          "Business",
+          "Musical event",
+          "Missed flight",
+          "Family visit",
+          "Sporting event",
+          "Shopping",
+          "Academic event",
+          "Other"
+        ].map((motivo) => (
+          <label key={motivo} style={{ color: "white" }}>
+            <input
+              type="checkbox"
+              name="motivoViajeDetalle"
+              value={motivo}
+              checked={data.motivoViajeDetalle?.includes(motivo) || false}
+              onChange={handleChange}
+              style={{ marginRight: "8px" }}
+            />
+            {motivo}
+          </label>
+        ))}
+      </div>
+
+      {/* ===================== FECHAS ===================== */}
       <div style={styles.row}>
         <input
           type="date"
@@ -200,6 +262,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
         />
       </div>
 
+      {/* ===================== ARCHIVOS ===================== */}
       <div style={styles.row}>
         <input
           type="file"
@@ -221,18 +284,8 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
         />
       </div>
 
+      {/* ===================== COMENTARIOS ===================== */}
       <div>
-        {/** ❌ ELIMINADO b_meal */}
-        {/* 
-        <textarea
-          name="b_meal"
-          value={data.b_meal || ""}
-          onChange={handleChange}
-          placeholder="Comidas incluidas"
-          style={styles.input}
-        />
-        */}
-
         <textarea
           name="comment"
           value={data.comment || ""}
@@ -241,6 +294,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           style={styles.input}
         />
       </div>
+
     </div>
   );
 }

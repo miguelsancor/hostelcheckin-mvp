@@ -44,7 +44,7 @@ npx prisma studio
 node index.js
 ```
 
-> 📍 El backend estará disponible en: `http://localhost:4000`
+> 📍 El backend estará disponible en: `http://18.206.179.50:4000`
 
 ---
 
@@ -56,7 +56,7 @@ npm install
 npm run dev
 ```
 
-> 🌍 El frontend estará disponible en: `http://localhost:5173`
+> 🌍 El frontend estará disponible en: `http://18.206.179.50:5173`
 
 ---
 

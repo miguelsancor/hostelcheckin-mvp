@@ -96,21 +96,36 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
         />
       </div>
 
-      {/* ===================== FECHA DE NACIMIENTO ===================== */}
-      <div style={styles.row}>
-        <div style={{ width: "100%" }}>
-          <label style={{ color: "white", fontSize: "0.85rem" }}>
-            Fecha de nacimiento :
-          </label>
-          <input
-            type="date"
-            name="fechaNacimiento"
-            value={data.fechaNacimiento || ""}
-            onChange={handleChange}
-            style={styles.input}
-          />
+        {/* ===================== FECHA DE NACIMIENTO ===================== */}
+        <div style={{ ...styles.row, alignItems: "center" }}>
+          <div style={{ display: "flex", flexDirection: "column", width: "250px" }}>
+            <label
+              style={{
+                color: "white",
+                fontSize: "0.85rem",
+                marginBottom: "4px",
+                fontWeight: "bold",
+              }}
+            >
+              Fecha de nacimiento
+            </label>
+
+            <input
+              type="date"
+              name="fechaNacimiento"
+              value={data.fechaNacimiento || ""}
+              onChange={handleChange}
+              style={{
+                ...styles.input,
+                padding: "10px",
+                height: "40px",
+                borderRadius: "8px",
+                fontSize: "0.95rem",
+              }}
+            />
+          </div>
         </div>
-      </div>
+
 
       {/* ===================== ORIGEN / DESTINO ===================== */}
       <div style={styles.row}>

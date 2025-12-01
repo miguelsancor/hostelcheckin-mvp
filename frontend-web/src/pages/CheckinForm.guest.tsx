@@ -24,9 +24,37 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) =>
     onFile(index, e);
 
+  /* =========================================================
+     FORMATEO DE MONEDA
+     ========================================================= */
+  const formatCurrency = (value: number | string | null | undefined) => {
+    if (!value) return "";
+    const num = Number(value);
+    if (isNaN(num)) return "";
+    return num.toLocaleString("es-CO", {
+      style: "currency",
+      currency: "COP",
+      minimumFractionDigits: 0,
+    });
+  };
+
+  const handleCurrencyChange = (
+    field: string,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const raw = e.target.value.replace(/[^0-9]/g, "");
+    const parsed = raw === "" ? "" : Number(raw);
+
+    handleChange({
+      target: {
+        name: field,
+        value: parsed,
+      },
+    } as any);
+  };
+
   return (
     <div style={styles.card}>
-
       {/* ===================== DATOS BÁSICOS ===================== */}
       <div style={styles.row}>
         <input
@@ -61,15 +89,20 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
         />
       </div>
 
-      {/* ===================== FECHA NACIMIENTO ===================== */}
+      {/* ===================== FECHA DE NACIMIENTO ===================== */}
       <div style={styles.row}>
-        <input
-          type="date"
-          name="fechaNacimiento"
-          value={data.fechaNacimiento || ""}
-          onChange={handleChange}
-          style={styles.input}
-        />
+        <div style={{ width: "100%" }}>
+          <label style={{ color: "white", fontSize: "0.85rem" }}>
+            Fecha de nacimiento :  
+          </label>
+          <input
+            type="date"
+            name="fechaNacimiento"
+            value={data.fechaNacimiento || ""}
+            onChange={handleChange}
+            style={styles.input}
+          />
+        </div>
       </div>
 
       {/* ===================== ORIGEN / DESTINO ===================== */}
@@ -149,45 +182,30 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
         />
       </div>
 
-      {/* ===================== PRECIOS ===================== */}
+      {/* ===================== PRECIO / TOTAL ===================== */}
       <div style={styles.row}>
         <input
           name="price"
-          type="number"
-          value={data.price ?? ""}
-          onChange={handleChange}
+          value={formatCurrency(data.price)}
+          onChange={(e) => handleCurrencyChange("price", e)}
           placeholder="Precio noche"
           style={styles.input}
         />
+
         <input
           name="total"
-          type="number"
-          value={data.total ?? ""}
-          onChange={handleChange}
+          value={formatCurrency(data.total)}
+          onChange={(e) => handleCurrencyChange("total", e)}
           placeholder="Total"
           style={styles.input}
         />
-        <input
-          name="b_extras"
-          value={data.b_extras || ""}
-          onChange={handleChange}
-          placeholder="Extras"
-          style={styles.input}
-        />
+
+
       </div>
 
-      {/* ===================== FUMADOR ===================== */}
-      <div style={styles.row}>
-        <input
-          name="b_smoking"
-          value={data.b_smoking || ""}
-          onChange={handleChange}
-          placeholder="Fumador"
-          style={styles.input}
-        />
-      </div>
 
-      {/* ===================== TELÉFONO / EMAIL ===================== */}
+
+      {/* ===================== TELÉFONO / EMAIL / MOTIVO GENERAL ===================== */}
       <div style={styles.row}>
         <input
           name="telefono"
@@ -203,15 +221,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           placeholder="Email"
           style={styles.input}
         />
-        <select
-          name="motivoViaje"
-          value={data.motivoViaje || "Turismo"}
-          onChange={handleChange}
-          style={styles.input}
-        >
-          <option value="Turismo">Turismo</option>
-          <option value="Negocios">Negocios</option>
-        </select>
+
       </div>
 
       {/* ===================== FECHAS ===================== */}
@@ -254,14 +264,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
         />
       </div>
 
-      {/* ===================== COMENTARIOS ===================== */}
-      <textarea
-        name="comment"
-        value={data.comment || ""}
-        onChange={handleChange}
-        placeholder="Comentarios"
-        style={styles.input}
-      />
+
     </div>
   );
 }

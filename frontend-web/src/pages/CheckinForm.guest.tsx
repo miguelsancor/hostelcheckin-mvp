@@ -12,9 +12,20 @@ type GuestCardProps = {
     >
   ) => void;
   onFile: (index: number, e: React.ChangeEvent<HTMLInputElement>) => void;
+
+  // 🔥 NUEVO: props para usar el modal de motivos
+  motivoDetallado: string;
+  onOpenMotivoModal: () => void;
 };
 
-export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
+export function GuestCard({
+  data,
+  index,
+  onChange,
+  onFile,
+  motivoDetallado,
+  onOpenMotivoModal,
+}: GuestCardProps) {
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -26,7 +37,6 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
 
   return (
     <div style={styles.card}>
-
       {/* ===================== DATOS BÁSICOS ===================== */}
       <div style={styles.row}>
         <input
@@ -72,7 +82,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
         />
       </div>
 
-      {/* ===================== NUEVO: ORIGEN Y DESTINO (EXTRANJEROS) ===================== */}
+      {/* ===================== ORIGEN Y DESTINO ===================== */}
       <div style={styles.row}>
         <input
           name="paisOrigen"
@@ -214,34 +224,25 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
         </select>
       </div>
 
-      {/* ===================== NUEVO: MOTIVO DETALLADO (CHECKBOX) ===================== */}
-      <div style={{ ...styles.row, flexDirection: "column", gap: "0.5rem" }}>
-        <label style={{ color: "white" }}>Motivo detallado:</label>
+      {/* ===================== MOTIVO DETALLADO (USAR MODAL) ===================== */}
+      <div style={{ marginTop: "1rem" }}>
+        <label style={{ color: "white", fontWeight: "bold" }}>
+          Motivo detallado:
+        </label>
 
-        {[
-          "Tourism",
-          "Medical check up",
-          "Business",
-          "Musical event",
-          "Missed flight",
-          "Family visit",
-          "Sporting event",
-          "Shopping",
-          "Academic event",
-          "Other"
-        ].map((motivo) => (
-          <label key={motivo} style={{ color: "white" }}>
-            <input
-              type="checkbox"
-              name="motivoViajeDetalle"
-              value={motivo}
-              checked={data.motivoViajeDetalle?.includes(motivo) || false}
-              onChange={handleChange}
-              style={{ marginRight: "8px" }}
-            />
-            {motivo}
-          </label>
-        ))}
+        <div
+          onClick={onOpenMotivoModal}
+          style={{
+            marginTop: "0.5rem",
+            background: "#1f2937",
+            padding: "0.75rem",
+            borderRadius: "0.5rem",
+            cursor: "pointer",
+            color: motivoDetallado ? "#10b981" : "#9ca3af",
+          }}
+        >
+          {motivoDetallado || "Seleccionar"}
+        </div>
       </div>
 
       {/* ===================== FECHAS ===================== */}
@@ -264,24 +265,9 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
 
       {/* ===================== ARCHIVOS ===================== */}
       <div style={styles.row}>
-        <input
-          type="file"
-          name="archivoAnverso"
-          onChange={handleFile}
-          style={styles.input}
-        />
-        <input
-          type="file"
-          name="archivoReverso"
-          onChange={handleFile}
-          style={styles.input}
-        />
-        <input
-          type="file"
-          name="archivoFirma"
-          onChange={handleFile}
-          style={styles.input}
-        />
+        <input type="file" name="archivoAnverso" onChange={handleFile} style={styles.input} />
+        <input type="file" name="archivoReverso" onChange={handleFile} style={styles.input} />
+        <input type="file" name="archivoFirma" onChange={handleFile} style={styles.input} />
       </div>
 
       {/* ===================== COMENTARIOS ===================== */}
@@ -294,7 +280,6 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           style={styles.input}
         />
       </div>
-
     </div>
   );
 }

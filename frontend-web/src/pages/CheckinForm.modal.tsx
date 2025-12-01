@@ -8,6 +8,9 @@ import {
 } from "./CheckinForm.styles";
 import type { HuespedBD } from "./CheckinForm.types";
 
+/* =========================================================
+   MODAL RESULTADO
+   ========================================================= */
 type ResultModalProps = {
   show: boolean;
   message: string;
@@ -41,6 +44,9 @@ export function ResultModal({ show, message, onClose }: ResultModalProps) {
   );
 }
 
+/* =========================================================
+   MODAL HUÉSPEDES HOY
+   ========================================================= */
 type GuestsTodayModalProps = {
   show: boolean;
   huespedes: HuespedBD[];

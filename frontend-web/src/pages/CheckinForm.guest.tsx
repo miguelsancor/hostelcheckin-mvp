@@ -71,6 +71,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           placeholder="Nombre completo"
           style={styles.input}
         />
+
         <select
           name="tipoDocumento"
           value={data.tipoDocumento || "Cédula"}
@@ -80,6 +81,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           <option value="Cédula">Cédula</option>
           <option value="Pasaporte">Pasaporte</option>
         </select>
+
         <input
           name="numeroDocumento"
           value={data.numeroDocumento || ""}
@@ -87,6 +89,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           placeholder="Número documento"
           style={styles.input}
         />
+
         <input
           name="nacionalidad"
           value={data.nacionalidad || ""}
@@ -96,36 +99,21 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
         />
       </div>
 
-        {/* ===================== FECHA DE NACIMIENTO ===================== */}
-        <div style={{ ...styles.row, alignItems: "center" }}>
-          <div style={{ display: "flex", flexDirection: "column", width: "250px" }}>
-            <label
-              style={{
-                color: "white",
-                fontSize: "0.85rem",
-                marginBottom: "4px",
-                fontWeight: "bold",
-              }}
-            >
-              Fecha de nacimiento
-            </label>
-
-            <input
-              type="date"
-              name="fechaNacimiento"
-              value={data.fechaNacimiento || ""}
-              onChange={handleChange}
-              style={{
-                ...styles.input,
-                padding: "10px",
-                height: "40px",
-                borderRadius: "8px",
-                fontSize: "0.95rem",
-              }}
-            />
-          </div>
+      {/* ===================== FECHA DE NACIMIENTO ===================== */}
+      <div style={styles.row}>
+        <div style={{ width: "100%" }}>
+          <label style={{ color: "white", fontSize: "0.85rem" }}>
+            Fecha de nacimiento:
+          </label>
+          <input
+            type="date"
+            name="fechaNacimiento"
+            value={data.fechaNacimiento || ""}
+            onChange={handleChange}
+            style={styles.input}
+          />
         </div>
-
+      </div>
 
       {/* ===================== ORIGEN / DESTINO ===================== */}
       <div style={styles.row}>
@@ -179,6 +167,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           placeholder="Origen reserva"
           style={styles.input}
         />
+
         <input
           name="status"
           value={data.status || ""}
@@ -186,6 +175,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           placeholder="Estado"
           style={styles.input}
         />
+
         <input
           name="nights"
           type="number"
@@ -194,6 +184,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           placeholder="Noches"
           style={styles.input}
         />
+
         <input
           name="guests"
           type="number"
@@ -213,6 +204,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           placeholder="Precio noche"
           style={styles.input}
         />
+
         <input
           name="total"
           value={formatCurrency(data.total)}
@@ -231,6 +223,7 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
           placeholder="Teléfono"
           style={styles.input}
         />
+
         <input
           name="email"
           value={data.email || ""}
@@ -258,68 +251,56 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
         />
       </div>
 
-      {/* ===================== ARCHIVOS (SEGÚN DOCUMENTO) ===================== */}
-      <div style={{ ...styles.row, flexDirection: "column", gap: "0.75rem" }}>
+      {/* =========================================================
+         ARCHIVOS SEGÚN DOCUMENTO — AHORA RESPONSIVE
+         ========================================================= */}
+      <div style={styles.row}>
 
-        {/* === TEXTO EXPLICATIVO === */}
         {esCedula && (
-          <p style={{ color: "white", fontSize: "0.9rem", marginBottom: "0.25rem" }}>
-            Para <strong>Cédula</strong>: suba la foto <strong>delantera (anverso)</strong> y la foto <strong>trasera (reverso)</strong>.
-          </p>
-        )}
-
-        {esPasaporte && (
-          <p style={{ color: "white", fontSize: "0.9rem", marginBottom: "0.25rem" }}>
-            Para <strong>Pasaporte</strong>: suba una <strong>única foto del documento</strong>.
-          </p>
-        )}
-
-        {/* === INPUTS DE ARCHIVOS === */}
-        <div style={{ display: "flex", width: "100%", gap: "1rem" }}>
-          {esCedula && (
-            <>
-              <div style={{ flex: 1 }}>
-                <label style={{ color: "white", fontSize: "0.8rem" }}>
-                  Foto anverso:
-                </label>
-                <input
-                  type="file"
-                  name="archivoAnverso"
-                  onChange={handleFile}
-                  style={styles.input}
-                />
-              </div>
-
-              <div style={{ flex: 1 }}>
-                <label style={{ color: "white", fontSize: "0.8rem" }}>
-                  Foto reverso:
-                </label>
-                <input
-                  type="file"
-                  name="archivoReverso"
-                  onChange={handleFile}
-                  style={styles.input}
-                />
-              </div>
-            </>
-          )}
-
-          {esPasaporte && (
+          <>
             <div style={{ width: "100%" }}>
-              <label style={{ color: "white", fontSize: "0.8rem" }}>
-                Foto del pasaporte:
+              <label style={{ color: "#ccc", fontSize: "0.85rem" }}>
+                Foto anverso (frente):
               </label>
               <input
                 type="file"
-                name="archivoPasaporte"
+                name="archivoAnverso"
                 onChange={handleFile}
                 style={styles.input}
+                className="checkin-input"
               />
             </div>
-          )}
-        </div>
-      </div>
 
+            <div style={{ width: "100%" }}>
+              <label style={{ color: "#ccc", fontSize: "0.85rem" }}>
+                Foto reverso (atrás):
+              </label>
+              <input
+                type="file"
+                name="archivoReverso"
+                onChange={handleFile}
+                style={styles.input}
+                className="checkin-input"
+              />
+            </div>
+          </>
+        )}
+
+        {esPasaporte && (
+          <div style={{ width: "100%" }}>
+            <label style={{ color: "#ccc", fontSize: "0.85rem" }}>
+              Foto pasaporte:
+            </label>
+            <input
+              type="file"
+              name="archivoPasaporte"
+              onChange={handleFile}
+              style={styles.input}
+              className="checkin-input"
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

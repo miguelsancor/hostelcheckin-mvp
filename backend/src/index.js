@@ -503,6 +503,144 @@ app.get("/mcp/keys", async (_req, res) => {
   }
 });
 
+
+/* =======================================================================
+   ADMIN DASHBOARD API
+   ======================================================================= */
+
+/* Listar todos los huéspedes */
+app.get("/admin/huespedes", async (req, res) => {
+  try {
+    const lista = await prisma.huesped.findMany({
+      orderBy: { creadoEn: "desc" },
+    });
+
+    res.json({
+      ok: true,
+      total: lista.length,
+      data: lista,
+    });
+  } catch (err) {
+    console.error("ADMIN GET HUESPEDES:", err);
+    res.status(500).json({ ok: false, error: "Error obteniendo huéspedes" });
+  }
+});
+
+/* Ver detalle de un huésped */
+app.get("/admin/huespedes/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ ok: false, error: "ID inválido" });
+    }
+
+    const huesped = await prisma.huesped.findUnique({
+      where: { id },
+    });
+
+    if (!huesped) {
+      return res.status(404).json({ ok: false, error: "Huésped no encontrado" });
+    }
+
+    res.json({ ok: true, data: huesped });
+  } catch (err) {
+    console.error("ADMIN GET HUESPED:", err);
+    res.status(500).json({ ok: false, error: "Error interno" });
+  }
+});
+
+/* Eliminar huésped (opcional, solo si el cliente lo quiere luego) */
+app.delete("/admin/huespedes/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ ok: false, error: "ID inválido" });
+    }
+
+    await prisma.huesped.delete({ where: { id } });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("ADMIN DELETE HUESPED:", err);
+    res.status(500).json({ ok: false, error: "Error eliminando huésped" });
+  }
+});
+
+/* =======================================================================
+   ADMIN CRUD
+   ======================================================================= */
+
+// Listar TODOS los huéspedes
+app.get("/admin/huespedes", async (_req, res) => {
+  try {
+    const lista = await prisma.huesped.findMany({
+      orderBy: { creadoEn: "desc" },
+    });
+
+    res.json({ ok: true, total: lista.length, data: lista });
+  } catch (e) {
+    console.error("admin/huespedes:", e);
+    res.status(500).json({ ok: false, error: "Error interno" });
+  }
+});
+
+// Eliminar huésped por ID
+app.delete("/admin/huespedes/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (!id) {
+      return res.status(400).json({ ok: false, error: "ID inválido" });
+    }
+
+    await prisma.huesped.delete({
+      where: { id },
+    });
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("admin delete:", e);
+    res.status(500).json({ ok: false, error: "No se pudo eliminar" });
+  }
+});
+
+
+/* =======================================================================
+   ADMIN - ESTADÍSTICAS
+   ======================================================================= */
+
+   app.get("/admin/stats", async (_req, res) => {
+    try {
+      const hoyInicio = new Date();
+      hoyInicio.setHours(0, 0, 0, 0);
+  
+      const semanaInicio = new Date();
+      semanaInicio.setDate(semanaInicio.getDate() - 7);
+  
+      const mesInicio = new Date();
+      mesInicio.setDate(1);
+  
+      const hoy = await prisma.huesped.count({
+        where: { creadoEn: { gte: hoyInicio } },
+      });
+  
+      const semana = await prisma.huesped.count({
+        where: { creadoEn: { gte: semanaInicio } },
+      });
+  
+      const mes = await prisma.huesped.count({
+        where: { creadoEn: { gte: mesInicio } },
+      });
+  
+      res.json({ ok: true, hoy, semana, mes });
+    } catch (e) {
+      console.error("stats:", e);
+      res.status(500).json({ ok: false });
+    }
+  });
+  
+
+
 /* ================== Debug & Health ================== */
 app.get("/mcp/debug/env", (_req, res) => {
   const mask = (s) => (s ? s.slice(0, 4) + "****" + s.slice(-4) : "(vacio)");
@@ -521,5 +659,5 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 /* ================ Start ================ */
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () =>
-  console.log(`Backend corriendo en http://18.206.179.50:${PORT}`)
+  console.log(`Backend corriendo en http://localhost:${PORT}`)
 );

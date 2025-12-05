@@ -41,6 +41,7 @@ function parseGuestsFromFormData(body, files = []) {
     if (!guests[idx]) guests[idx] = {};
     guests[idx][key] = v;
   }
+
   for (const file of files) {
     const m = re.exec(file.fieldname);
     if (!m) continue;
@@ -54,10 +55,12 @@ function parseGuestsFromFormData(body, files = []) {
       size: file.size,
     };
   }
+
   return guests.filter(Boolean);
 }
 
 const toStr = (v) => (v === undefined || v === null ? "" : String(v));
+
 const toDateStr = (v, fallbackDate) => {
   const d = v ? new Date(v) : fallbackDate;
   if (Number.isNaN(d.getTime())) return "";
@@ -65,7 +68,7 @@ const toDateStr = (v, fallbackDate) => {
 };
 
 /* =======================================================================
-   API Check-in
+   API Check-in (simple)
    ======================================================================= */
 app.post(
   "/api/checkin",
@@ -76,22 +79,14 @@ app.post(
       const { huespedes = [], fechaIngreso, fechaSalida } = parsed;
 
       if (!Array.isArray(huespedes) || !huespedes.length) {
-        return res
-          .status(400)
-          .json({ ok: false, error: "No llegaron huéspedes" });
+        return res.status(400).json({ ok: false, error: "No llegaron huéspedes" });
       }
 
       const titular = huespedes[0];
       const numeroReserva = generarNumeroReserva();
 
-      const fIng = toDateStr(
-        titular?.fechaIngreso ?? fechaIngreso,
-        new Date()
-      );
-      const fSal = toDateStr(
-        titular?.fechaSalida ?? fechaSalida,
-        new Date()
-      );
+      const fIng = toDateStr(titular?.fechaIngreso ?? fechaIngreso, new Date());
+      const fSal = toDateStr(titular?.fechaSalida ?? fechaSalida, new Date());
 
       const payload = {
         nombre: toStr(titular?.nombre),
@@ -115,26 +110,25 @@ app.post(
       res.json({ ok: true, numeroReserva, total: 1 });
     } catch (e) {
       console.error("error /api/checkin:", e);
-      res
-        .status(500)
-        .json({ ok: false, error: "Error al registrar el check-in" });
+      res.status(500).json({ ok: false, error: "Error al registrar el check-in" });
     }
   }
 );
 
+/* =======================================================================
+   API Check-in múltiple
+   ======================================================================= */
 app.post("/api/checkin/guardar-multiple", upload.any(), async (req, res) => {
   try {
     let guests = parseGuestsFromFormData(req.body, req.files);
-    if (!guests.length && req.body?.data) {
-      try {
-        const parsed = JSON.parse(req.body.data);
-        if (parsed && Array.isArray(parsed.huespedes)) guests = parsed.huespedes;
-      } catch {}
+    const parsedData = req.body?.data ? JSON.parse(req.body.data) : {};
+
+    if (!guests.length && parsedData.huespedes) {
+      guests = parsedData.huespedes;
     }
+
     if (!guests.length) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "No llegaron huéspedes" });
+      return res.status(400).json({ ok: false, error: "No llegaron huéspedes" });
     }
 
     const titular = guests[0];
@@ -158,15 +152,18 @@ app.post("/api/checkin/guardar-multiple", upload.any(), async (req, res) => {
       fechaSalida: fSal,
       numeroReserva,
       creadoEn: new Date(),
+
+      /** CAMPOS NUEVOS */
+      checkinUrl: toStr(parsedData.checkinUrl),
+      codigoTTLock: toStr(parsedData.codigoTTLock),
     };
 
     await prisma.huesped.create({ data: payload });
+
     res.json({ ok: true, numeroReserva, total: 1 });
   } catch (e) {
     console.error("error guardar-multiple:", e);
-    res
-      .status(500)
-      .json({ ok: false, error: "Error al guardar huéspedes" });
+    res.status(500).json({ ok: false, error: "Error al guardar huéspedes" });
   }
 });
 
@@ -188,15 +185,12 @@ app.post("/api/checkin/buscar", async (req, res) => {
         where: { tipoDocumento, numeroDocumento },
       });
     } else {
-      return res
-        .status(400)
-        .json({ ok: false, error: "Parámetros insuficientes" });
+      return res.status(400).json({ ok: false, error: "Parámetros insuficientes" });
     }
 
-    if (!huesped)
-      return res
-        .status(404)
-        .json({ ok: false, error: "Reserva no encontrada" });
+    if (!huesped) {
+      return res.status(404).json({ ok: false, error: "Reserva no encontrada" });
+    }
 
     res.json(huesped);
   } catch (error) {
@@ -206,7 +200,7 @@ app.post("/api/checkin/buscar", async (req, res) => {
 });
 
 /* =======================================================================
-   Huéspedes de hoy
+   Huéspedes de HOY
    ======================================================================= */
 app.get("/api/checkin/hoy", async (_req, res) => {
   try {
@@ -218,19 +212,12 @@ app.get("/api/checkin/hoy", async (_req, res) => {
 
     const lista = await prisma.huesped.findMany({
       where: {
-        creadoEn: {
-          gte: inicio,
-          lte: fin,
-        },
+        creadoEn: { gte: inicio, lte: fin },
       },
       orderBy: { creadoEn: "desc" },
     });
 
-    return res.json({
-      ok: true,
-      total: lista.length,
-      huespedes: lista,
-    });
+    return res.json({ ok: true, total: lista.length, huespedes: lista });
   } catch (err) {
     console.error("error /api/checkin/hoy:", err);
     return res.status(500).json({ ok: false, error: "Error interno" });
@@ -238,102 +225,81 @@ app.get("/api/checkin/hoy", async (_req, res) => {
 });
 
 /* =======================================================================
-   AUTOCOMPLETE / PREDICTIVO (versión segura)
+   CONTACTOS (autocomplete)
    ======================================================================= */
-   app.get("/api/checkin/contactos", async (req, res) => {
+app.get("/api/checkin/contactos", async (req, res) => {
+  try {
+    let { query } = req.query;
+    if (!query) return res.json([]);
+
+    query = String(query).trim().toLowerCase();
+
+    const rawSqlite = await prisma.huesped.findMany({
+      where: {
+        OR: [
+          { telefono: { contains: query } },
+          { email: { contains: query } },
+        ],
+      },
+      select: {
+        id: true,
+        nombre: true,
+        telefono: true,
+        email: true,
+        numeroReserva: true,
+      },
+      take: 20,
+    });
+
+    const sqliteResults = rawSqlite.map((r) => ({
+      origen: "sqlite",
+      id: r.id,
+      nombre: r.nombre,
+      telefono: r.telefono,
+      email: r.email,
+      numeroReserva: r.numeroReserva,
+    }));
+
+    let nobeds = [];
     try {
-      let { query } = req.query;
-  
-      if (!query) return res.json([]);
-  
-      query = String(query).trim().toLowerCase();
-  
-      /* ==========================================
-         1) BUSCAR EN SQLITE
-      ========================================== */
-      const rawSqlite = await prisma.huesped.findMany({
-        where: {
-          OR: [
-            { telefono: { contains: query } },
-            { email: { contains: query } }
-          ]
-        },
-        select: {
-          id: true,
-          nombre: true,
-          telefono: true,
-          email: true,
-          numeroReserva: true,
-        },
-        take: 20,
-      });
-  
-      // Normalizar resultados
-      const sqliteResults = rawSqlite.map((r) => ({
-        origen: "sqlite",
-        id: r.id,
-        nombre: r.nombre,
-        telefono: r.telefono,
-        email: r.email,
-        numeroReserva: r.numeroReserva,
-      }));
-  
-      /* ==========================================
-         2) BUSCAR EN NOBEDS
-      ========================================== */
-      const NOBEDS_URL = `${process.env.NOBEDS_API}/${process.env.NOBEDS_TOKEN}`;
-  
-      let nobeds = [];
-      try {
-        const nbRes = await axios.get(NOBEDS_URL, { timeout: 20000 });
-  
-        if (Array.isArray(nbRes.data)) {
-          nobeds = nbRes.data
-            .filter((r) => {
-              return (
-                (r.email &&
-                  r.email.toLowerCase().includes(query)) ||
-                (r.phone &&
-                  String(r.phone).toLowerCase().includes(query))
-              );
-            })
-            .map((r) => ({
-              origen: "nobeds",
-              id: r.id || `nb-${r.phone || r.email}`,
-              nombre: r.first_name + " " + r.last_name,
-              telefono: r.phone,
-              email: r.email,
-              numeroReserva: r.order_id,
-            }));
-        }
-      } catch (err) {
-        console.error("Error obteniendo NoBeds:", err.message);
+      const url = `${process.env.NOBEDS_API}/${process.env.NOBEDS_TOKEN}`;
+      const nbRes = await axios.get(url, { timeout: 20000 });
+
+      if (Array.isArray(nbRes.data)) {
+        nobeds = nbRes.data
+          .filter((r) => {
+            return (
+              (r.email && r.email.toLowerCase().includes(query)) ||
+              (r.phone && String(r.phone).toLowerCase().includes(query))
+            );
+          })
+          .map((r) => ({
+            origen: "nobeds",
+            id: r.id || `nb-${r.phone || r.email}`,
+            nombre: `${r.first_name} ${r.last_name}`,
+            telefono: r.phone,
+            email: r.email,
+            numeroReserva: r.order_id,
+          }));
       }
-  
-      /* ==========================================
-         3) COMBINAR RESULTADOS
-      ========================================== */
-      const combinados = [...sqliteResults, ...nobeds].slice(0, 20);
-  
-      return res.json(combinados);
-    } catch (error) {
-      console.error("ERROR /api/checkin/contactos:", error);
-      return res.status(500).json({ error: "Error interno" });
+    } catch (err) {
+      console.error("Error obteniendo nobeds:", err.message);
     }
-  });
-  
-  
+
+    return res.json([...sqliteResults, ...nobeds].slice(0, 20));
+  } catch (error) {
+    console.error("ERROR /api/checkin/contactos:", error);
+    return res.status(500).json({ error: "Error interno" });
+  }
+});
 
 /* =======================================================================
-   Búsqueda combinada local + NoBeds
+   BUSCAR COMBINADO
    ======================================================================= */
 app.get("/api/checkin/buscar-combinado/:valor", async (req, res) => {
   try {
     const { valor } = req.params;
-
-    if (!valor) {
-      return res.status(400).json({ ok: false, error: "Falta valor" });
-    }
+    if (!valor) return res.status(400).json({ ok: false, error: "Falta valor" });
 
     let huesped = await prisma.huesped.findFirst({
       where: {
@@ -342,11 +308,7 @@ app.get("/api/checkin/buscar-combinado/:valor", async (req, res) => {
     });
 
     if (huesped) {
-      return res.json({
-        ok: true,
-        origen: "local",
-        data: huesped,
-      });
+      return res.json({ ok: true, origen: "local", data: huesped });
     }
 
     const url = `${process.env.NOBEDS_API}/${process.env.NOBEDS_TOKEN}`;
@@ -360,49 +322,31 @@ app.get("/api/checkin/buscar-combinado/:valor", async (req, res) => {
       );
 
       if (match) {
-        return res.json({
-          ok: true,
-          origen: "nobeds",
-          data: match,
-        });
+        return res.json({ ok: true, origen: "nobeds", data: match });
       }
     }
 
-    return res.status(404).json({
-      ok: false,
-      error: "No encontrado",
-    });
+    return res.status(404).json({ ok: false, error: "No encontrado" });
   } catch (error) {
     console.error("buscar-combinado error:", error);
-    return res.status(500).json({
-      ok: false,
-      error: "Error interno del servidor",
-    });
+    return res.status(500).json({ ok: false, error: "Error interno del servidor" });
   }
 });
 
 /* =======================================================================
-   NoBeds API
+   NOBEDS
    ======================================================================= */
-const NOBEDS_API =
-  process.env.NOBEDS_API || "https://api.nobeds.com/api/Bookings";
-const NOBEDS_TOKEN = process.env.NOBEDS_TOKEN || "";
-
 app.get("/api/nobeds/reserva/:orderId", async (req, res) => {
   try {
     const { orderId } = req.params;
     if (!orderId)
       return res.status(400).json({ ok: false, error: "Falta orderId" });
 
-    const url = `${NOBEDS_API}/${NOBEDS_TOKEN}?order_id=${orderId}`;
-    console.log("Consultando NoBeds:", url);
-
+    const url = `${process.env.NOBEDS_API}/${process.env.NOBEDS_TOKEN}?order_id=${orderId}`;
     const { data } = await axios.get(url, { timeout: 20000 });
 
     if (!data || !Array.isArray(data) || !data.length) {
-      return res
-        .status(404)
-        .json({ ok: false, error: "Reserva no encontrada" });
+      return res.status(404).json({ ok: false, error: "Reserva no encontrada" });
     }
 
     res.json({ ok: true, reserva: data[0] });
@@ -414,7 +358,7 @@ app.get("/api/nobeds/reserva/:orderId", async (req, res) => {
 
 app.get("/api/nobeds/reservas", async (_req, res) => {
   try {
-    const url = `${NOBEDS_API}/${NOBEDS_TOKEN}`;
+    const url = `${process.env.NOBEDS_API}/${process.env.NOBEDS_TOKEN}`;
     const { data } = await axios.get(url, { timeout: 20000 });
     res.json({ ok: true, reservas: data });
   } catch (err) {
@@ -424,7 +368,7 @@ app.get("/api/nobeds/reservas", async (_req, res) => {
 });
 
 /* =======================================================================
-   MCP + TTLOCK
+   TTLOCK
    ======================================================================= */
 const TTLOCK_BASE = process.env.TTLOCK_BASE || "https://api.ttlock.com";
 let _tt_token = null;
@@ -453,9 +397,11 @@ async function getAccessToken() {
   });
 
   if (!data?.access_token) throw new Error("No access_token from TTLock");
+
   _tt_token = data.access_token;
   _tt_expiresAt =
     Date.now() + parseInt(data.expires_in || "7200", 10) * 1000;
+
   return _tt_token;
 }
 
@@ -474,6 +420,7 @@ async function ttPost(pathUrl, formBody) {
 app.get("/mcp/locks", async (_req, res) => {
   try {
     const accessToken = await getAccessToken();
+
     const r = await ttPost("/v3/lock/list", {
       clientId: process.env.TTLOCK_CLIENT_ID,
       accessToken,
@@ -481,6 +428,7 @@ app.get("/mcp/locks", async (_req, res) => {
       pageSize: 100,
       date: nowMs(),
     });
+
     res.json(r);
   } catch (e) {
     res.status(500).json({ ok: false, error: e?.response?.data || e.message });
@@ -503,74 +451,9 @@ app.get("/mcp/keys", async (_req, res) => {
   }
 });
 
-
 /* =======================================================================
-   ADMIN DASHBOARD API
+   ADMIN - CRUD / LISTA / DETALLE
    ======================================================================= */
-
-/* Listar todos los huéspedes */
-app.get("/admin/huespedes", async (req, res) => {
-  try {
-    const lista = await prisma.huesped.findMany({
-      orderBy: { creadoEn: "desc" },
-    });
-
-    res.json({
-      ok: true,
-      total: lista.length,
-      data: lista,
-    });
-  } catch (err) {
-    console.error("ADMIN GET HUESPEDES:", err);
-    res.status(500).json({ ok: false, error: "Error obteniendo huéspedes" });
-  }
-});
-
-/* Ver detalle de un huésped */
-app.get("/admin/huespedes/:id", async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    if (isNaN(id)) {
-      return res.status(400).json({ ok: false, error: "ID inválido" });
-    }
-
-    const huesped = await prisma.huesped.findUnique({
-      where: { id },
-    });
-
-    if (!huesped) {
-      return res.status(404).json({ ok: false, error: "Huésped no encontrado" });
-    }
-
-    res.json({ ok: true, data: huesped });
-  } catch (err) {
-    console.error("ADMIN GET HUESPED:", err);
-    res.status(500).json({ ok: false, error: "Error interno" });
-  }
-});
-
-/* Eliminar huésped (opcional, solo si el cliente lo quiere luego) */
-app.delete("/admin/huespedes/:id", async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    if (isNaN(id)) {
-      return res.status(400).json({ ok: false, error: "ID inválido" });
-    }
-
-    await prisma.huesped.delete({ where: { id } });
-
-    res.json({ ok: true });
-  } catch (err) {
-    console.error("ADMIN DELETE HUESPED:", err);
-    res.status(500).json({ ok: false, error: "Error eliminando huésped" });
-  }
-});
-
-/* =======================================================================
-   ADMIN CRUD
-   ======================================================================= */
-
-// Listar TODOS los huéspedes
 app.get("/admin/huespedes", async (_req, res) => {
   try {
     const lista = await prisma.huesped.findMany({
@@ -584,18 +467,32 @@ app.get("/admin/huespedes", async (_req, res) => {
   }
 });
 
-// Eliminar huésped por ID
+app.get("/admin/huesped/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id))
+      return res.status(400).json({ ok: false, error: "ID inválido" });
+
+    const huesped = await prisma.huesped.findUnique({ where: { id } });
+
+    if (!huesped)
+      return res.status(404).json({ ok: false, error: "No encontrado" });
+
+    res.json({ ok: true, data: huesped });
+  } catch (e) {
+    console.error("detalle huesped:", e);
+    res.status(500).json({ ok: false });
+  }
+});
+
 app.delete("/admin/huespedes/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
 
-    if (!id) {
+    if (!id)
       return res.status(400).json({ ok: false, error: "ID inválido" });
-    }
 
-    await prisma.huesped.delete({
-      where: { id },
-    });
+    await prisma.huesped.delete({ where: { id } });
 
     res.json({ ok: true });
   } catch (e) {
@@ -604,63 +501,106 @@ app.delete("/admin/huespedes/:id", async (req, res) => {
   }
 });
 
-
 /* =======================================================================
-   ADMIN - ESTADÍSTICAS
+   ADMIN - GUARDAR / ACTUALIZAR CHECKIN URL
    ======================================================================= */
-
-   app.get("/admin/stats", async (_req, res) => {
+   app.put("/admin/huesped/:id/checkin", async (req, res) => {
     try {
-      const hoyInicio = new Date();
-      hoyInicio.setHours(0, 0, 0, 0);
+      const id = Number(req.params.id);
+      const { checkinUrl } = req.body;
   
-      const semanaInicio = new Date();
-      semanaInicio.setDate(semanaInicio.getDate() - 7);
-  
-      const mesInicio = new Date();
-      mesInicio.setDate(1);
-  
-      const hoy = await prisma.huesped.count({
-        where: { creadoEn: { gte: hoyInicio } },
-      });
-  
-      const semana = await prisma.huesped.count({
-        where: { creadoEn: { gte: semanaInicio } },
-      });
-  
-      const mes = await prisma.huesped.count({
-        where: { creadoEn: { gte: mesInicio } },
-      });
-  
-      res.json({ ok: true, hoy, semana, mes });
-    } catch (e) {
-      console.error("stats:", e);
-      res.status(500).json({ ok: false });
-    }
-  });
-/* =======================================================================
-   ADMIN - DETALLE HUÉSPED
-   ======================================================================= */
-   app.get("/admin/huesped/:id", async (req, res) => {
-    try {
-      const { id } = req.params;
-  
-      const huesped = await prisma.huesped.findUnique({
-        where: { id: Number(id) },
-      });
-  
-      if (!huesped) {
-        return res.status(404).json({ ok: false, error: "No encontrado" });
+      if (!id || !checkinUrl) {
+        return res.status(400).json({ ok: false, error: "Datos inválidos" });
       }
   
-      res.json({ ok: true, data: huesped });
+      const existe = await prisma.huesped.findUnique({
+        where: { id },
+      });
+  
+      if (!existe) {
+        return res.status(404).json({ ok: false, error: "Huésped no encontrado" });
+      }
+  
+      await prisma.huesped.update({
+        where: { id },
+        data: { checkinUrl },
+      });
+  
+      res.json({ ok: true });
     } catch (e) {
-      console.error("detalle huesped:", e);
-      res.status(500).json({ ok: false });
+      console.error("error guardar checkinUrl:", e);
+      res.status(500).json({ ok: false, error: "Error al guardar checkinUrl" });
     }
   });
-    
-/* ===================== MÉTRICAS ADMIN ===================== */
+  
+/* =======================================================================
+   ADMIN - ACTUALIZAR CHECKIN POR NUMERO DE RESERVA
+   ======================================================================= */
+   app.put("/admin/huesped/checkin-por-reserva", async (req, res) => {
+    try {
+      const { numeroReserva, checkinUrl } = req.body;
+  
+      if (!numeroReserva || !checkinUrl) {
+        return res.status(400).json({ ok: false, error: "Datos incompletos" });
+      }
+  
+      const existe = await prisma.huesped.findUnique({
+        where: { numeroReserva },
+      });
+  
+      if (!existe) {
+        return res.status(404).json({ ok: false, error: "Reserva no encontrada" });
+      }
+  
+      await prisma.huesped.update({
+        where: { numeroReserva },
+        data: { checkinUrl },
+      });
+  
+      res.json({ ok: true });
+    } catch (e) {
+      console.error("error guardar checkinUrl por reserva:", e);
+      res.status(500).json({ ok: false, error: "Error al guardar checkinUrl" });
+    }
+  });
+  
+
+/* =======================================================================
+   ADMIN - STATS
+   ======================================================================= */
+app.get("/admin/stats", async (_req, res) => {
+  try {
+    const hoyInicio = new Date();
+    hoyInicio.setHours(0, 0, 0, 0);
+
+    const semanaInicio = new Date();
+    semanaInicio.setDate(semanaInicio.getDate() - 7);
+
+    const mesInicio = new Date();
+    mesInicio.setDate(1);
+
+    const hoy = await prisma.huesped.count({
+      where: { creadoEn: { gte: hoyInicio } },
+    });
+
+    const semana = await prisma.huesped.count({
+      where: { creadoEn: { gte: semanaInicio } },
+    });
+
+    const mes = await prisma.huesped.count({
+      where: { creadoEn: { gte: mesInicio } },
+    });
+
+    res.json({ ok: true, hoy, semana, mes });
+  } catch (e) {
+    console.error("stats:", e);
+    res.status(500).json({ ok: false });
+  }
+});
+
+/* =======================================================================
+   ADMIN - METRICS
+   ======================================================================= */
 app.get("/admin/metrics", async (_req, res) => {
   try {
     const total = await prisma.huesped.count();
@@ -672,7 +612,7 @@ app.get("/admin/metrics", async (_req, res) => {
     hoyFin.setHours(23, 59, 59, 999);
 
     const hoy = await prisma.huesped.count({
-      where: { creadoEn: { gte: hoyInicio, lte: hoyFin } }
+      where: { creadoEn: { gte: hoyInicio, lte: hoyFin } },
     });
 
     const mesInicio = new Date();
@@ -680,11 +620,11 @@ app.get("/admin/metrics", async (_req, res) => {
     mesInicio.setHours(0, 0, 0, 0);
 
     const mes = await prisma.huesped.count({
-      where: { creadoEn: { gte: mesInicio } }
+      where: { creadoEn: { gte: mesInicio } },
     });
 
     const ultima = await prisma.huesped.findFirst({
-      orderBy: { creadoEn: "desc" }
+      orderBy: { creadoEn: "desc" },
     });
 
     res.json({
@@ -692,22 +632,20 @@ app.get("/admin/metrics", async (_req, res) => {
       total,
       hoy,
       mes,
-      ultimaReserva: ultima?.numeroReserva || "N/A"
+      ultimaReserva: ultima?.numeroReserva || "N/A",
     });
-
   } catch (err) {
     console.error("metrics error:", err);
     res.status(500).json({ ok: false });
   }
 });
 
-
 /* ================== Debug & Health ================== */
 app.get("/mcp/debug/env", (_req, res) => {
   const mask = (s) => (s ? s.slice(0, 4) + "****" + s.slice(-4) : "(vacio)");
   res.json({
     PORT: process.env.PORT || 4000,
-    TTLOCK_BASE: TTLOCK_BASE,
+    TTLOCK_BASE,
     TTLOCK_CLIENT_ID: process.env.TTLOCK_CLIENT_ID || "(vacio)",
     TTLOCK_CLIENT_SECRET: mask(process.env.TTLOCK_CLIENT_SECRET || ""),
     TTLOCK_USERNAME: process.env.TTLOCK_USERNAME || "(vacio)",

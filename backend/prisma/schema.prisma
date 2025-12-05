@@ -23,4 +23,7 @@ model Huesped {
   fechaSalida      String
   numeroReserva    String   @unique
   creadoEn         DateTime @default(now())
+
+  checkinUrl       String?   // ✅ NUEVO
+  codigoTTLock     String?   // ✅ NUEVO
 }

@@ -2,9 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ContactAutocomplete from "../components/ContactAutocomplete";
 
-// @ts-ignore
-import * as QRCode from "qrcode";
-
 const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
 
 export default function Login() {
@@ -15,42 +12,32 @@ export default function Login() {
   const [tipoDocumento, setTipoDocumento] = useState("Cédula");
   const [numeroDocumento, setNumeroDocumento] = useState("");
   const [codigoReserva, setCodigoReserva] = useState("");
-
   const [valorContacto, setValorContacto] = useState("");
 
-  // link + qr
-  const [linkCheckin, setLinkCheckin] = useState<string | null>(null);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-
-  // reserva encontrada
   const [reservaEncontrada, setReservaEncontrada] = useState<any>(null);
-
   const navigate = useNavigate();
 
   /* ===============================================
-      GENERAR LINK + QR
+      GENERAR Y GUARDAR LINK EN BD
   =============================================== */
-  const generarLinkYQR = async (reserva: any) => {
-    if (!reserva) return;
-
+  const generarYGuardarLink = async (reserva: any) => {
     const numero =
       reserva.numeroReserva || reserva.order_id || reserva.numero || null;
-
+  
     if (!numero) return;
-
+  
     const link = `http://18.206.179.50:5173/checkin?reserva=${numero}`;
-    setLinkCheckin(link);
-
-    try {
-      const url = await QRCode.toDataURL(link, {
-        width: 280,
-        margin: 2,
-      });
-      setQrDataUrl(url);
-    } catch (err) {
-      console.error("Error QR:", err);
-    }
+  
+    await fetch(`${API_BASE}/admin/huesped/checkin-por-reserva`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        numeroReserva: numero,
+        checkinUrl: link
+      }),
+    });
   };
+  
 
   /* ===============================================
       BUSCAR RESERVA
@@ -95,11 +82,13 @@ export default function Login() {
         return;
       }
 
-      // guardar
       setReservaEncontrada(reserva);
 
-      // generar link + qr
-      await generarLinkYQR(reserva);
+      // ✅ Genera y guarda el link en BD (sin mostrarlo)
+      await generarYGuardarLink(reserva);
+
+      // ✅ Continuar directo al check-in
+      continuarAlCheckin(reserva);
 
     } catch (err) {
       alert("Error de conexión");
@@ -109,14 +98,12 @@ export default function Login() {
   /* ===============================================
       CONTINUAR AL FORMULARIO CHECKIN
   =============================================== */
-  const continuarAlCheckin = () => {
-    if (!reservaEncontrada) return;
-
+  const continuarAlCheckin = (reserva: any) => {
     localStorage.setItem(
       "usuario",
       JSON.stringify({ role: "guest-checkin" })
     );
-    localStorage.setItem("reserva", JSON.stringify(reservaEncontrada));
+    localStorage.setItem("reserva", JSON.stringify(reserva));
 
     navigate("/checkin", { replace: true });
   };
@@ -142,7 +129,6 @@ export default function Login() {
           />
         </h2>
 
-        {/* -------------------- INPUTS ------------------ */}
         <div style={styles.inputGroup}>
           <label>
             Buscar por:
@@ -197,7 +183,6 @@ export default function Login() {
           )}
         </div>
 
-        {/* -------------------- BOTONES ------------------ */}
         <div style={styles.buttonGroup}>
           <button style={styles.button} onClick={buscarReserva}>
             Consultar Reserva
@@ -214,57 +199,6 @@ export default function Login() {
             Reservar
           </button>
         </div>
-
-        {/* -------------------- LINK + QR ------------------ */}
-        {linkCheckin && (
-          <div style={{ marginTop: "1.5rem", textAlign: "center" }}>
-            <p style={{ color: "#fff" }}>Link para completar check-in:</p>
-
-            <div
-              style={{
-                background: "#111",
-                padding: "0.8rem",
-                borderRadius: "8px",
-                wordBreak: "break-all",
-                color: "#0bf",
-              }}
-            >
-              {linkCheckin}
-            </div>
-
-            <button
-              style={{
-                ...styles.button,
-                backgroundColor: "#10b981",
-                marginTop: "0.8rem",
-              }}
-              onClick={() => navigator.clipboard.writeText(linkCheckin)}
-            >
-              Copiar Link
-            </button>
-
-            {qrDataUrl && (
-              <div style={{ marginTop: "1rem" }}>
-                <img
-                  src={qrDataUrl}
-                  alt="QR Code"
-                  style={{ width: "180px", height: "180px" }}
-                />
-              </div>
-            )}
-
-            <button
-              style={{
-                ...styles.button,
-                backgroundColor: "#f59e0b",
-                marginTop: "1rem",
-              }}
-              onClick={continuarAlCheckin}
-            >
-              Continuar al Check-in
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

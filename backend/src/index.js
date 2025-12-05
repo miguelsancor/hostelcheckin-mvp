@@ -534,7 +534,7 @@ app.delete("/admin/huespedes/:id", async (req, res) => {
   });
   
 /* =======================================================================
-   ADMIN - ACTUALIZAR CHECKIN POR NUMERO DE RESERVA
+   ADMIN - CREAR O ACTUALIZAR CHECKIN POR NUMERO DE RESERVA (UPSERT REAL)
    ======================================================================= */
    app.put("/admin/huesped/checkin-por-reserva", async (req, res) => {
     try {
@@ -544,20 +544,42 @@ app.delete("/admin/huespedes/:id", async (req, res) => {
         return res.status(400).json({ ok: false, error: "Datos incompletos" });
       }
   
-      const existe = await prisma.huesped.findUnique({
+      const existente = await prisma.huesped.findUnique({
         where: { numeroReserva },
       });
   
-      if (!existe) {
-        return res.status(404).json({ ok: false, error: "Reserva no encontrada" });
+      if (existente) {
+        // ✅ SOLO ACTUALIZA
+        await prisma.huesped.update({
+          where: { numeroReserva },
+          data: { checkinUrl },
+        });
+  
+        return res.json({ ok: true, action: "updated" });
+      } else {
+        // ✅ CREA SI NO EXISTE (caso Nobeds)
+        await prisma.huesped.create({
+          data: {
+            nombre: "Invitado externo",
+            tipoDocumento: "N/A",
+            numeroDocumento: "N/A",
+            nacionalidad: "N/A",
+            direccion: "N/A",
+            lugarProcedencia: "N/A",
+            lugarDestino: "N/A",
+            telefono: "N/A",
+            email: "N/A",
+            motivoViaje: "N/A",
+            fechaIngreso: "",
+            fechaSalida: "",
+            numeroReserva,
+            checkinUrl,
+            creadoEn: new Date(),
+          },
+        });
+  
+        return res.json({ ok: true, action: "created" });
       }
-  
-      await prisma.huesped.update({
-        where: { numeroReserva },
-        data: { checkinUrl },
-      });
-  
-      res.json({ ok: true });
     } catch (e) {
       console.error("error guardar checkinUrl por reserva:", e);
       res.status(500).json({ ok: false, error: "Error al guardar checkinUrl" });

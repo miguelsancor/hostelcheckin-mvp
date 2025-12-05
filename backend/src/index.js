@@ -70,50 +70,69 @@ const toDateStr = (v, fallbackDate) => {
 /* =======================================================================
    API Check-in (simple)
    ======================================================================= */
-app.post(
-  "/api/checkin",
-  upload.fields([{ name: "anverso" }, { name: "reverso" }, { name: "firma" }]),
-  async (req, res) => {
-    try {
-      const parsed = JSON.parse(req.body.data || "{}");
-      const { huespedes = [], fechaIngreso, fechaSalida } = parsed;
-
-      if (!Array.isArray(huespedes) || !huespedes.length) {
-        return res.status(400).json({ ok: false, error: "No llegaron huéspedes" });
+   app.post(
+    "/api/checkin",
+    upload.fields([{ name: "anverso" }, { name: "reverso" }, { name: "firma" }]),
+    async (req, res) => {
+      try {
+        if (!req.body.data) {
+          return res.status(400).json({ ok: false, error: "No llegó data" });
+        }
+  
+        const parsed = JSON.parse(req.body.data || "{}");
+        const { huespedes = [], fechaIngreso, fechaSalida } = parsed;
+  
+        if (!Array.isArray(huespedes) || !huespedes.length) {
+          return res
+            .status(400)
+            .json({ ok: false, error: "No llegaron huespedes" });
+        }
+  
+        const titular = huespedes[0];
+        const numeroReserva = generarNumeroReserva();
+  
+        // ✅ BLINDAJE TOTAL PARA PRISMA
+        const payload = {
+          nombre: toStr(titular?.nombre) || "N/A",
+          tipoDocumento: toStr(titular?.tipoDocumento) || "N/A",
+          numeroDocumento: toStr(titular?.numeroDocumento) || "N/A",
+          nacionalidad: toStr(titular?.nacionalidad) || "N/A",
+          direccion: toStr(titular?.direccion) || "N/A",
+          lugarProcedencia: toStr(titular?.lugarProcedencia) || "N/A",
+          lugarDestino: toStr(titular?.lugarDestino) || "N/A",
+          telefono: toStr(titular?.telefono) || "N/A",
+          email: toStr(titular?.email) || "N/A",
+          motivoViaje: toStr(titular?.motivoViaje) || "N/A",
+          fechaIngreso: toDateStr(
+            titular?.fechaIngreso ?? fechaIngreso,
+            new Date()
+          ),
+          fechaSalida: toDateStr(
+            titular?.fechaSalida ?? fechaSalida,
+            new Date()
+          ),
+          numeroReserva,
+          creadoEn: new Date(),
+  
+          // ✅ POR SI YA EXISTE LINK
+          checkinUrl: toStr(parsed.checkinUrl || ""),
+          codigoTTLock: toStr(parsed.codigoTTLock || ""),
+        };
+  
+        console.log("✅ INSERT PAYLOAD:", payload);
+  
+        await prisma.huesped.create({ data: payload });
+  
+        res.json({ ok: true, numeroReserva, total: 1 });
+      } catch (e) {
+        console.error("🔥 ERROR /api/checkin:", e);
+        res
+          .status(500)
+          .json({ ok: false, error: "Error al registrar el check-in" });
       }
-
-      const titular = huespedes[0];
-      const numeroReserva = generarNumeroReserva();
-
-      const fIng = toDateStr(titular?.fechaIngreso ?? fechaIngreso, new Date());
-      const fSal = toDateStr(titular?.fechaSalida ?? fechaSalida, new Date());
-
-      const payload = {
-        nombre: toStr(titular?.nombre),
-        tipoDocumento: toStr(titular?.tipoDocumento),
-        numeroDocumento: toStr(titular?.numeroDocumento),
-        nacionalidad: toStr(titular?.nacionalidad),
-        direccion: toStr(titular?.direccion),
-        lugarProcedencia: toStr(titular?.lugarProcedencia),
-        lugarDestino: toStr(titular?.lugarDestino),
-        telefono: toStr(titular?.telefono),
-        email: toStr(titular?.email),
-        motivoViaje: toStr(titular?.motivoViaje),
-        fechaIngreso: fIng,
-        fechaSalida: fSal,
-        numeroReserva,
-        creadoEn: new Date(),
-      };
-
-      await prisma.huesped.create({ data: payload });
-
-      res.json({ ok: true, numeroReserva, total: 1 });
-    } catch (e) {
-      console.error("error /api/checkin:", e);
-      res.status(500).json({ ok: false, error: "Error al registrar el check-in" });
     }
-  }
-);
+  );
+  
 
 /* =======================================================================
    API Check-in múltiple

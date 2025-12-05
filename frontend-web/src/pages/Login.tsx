@@ -21,15 +21,24 @@ export default function Login() {
       GENERAR Y GUARDAR LINK EN BD
   =============================================== */
   const generarYGuardarLink = async (reserva: any) => {
-    const numero =
-      reserva.numeroReserva || reserva.order_id || reserva.numero || null;
+    const numero = String(
+      reserva.numeroReserva ||
+      reserva.order_id ||
+      reserva.numero ||
+      ""
+    );
   
     if (!numero) return;
   
     const PUBLIC_BASE =
-      import.meta.env.VITE_PUBLIC_BASE_URL || "http://18.206.179.50:5173";
+      import.meta.env.VITE_PUBLIC_BASE_URL ||
+      `${window.location.protocol}//${window.location.host}`;
   
-    const link = `${PUBLIC_BASE}/checkin?reserva=${numero}`;
+    // ✅ LINK LIMPIO Y EDITABLE POR RESERVA
+    const link = `${PUBLIC_BASE}/checkin?reserva=${encodeURIComponent(numero)}`;
+  
+    // ✅ Guardar también local para el hook
+    localStorage.setItem("checkinUrlReal", link);
   
     await fetch(`${API_BASE}/admin/huesped/checkin-por-reserva`, {
       method: "PUT",
@@ -87,12 +96,11 @@ export default function Login() {
 
       setReservaEncontrada(reserva);
 
-      // ✅ Genera y guarda el link en BD (sin mostrarlo)
+      // ✅ Genera y guarda el link REAL en BD + localStorage
       await generarYGuardarLink(reserva);
 
       // ✅ Continuar directo al check-in
       continuarAlCheckin(reserva);
-
     } catch (err) {
       alert("Error de conexión");
     }

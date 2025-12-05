@@ -1,4 +1,3 @@
-// frontend-web/src/pages/CheckinForm.hook.ts
 import { useEffect, useState } from "react";
 import type { Huesped, Reserva, LockItem, HuespedBD } from "./CheckinForm.types";
 import { roomMapping } from "./roomMapping";
@@ -26,11 +25,10 @@ function getQueryParams() {
   if (typeof window === "undefined") return { orderId: null as string | null };
   const params = new URLSearchParams(window.location.search);
   return {
-    orderId: params.get("orderId") || params.get("reserva"),
+    orderId: params.get("reserva"),
   };
 }
 
-// normaliza nombres para comparar
 function normalizeName(name?: string | null) {
   return (name || "").trim().toUpperCase();
 }
@@ -47,78 +45,56 @@ export function useCheckinForm() {
   const [modalMessage, setModalMessage] = useState("");
   const [showModalHoy, setShowModalHoy] = useState(false);
 
-  // ======================= CARGA INICIAL (URL o localStorage) =======================
+  // ======================= CARGA INICIAL DESDE URL O LOCAL =======================
   useEffect(() => {
     const { orderId } = getQueryParams();
 
+    // ✅ CARGA DIRECTA DESDE TU BACKEND
     if (orderId) {
       (async () => {
         try {
-          const resp = await fetch(`${API_BASE}/api/nobeds/reserva/${orderId}`);
+          const resp = await fetch(
+            `${API_BASE}/api/checkin/por-reserva/${orderId}`
+          );
+
           const json = await resp.json();
 
-          if (!json.ok || !json.reserva) {
-            console.warn("No se encontró reserva en NoBeds para", orderId);
+          if (!json.ok || !json.data) {
             fallbackFromLocalStorage();
             return;
           }
 
-          const p = json.reserva;
+          const p = json.data;
 
           const huesped: Huesped = {
-            nombre: p.name || "",
+            nombre: p.nombre || "",
+            tipoDocumento: p.tipoDocumento || "",
+            numeroDocumento: p.numeroDocumento || "",
+            nacionalidad: p.nacionalidad || "",
+            direccion: p.direccion || "",
+            lugarProcedencia: p.lugarProcedencia || "",
+            lugarDestino: p.lugarDestino || "",
+            telefono: p.telefono || "",
             email: p.email || "",
-            telefono: p.phone || "",
-            fechaIngreso: p.checkin?.slice(0, 10),
-            fechaSalida: p.checkout?.slice(0, 10),
-            referral: p.referral,
-            status: p.status,
-            nights: p.nights,
-            guests: p.guests,
-            price: p.price,
-            total: p.total,
-            b_extras: p.b_extras,
-            b_smoking: p.b_smoking,
-            b_meal: p.b_meal,
-            comment: p.comment,
+            motivoViaje: p.motivoViaje || "",
+            fechaIngreso: p.fechaIngreso || "",
+            fechaSalida: p.fechaSalida || "",
           };
 
-          // ⚠️ IMPORTANTE: aquí NO calculamos lockId todavía.
           setReserva({
-            numeroReserva: String(p.order_id),
-            nombre: p.name,
+            numeroReserva: p.numeroReserva,
+            nombre: p.nombre,
             email: p.email,
-            telefono: p.phone,
-            checkin: p.checkin,
-            checkout: p.checkout,
-            room_id: p.room_id,
+            telefono: p.telefono,
+            checkin: p.fechaIngreso,
+            checkout: p.fechaSalida,
+            room_id: null,
             lockId: undefined,
           });
 
           setFormList([huesped]);
-
-          const reservaToStore = {
-            order_id: p.order_id,
-            name: p.name,
-            email: p.email,
-            phone: p.phone,
-            checkin: p.checkin,
-            checkout: p.checkout,
-            room_id: p.room_id,
-            referral: p.referral,
-            status: p.status,
-            nights: p.nights,
-            guests: p.guests,
-            price: p.price,
-            total: p.total,
-            b_extras: p.b_extras,
-            b_smoking: p.b_smoking,
-            b_meal: p.b_meal,
-            comment: p.comment,
-          };
-          localStorage.setItem("reserva", JSON.stringify(reservaToStore));
-        } catch (err) {
-          console.error("Error cargando reserva desde NoBeds:", err);
+          localStorage.setItem("reserva", JSON.stringify(p));
+        } catch (e) {
           fallbackFromLocalStorage();
         }
       })();
@@ -126,7 +102,6 @@ export function useCheckinForm() {
       return;
     }
 
-    // 2) Si NO hay orderId en URL → usar localStorage
     fallbackFromLocalStorage();
   }, []);
 
@@ -136,58 +111,46 @@ export function useCheckinForm() {
       try {
         const parsed = JSON.parse(data);
 
-        if (parsed?.order_id) {
-          const huesped: Huesped = {
-            nombre: parsed.name || "",
-            email: parsed.email || "",
-            telefono: parsed.phone || "",
-            fechaIngreso: parsed.checkin?.slice(0, 10),
-            fechaSalida: parsed.checkout?.slice(0, 10),
-            referral: parsed.referral,
-            status: parsed.status,
-            nights: parsed.nights,
-            guests: parsed.guests,
-            price: parsed.price,
-            total: parsed.total,
-            b_extras: parsed.b_extras,
-            b_smoking: parsed.b_smoking,
-            b_meal: parsed.b_meal,
-            comment: parsed.comment,
-          };
+        const huesped: Huesped = {
+          nombre: parsed.nombre || parsed.name || "",
+          tipoDocumento: parsed.tipoDocumento || "",
+          numeroDocumento: parsed.numeroDocumento || "",
+          nacionalidad: parsed.nacionalidad || "",
+          direccion: parsed.direccion || "",
+          lugarProcedencia: parsed.lugarProcedencia || "",
+          lugarDestino: parsed.lugarDestino || "",
+          telefono: parsed.telefono || "",
+          email: parsed.email || "",
+          motivoViaje: parsed.motivoViaje || "",
+          fechaIngreso: parsed.fechaIngreso || "",
+          fechaSalida: parsed.fechaSalida || "",
+        };
 
-          setReserva({
-            numeroReserva: String(parsed.order_id),
-            nombre: parsed.name,
-            email: parsed.email,
-            telefono: parsed.phone,
-            checkin: parsed.checkin,
-            checkout: parsed.checkout,
-            room_id: parsed.room_id,
-            lockId: undefined, // se resuelve luego con locks + roomMapping
-          });
+        setReserva({
+          numeroReserva: parsed.numeroReserva || "",
+          nombre: parsed.nombre || "",
+          email: parsed.email || "",
+          telefono: parsed.telefono || "",
+          checkin: parsed.fechaIngreso,
+          checkout: parsed.fechaSalida,
+          room_id: null,
+          lockId: undefined,
+        });
 
-          setFormList([huesped]);
-        } else {
-          const arr = Array.isArray(parsed) ? parsed : [parsed];
-          setFormList(arr.length ? arr : [{} as Huesped]);
-          setReserva(arr[0] ?? null);
-        }
+        setFormList([huesped]);
         return;
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
 
     setFormList([{} as Huesped]);
     setReserva(null);
   }
 
-  // Guarda reserva simplificada en localStorage cuando cambie
   useEffect(() => {
     if (reserva) localStorage.setItem("reserva", JSON.stringify(reserva));
   }, [reserva]);
 
-  // ======================= TTLOCK: CARGAR CERRADURAS =======================
+  // ======================= TTLOCK =======================
   useEffect(() => {
     fetch(`${API_BASE}/mcp/keys`)
       .then((res) => res.json())
@@ -197,20 +160,16 @@ export function useCheckinForm() {
       .catch(() => {});
   }, []);
 
-  // ======================= RESOLVER lockId A PARTIR DE room_id + locks + Excel =======================
   useEffect(() => {
     if (!reserva?.room_id || !locks.length) return;
 
     const roomNameFromExcel = roomMapping[String(reserva.room_id)];
 
-    // Si no existe o explícitamente dice que no tiene cerradura → dejar sin lockId
     if (
       !roomNameFromExcel ||
       roomNameFromExcel.toLowerCase().includes("no tiene cerradura")
     ) {
-      if (reserva.lockId !== undefined) {
-        setReserva((prev) => (prev ? { ...prev, lockId: undefined } : prev));
-      }
+      setReserva((prev) => (prev ? { ...prev, lockId: undefined } : prev));
       return;
     }
 
@@ -228,7 +187,7 @@ export function useCheckinForm() {
     }
   }, [reserva?.room_id, locks]);
 
-  // ======================= HANDLERS DE FORM =======================
+  // ======================= HANDLERS =======================
   const handleChange = (index: number, e: any) => {
     const updated = [...formList];
     updated[index] = { ...updated[index], [e.target.name]: e.target.value };
@@ -244,14 +203,13 @@ export function useCheckinForm() {
 
   const handleAddGuest = () => setFormList((prev) => [...prev, {} as Huesped]);
 
-  // ======================= HUESPEDES HOY =======================
+  // ======================= HOY =======================
   const cargarHuespedesHoy = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/checkin/hoy`);
       const json = await res.json();
       setHuespedesHoy(json.huespedes || []);
-    } catch (err) {
-      console.error("Error cargando huespedes de hoy:", err);
+    } catch {
       setHuespedesHoy([]);
     } finally {
       setShowModalHoy(true);
@@ -260,7 +218,7 @@ export function useCheckinForm() {
 
   const cerrarModalHoy = () => setShowModalHoy(false);
 
-  // ======================= SUBMIT =======================
+  // ======================= SUBMIT FINAL =======================
   const handleSubmit = async () => {
     if (!formList.length) {
       alert("Agrega al menos un huésped.");
@@ -272,6 +230,9 @@ export function useCheckinForm() {
     try {
       const titular = formList[0];
 
+      const checkinUrl =
+        `${window.location.protocol}//${window.location.host}/checkin?reserva=${reserva?.numeroReserva || ""}`;
+
       const fd = new FormData();
       fd.append(
         "data",
@@ -279,6 +240,7 @@ export function useCheckinForm() {
           huespedes: formList,
           fechaIngreso: titular.fechaIngreso || null,
           fechaSalida: titular.fechaSalida || null,
+          checkinUrl,
         })
       );
 
@@ -286,6 +248,7 @@ export function useCheckinForm() {
         method: "POST",
         body: fd,
       });
+
       const json = await res.json();
 
       if (!json.ok) {
@@ -302,9 +265,7 @@ export function useCheckinForm() {
 
       let msg = `Huéspedes registrados\nReserva: ${numeroReserva}\n`;
 
-      // 👉 Ahora usamos directamente reserva.lockId (ya resuelto por el useEffect anterior)
-      const lockId = reserva?.lockId || (DEFAULT_LOCK_ID || 0);
-
+      const lockId = reserva?.lockId || DEFAULT_LOCK_ID;
       const endAt = endOfDayEpochMs(
         titular.fechaSalida || reserva?.checkout || ""
       );
@@ -322,11 +283,7 @@ export function useCheckinForm() {
           const code = data.keyboardPwd || data.password || data.code;
           msg += "Passcode creado.\n";
           if (code) msg += "Código: " + code;
-        } else {
-          msg += "No se pudo crear passcode.";
         }
-      } else {
-        msg += "Cerradura o fecha inválida.";
       }
 
       setModalMessage(msg);

@@ -70,51 +70,66 @@ const toDateStr = (v, fallbackDate) => {
 /* =======================================================================
    API Check-in (simple)
    ======================================================================= */
-app.post(
-  "/api/checkin",
-  upload.fields([{ name: "anverso" }, { name: "reverso" }, { name: "firma" }]),
-  async (req, res) => {
-    try {
-      const parsed = JSON.parse(req.body.data || "{}");
-      const { huespedes = [], fechaIngreso, fechaSalida } = parsed;
-
-      if (!Array.isArray(huespedes) || !huespedes.length) {
-        return res.status(400).json({ ok: false, error: "No llegaron huéspedes" });
+   app.post(
+    "/api/checkin",
+    upload.fields([{ name: "anverso" }, { name: "reverso" }, { name: "firma" }]),
+    async (req, res) => {
+      try {
+        const parsed = JSON.parse(req.body.data || "{}");
+        const { huespedes = [], fechaIngreso, fechaSalida, codigoTTLock } = parsed;
+  
+        if (!Array.isArray(huespedes) || !huespedes.length) {
+          return res.status(400).json({ ok: false, error: "No llegaron huéspedes" });
+        }
+  
+        const titular = huespedes[0];
+  
+        // ✅ GENERAR NUMERO DE RESERVA
+        const numeroReserva = generarNumeroReserva();
+  
+        // ✅ CONSTRUIR LA URL CORRECTA AQUÍ (NO DESDE FRONT)
+        const checkinUrl = `http://18.206.179.50:5173/checkin?reserva=${numeroReserva}`;
+  
+        const fIng = toDateStr(titular?.fechaIngreso ?? fechaIngreso, new Date());
+        const fSal = toDateStr(titular?.fechaSalida ?? fechaSalida, new Date());
+  
+        const payload = {
+          nombre: toStr(titular?.nombre),
+          tipoDocumento: toStr(titular?.tipoDocumento),
+          numeroDocumento: toStr(titular?.numeroDocumento),
+          nacionalidad: toStr(titular?.nacionalidad),
+          direccion: toStr(titular?.direccion),
+          lugarProcedencia: toStr(titular?.lugarProcedencia),
+          lugarDestino: toStr(titular?.lugarDestino),
+          telefono: toStr(titular?.telefono),
+          email: toStr(titular?.email),
+          motivoViaje: toStr(titular?.motivoViaje),
+          fechaIngreso: fIng,
+          fechaSalida: fSal,
+  
+          // ✅ ESTO ES LO QUE TE FALTABA
+          numeroReserva,
+          checkinUrl,
+  
+          creadoEn: new Date(),
+          codigoTTLock: toStr(codigoTTLock),
+        };
+  
+        await prisma.huesped.create({ data: payload });
+  
+        return res.json({
+          ok: true,
+          numeroReserva,
+          checkinUrl, // ✅ DEVUELTO YA CORRECTO
+          total: 1,
+        });
+      } catch (e) {
+        console.error("ERROR /api/checkin:", e);
+        res.status(500).json({ ok: false, error: "Error al registrar el check-in" });
       }
-
-      const titular = huespedes[0];
-      const numeroReserva = generarNumeroReserva();
-
-      const fIng = toDateStr(titular?.fechaIngreso ?? fechaIngreso, new Date());
-      const fSal = toDateStr(titular?.fechaSalida ?? fechaSalida, new Date());
-
-      const payload = {
-        nombre: toStr(titular?.nombre),
-        tipoDocumento: toStr(titular?.tipoDocumento),
-        numeroDocumento: toStr(titular?.numeroDocumento),
-        nacionalidad: toStr(titular?.nacionalidad),
-        direccion: toStr(titular?.direccion),
-        lugarProcedencia: toStr(titular?.lugarProcedencia),
-        lugarDestino: toStr(titular?.lugarDestino),
-        telefono: toStr(titular?.telefono),
-        email: toStr(titular?.email),
-        motivoViaje: toStr(titular?.motivoViaje),
-        fechaIngreso: fIng,
-        fechaSalida: fSal,
-        numeroReserva,
-        creadoEn: new Date(),
-      };
-
-      await prisma.huesped.create({ data: payload });
-
-      res.json({ ok: true, numeroReserva, total: 1 });
-    } catch (e) {
-      console.error("error /api/checkin:", e);
-      res.status(500).json({ ok: false, error: "Error al registrar el check-in" });
     }
-  }
-);
-
+  );
+  
 /* =======================================================================
    API Check-in múltiple
    ======================================================================= */
@@ -536,55 +551,38 @@ app.delete("/admin/huespedes/:id", async (req, res) => {
 /* =======================================================================
    ADMIN - CREAR O ACTUALIZAR CHECKIN POR NUMERO DE RESERVA (UPSERT REAL)
    ======================================================================= */
-app.put("/admin/huesped/checkin-por-reserva", async (req, res) => {
-  try {
-    const { numeroReserva, checkinUrl } = req.body;
-
-    if (!numeroReserva || !checkinUrl) {
-      return res.status(400).json({ ok: false, error: "Datos incompletos" });
-    }
-
-    const existente = await prisma.huesped.findUnique({
-      where: { numeroReserva },
-    });
-
-    if (existente) {
-      // ✅ SOLO ACTUALIZA
+   app.put("/admin/huesped/checkin-por-reserva", async (req, res) => {
+    try {
+      const { numeroReserva, checkinUrl } = req.body;
+  
+      if (!numeroReserva || !checkinUrl) {
+        return res.status(400).json({ ok: false, error: "Datos incompletos" });
+      }
+  
+      const existente = await prisma.huesped.findUnique({
+        where: { numeroReserva: String(numeroReserva) },
+      });
+  
+      if (!existente) {
+        return res.status(404).json({
+          ok: false,
+          error: "No existe un huésped real para esta reserva. Debe llenarse el formulario primero.",
+        });
+      }
+  
       await prisma.huesped.update({
-        where: { numeroReserva },
+        where: { numeroReserva: String(numeroReserva) },
         data: { checkinUrl },
       });
-
+  
       return res.json({ ok: true, action: "updated" });
-    } else {
-      // ✅ CREA SI NO EXISTE (caso Nobeds)
-      await prisma.huesped.create({
-        data: {
-          nombre: "Invitado externo",
-          tipoDocumento: "N/A",
-          numeroDocumento: "N/A",
-          nacionalidad: "N/A",
-          direccion: "N/A",
-          lugarProcedencia: "N/A",
-          lugarDestino: "N/A",
-          telefono: "N/A",
-          email: "N/A",
-          motivoViaje: "N/A",
-          fechaIngreso: "",
-          fechaSalida: "",
-          numeroReserva,
-          checkinUrl,
-          creadoEn: new Date(),
-        },
-      });
-
-      return res.json({ ok: true, action: "created" });
+    } catch (e) {
+      console.error("error guardar checkinUrl por reserva:", e);
+      res.status(500).json({ ok: false, error: "Error al guardar checkinUrl" });
     }
-  } catch (e) {
-    console.error("error guardar checkinUrl por reserva:", e);
-    res.status(500).json({ ok: false, error: "Error al guardar checkinUrl" });
-  }
-});
+  });
+  
+  
 
 
 /* =======================================================================
@@ -661,6 +659,45 @@ app.get("/admin/metrics", async (_req, res) => {
     res.status(500).json({ ok: false });
   }
 });
+
+/* =======================================================================
+   Buscar por NÚMERO DE RESERVA (PARA ABRIR DESDE URL)
+   ======================================================================= */
+   app.get("/api/checkin/por-reserva/:numeroReserva", async (req, res) => {
+    try {
+      const valor = String(req.params.numeroReserva).trim();
+  
+      if (!valor) {
+        return res.status(400).json({ ok: false, error: "Falta numeroReserva" });
+      }
+  
+      // 🔥 BUSCA POR RESERVA INTERNA O EXTERNA
+      const huesped = await prisma.huesped.findFirst({
+        where: {
+          OR: [
+            { numeroReserva: valor },
+            { numeroDocumento: valor },
+          ],
+        },
+      });
+  
+      if (!huesped) {
+        return res.status(404).json({
+          ok: false,
+          error: "Reserva no encontrada en base de datos",
+          buscado: valor,
+        });
+      }
+  
+      return res.json({ ok: true, data: huesped });
+    } catch (err) {
+      console.error("ERROR /api/checkin/por-reserva:", err);
+      return res.status(500).json({ ok: false, error: "Error interno" });
+    }
+  });
+  
+
+
 
 /* ================== Debug & Health ================== */
 app.get("/mcp/debug/env", (_req, res) => {

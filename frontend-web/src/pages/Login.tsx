@@ -26,14 +26,17 @@ export default function Login() {
   
     if (!numero) return;
   
-    const link = `http://18.206.179.50:5173/checkin?reserva=${numero}`;
+    const PUBLIC_BASE =
+      import.meta.env.VITE_PUBLIC_BASE_URL || "http://18.206.179.50:5173";
+  
+    const link = `${PUBLIC_BASE}/checkin?reserva=${numero}`;
   
     await fetch(`${API_BASE}/admin/huesped/checkin-por-reserva`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         numeroReserva: numero,
-        checkinUrl: link
+        checkinUrl: link,
       }),
     });
   };

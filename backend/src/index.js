@@ -638,7 +638,68 @@ app.delete("/admin/huespedes/:id", async (req, res) => {
       res.status(500).json({ ok: false });
     }
   });
+/* =======================================================================
+   ADMIN - DETALLE HUÉSPED
+   ======================================================================= */
+   app.get("/admin/huesped/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
   
+      const huesped = await prisma.huesped.findUnique({
+        where: { id: Number(id) },
+      });
+  
+      if (!huesped) {
+        return res.status(404).json({ ok: false, error: "No encontrado" });
+      }
+  
+      res.json({ ok: true, data: huesped });
+    } catch (e) {
+      console.error("detalle huesped:", e);
+      res.status(500).json({ ok: false });
+    }
+  });
+    
+/* ===================== MÉTRICAS ADMIN ===================== */
+app.get("/admin/metrics", async (_req, res) => {
+  try {
+    const total = await prisma.huesped.count();
+
+    const hoyInicio = new Date();
+    hoyInicio.setHours(0, 0, 0, 0);
+
+    const hoyFin = new Date();
+    hoyFin.setHours(23, 59, 59, 999);
+
+    const hoy = await prisma.huesped.count({
+      where: { creadoEn: { gte: hoyInicio, lte: hoyFin } }
+    });
+
+    const mesInicio = new Date();
+    mesInicio.setDate(1);
+    mesInicio.setHours(0, 0, 0, 0);
+
+    const mes = await prisma.huesped.count({
+      where: { creadoEn: { gte: mesInicio } }
+    });
+
+    const ultima = await prisma.huesped.findFirst({
+      orderBy: { creadoEn: "desc" }
+    });
+
+    res.json({
+      ok: true,
+      total,
+      hoy,
+      mes,
+      ultimaReserva: ultima?.numeroReserva || "N/A"
+    });
+
+  } catch (err) {
+    console.error("metrics error:", err);
+    res.status(500).json({ ok: false });
+  }
+});
 
 
 /* ================== Debug & Health ================== */

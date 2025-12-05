@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = "http://18.206.179.50:4000";
+const ADMIN_PASSWORD = "admin123"; // 🔐 CAMBIA ESTO SI QUIERES
 
 type Huesped = {
   id: number;
@@ -13,23 +15,39 @@ type Huesped = {
   fechaIngreso: string;
   fechaSalida: string;
   numeroReserva: string;
-  direccion?: string;
-  lugarProcedencia?: string;
-  lugarDestino?: string;
-  motivoViaje?: string;
 };
 
 export default function AdminDashboard() {
+  /* =========================
+     ✅ CONTROL DE ACCESO
+  ========================= */
+  const [autenticado, setAutenticado] = useState<boolean>(
+    localStorage.getItem("admin_auth") === "true"
+  );
+  const [password, setPassword] = useState("");
+
+  const login = () => {
+    if (password === ADMIN_PASSWORD) {
+      localStorage.setItem("admin_auth", "true");
+      setAutenticado(true);
+    } else {
+      alert("Clave incorrecta");
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem("admin_auth");
+    setAutenticado(false);
+  };
+
+  /* =========================
+     ✅ DATOS
+  ========================= */
   const [huespedes, setHuespedes] = useState<Huesped[]>([]);
   const [filtro, setFiltro] = useState("");
   const [metrics, setMetrics] = useState<any>(null);
-
-  // ✅ OJITO (DETALLE)
   const [detalle, setDetalle] = useState<Huesped | null>(null);
 
-  /* =========================
-     CARGA DE DATOS
-  ========================= */
   const cargarHuespedes = async () => {
     const res = await fetch(`${API_BASE}/api/checkin/hoy`);
     const json = await res.json();
@@ -43,87 +61,103 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    cargarHuespedes();
-    cargarMetrics();
-  }, []);
+    if (autenticado) {
+      cargarHuespedes();
+      cargarMetrics();
+    }
+  }, [autenticado]);
 
-  /* =========================
-     FILTRO BUSCADOR
-  ========================= */
   const filtrados = huespedes.filter((h) => {
     const texto = `${h.nombre} ${h.numeroDocumento} ${h.telefono} ${h.email}`.toLowerCase();
     return texto.includes(filtro.toLowerCase());
   });
 
-  /* =========================
-     ELIMINAR
-  ========================= */
   const eliminar = async (id: number) => {
     if (!confirm("¿Eliminar huésped?")) return;
-    await fetch(`${API_BASE}/admin/huesped/${id}`, { method: "DELETE" });
+    await fetch(`${API_BASE}/admin/huespedes/${id}`, { method: "DELETE" });
     cargarHuespedes();
     cargarMetrics();
   };
 
+  const exportarExcel = () => {
+    const data = filtrados.map((h) => ({
+      ID: h.id,
+      Nombre: h.nombre,
+      Documento: `${h.tipoDocumento} ${h.numeroDocumento}`,
+      Teléfono: h.telefono,
+      Email: h.email,
+      Ingreso: h.fechaIngreso,
+      Salida: h.fechaSalida,
+      Reserva: h.numeroReserva,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Huespedes");
+    XLSX.writeFile(wb, `huespedes_${Date.now()}.xlsx`);
+  };
+
+  /* =========================
+     ✅ PANTALLA LOGIN
+  ========================= */
+  if (!autenticado) {
+    return (
+      <div style={loginContainer}>
+        <div style={loginBox}>
+          <h2>Acceso Administrativo</h2>
+          <input
+            type="password"
+            placeholder="Clave de administrador"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={input}
+          />
+          <button onClick={login} style={btnLogin}>
+            Ingresar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* =========================
+     ✅ DASHBOARD
+  ========================= */
   return (
     <div style={container}>
       <div style={card}>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <h1>Dashboard Administrativo</h1>
+          <button onClick={logout} style={btnLogout}>Salir</button>
+        </div>
 
-        <h1 style={{ textAlign: "center" }}>Dashboard Administrativo</h1>
-
-        {/* =========================
-           MÉTRICAS
-        ========================= */}
         {metrics && (
           <div style={metricsGrid}>
-            <div style={metricCard}>
-              <h4>Total</h4>
-              <p>{metrics.total}</p>
-            </div>
-            <div style={metricCard}>
-              <h4>Hoy</h4>
-              <p>{metrics.hoy}</p>
-            </div>
-            <div style={metricCard}>
-              <h4>Este mes</h4>
-              <p>{metrics.mes}</p>
-            </div>
-            <div style={metricCard}>
-              <h4>Última reserva</h4>
-              <p style={{ fontSize: "0.8rem" }}>{metrics.ultimaReserva}</p>
-            </div>
+            <div style={metricCard}><h4>Total</h4><p>{metrics.total}</p></div>
+            <div style={metricCard}><h4>Hoy</h4><p>{metrics.hoy}</p></div>
+            <div style={metricCard}><h4>Este mes</h4><p>{metrics.mes}</p></div>
+            <div style={metricCard}><h4>Última reserva</h4><p>{metrics.ultimaReserva}</p></div>
           </div>
         )}
 
-        {/* =========================
-           BUSCADOR
-        ========================= */}
-        <input
-          placeholder="Buscar por nombre, documento, teléfono o email"
-          value={filtro}
-          onChange={(e) => setFiltro(e.target.value)}
-          style={input}
-        />
+        <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
+          <button onClick={exportarExcel} style={btnExcel}>📥 Excel</button>
+          <input
+            placeholder="Buscar..."
+            value={filtro}
+            onChange={(e) => setFiltro(e.target.value)}
+            style={input}
+          />
+        </div>
 
-        {/* =========================
-           TABLA
-        ========================= */}
         <div style={tablaWrapper}>
           <table style={tabla}>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Nombre</th>
-                <th>Documento</th>
-                <th>Teléfono</th>
-                <th>Email</th>
-                <th>Ingreso</th>
-                <th>Salida</th>
-                <th>Reserva</th>
-                <th>Acción</th>
+                <th>ID</th><th>Nombre</th><th>Documento</th><th>Teléfono</th>
+                <th>Email</th><th>Ingreso</th><th>Salida</th><th>Reserva</th><th>Acción</th>
               </tr>
             </thead>
-
             <tbody>
               {filtrados.map((h) => (
                 <tr key={h.id}>
@@ -135,8 +169,7 @@ export default function AdminDashboard() {
                   <td>{h.fechaIngreso}</td>
                   <td>{h.fechaSalida}</td>
                   <td>{h.numeroReserva}</td>
-                  <td style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
-                    {/* ✅ OJITO RESTAURADO */}
+                  <td style={{ display: "flex", gap: "0.5rem" }}>
                     <button style={btnEye} onClick={() => setDetalle(h)}>👁</button>
                     <button style={btnDelete} onClick={() => eliminar(h.id)}>❌</button>
                   </td>
@@ -145,28 +178,16 @@ export default function AdminDashboard() {
             </tbody>
           </table>
         </div>
-
       </div>
 
-      {/* =========================
-           MODAL DETALLE (OJITO)
-      ========================= */}
       {detalle && (
         <div style={modal}>
           <div style={modalBox}>
             <h3>Detalle del Huésped</h3>
-
             <p><b>Nombre:</b> {detalle.nombre}</p>
-            <p><b>Documento:</b> {detalle.tipoDocumento} - {detalle.numeroDocumento}</p>
-            <p><b>Teléfono:</b> {detalle.telefono}</p>
             <p><b>Email:</b> {detalle.email}</p>
-            <p><b>Ingreso:</b> {detalle.fechaIngreso}</p>
-            <p><b>Salida:</b> {detalle.fechaSalida}</p>
-            <p><b>Reserva:</b> {detalle.numeroReserva}</p>
-
-            <button style={btnClose} onClick={() => setDetalle(null)}>
-              Cerrar
-            </button>
+            <p><b>Teléfono:</b> {detalle.telefono}</p>
+            <button onClick={() => setDetalle(null)} style={btnClose}>Cerrar</button>
           </div>
         </div>
       )}
@@ -174,109 +195,58 @@ export default function AdminDashboard() {
   );
 }
 
-/* =========================
-   ESTILOS
-========================= */
+/* ================= ESTILOS ================= */
+
+const loginContainer: React.CSSProperties = { background: "#000", minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" };
+const loginBox: React.CSSProperties = { background: "#020617", padding: "2rem", borderRadius: "1rem", textAlign: "center", color: "white", width: "300px" };
+const btnLogin: React.CSSProperties = { marginTop: "1rem", background: "#2563eb", color: "white", border: "none", padding: "0.6rem", width: "100%" };
 
 const container: React.CSSProperties = {
-  background: "#000",
-  minHeight: "100vh",
-  display: "flex",
-  justifyContent: "center",
-  padding: "2rem"
-};
+    position: "fixed",   // ✅ Saca el Admin del flujo normal
+    top: 0,
+    left: 0,
+    width: "100vw",      // ✅ Toma todo el ancho visible
+    height: "100vh",     // ✅ Toma todo el alto visible
+    background: "#000", // ✅ Tapa el fondo SOLO en Admin
+    display: "flex",
+    justifyContent: "flex-start", // ✅ Se pega a la izquierda
+    alignItems: "flex-start",
+    padding: "1.5rem",
+    overflowX: "hidden",
+    overflowY: "auto",
+    zIndex: 9999         // ✅ Se pone por encima del fondo
+  };
+  
+  
+  const card: React.CSSProperties = {
+    background: "transparent", // ✅ Ya no necesita fondo propio
+    borderRadius: 0,
+    padding: "1rem",
+    width: "100%",
+    maxWidth: "100%",
+    color: "#fff"
+  };
+  
+  
+  
+const input: React.CSSProperties = { padding: "0.7rem", borderRadius: "0.4rem", border: "1px solid #333", background: "#111", color: "#fff", width: "100%" };
 
-const card: React.CSSProperties = {
-  background: "rgba(0,0,0,0.9)",
-  borderRadius: "1rem",
-  padding: "2rem",
-  width: "100%",
-  maxWidth: "1200px",
-  color: "#fff"
-};
-
-const input: React.CSSProperties = {
-  width: "100%",
-  padding: "0.8rem",
-  borderRadius: "0.5rem",
-  border: "1px solid #333",
-  background: "#111",
-  color: "#fff",
-  marginBottom: "1.5rem"
-};
-
-const metricsGrid: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-  gap: "1rem",
-  marginBottom: "1.5rem"
-};
-
-const metricCard: React.CSSProperties = {
-  background: "#0f172a",
-  padding: "1rem",
-  borderRadius: "0.75rem",
-  textAlign: "center",
-  border: "1px solid #1e293b"
-};
+const metricsGrid: React.CSSProperties = { display: "grid", gap: "1rem", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))" };
+const metricCard: React.CSSProperties = { background: "#0f172a", padding: "1rem", borderRadius: "0.7rem", textAlign: "center" };
 
 const tablaWrapper: React.CSSProperties = {
-  overflowX: "auto",
-  width: "100%"
-};
+    overflowX: "auto",
+    width: "100vw",
+    paddingBottom: "12px"
+  };
+  
+const tabla: React.CSSProperties = { width: "100%" };
 
-const tabla: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse"
-};
+const btnDelete: React.CSSProperties = { background: "red", color: "white", border: "none", padding: "0.3rem 0.6rem" };
+const btnEye: React.CSSProperties = { background: "#2563eb", color: "white", border: "none", padding: "0.3rem 0.6rem" };
+const btnExcel: React.CSSProperties = { background: "#16a34a", color: "white", border: "none", padding: "0.5rem 1rem" };
+const btnLogout: React.CSSProperties = { background: "#991b1b", color: "white", border: "none", padding: "0.5rem 1rem" };
 
-const btnDelete: React.CSSProperties = {
-  background: "red",
-  border: "none",
-  color: "white",
-  padding: "0.4rem 0.6rem",
-  borderRadius: "0.4rem",
-  cursor: "pointer"
-};
-
-const btnEye: React.CSSProperties = {
-  background: "#2563eb",
-  border: "none",
-  color: "white",
-  padding: "0.4rem 0.6rem",
-  borderRadius: "0.4rem",
-  cursor: "pointer"
-};
-
-/* ========= MODAL ========= */
-
-const modal: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(0,0,0,0.8)",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  zIndex: 99999
-};
-
-const modalBox: React.CSSProperties = {
-  background: "#020617",
-  padding: "2rem",
-  borderRadius: "1rem",
-  width: "100%",
-  maxWidth: "400px",
-  color: "white",
-  border: "1px solid #1e293b"
-};
-
-const btnClose: React.CSSProperties = {
-  marginTop: "1rem",
-  width: "100%",
-  padding: "0.6rem",
-  background: "#2563eb",
-  color: "white",
-  border: "none",
-  borderRadius: "0.5rem",
-  cursor: "pointer"
-};
+const modal: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", justifyContent: "center", alignItems: "center" };
+const modalBox: React.CSSProperties = { background: "#020617", padding: "2rem", borderRadius: "1rem", color: "white" };
+const btnClose: React.CSSProperties = { marginTop: "1rem", background: "#2563eb", color: "white", width: "100%" };

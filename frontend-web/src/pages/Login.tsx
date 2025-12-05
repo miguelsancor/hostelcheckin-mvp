@@ -5,7 +5,7 @@ import ContactAutocomplete from "../components/ContactAutocomplete";
 // @ts-ignore
 import * as QRCode from "qrcode";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
 
 export default function Login() {
   const [tipoBusqueda, setTipoBusqueda] = useState<
@@ -38,7 +38,7 @@ export default function Login() {
 
     if (!numero) return;
 
-    const link = `http://localhost:5173/checkin?reserva=${numero}`;
+    const link = `http://18.206.179.50:5173/checkin?reserva=${numero}`;
     setLinkCheckin(link);
 
     try {

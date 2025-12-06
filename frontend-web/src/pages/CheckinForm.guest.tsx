@@ -5,6 +5,7 @@ import type { Huesped } from "./CheckinForm.types";
 type GuestCardProps = {
   data: Huesped;
   index: number;
+  activeTab: string;
   onChange: (
     index: number,
     e: React.ChangeEvent<
@@ -14,7 +15,13 @@ type GuestCardProps = {
   onFile: (index: number, e: React.ChangeEvent<HTMLInputElement>) => void;
 };
 
-export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
+export function GuestCard({
+  data,
+  index,
+  activeTab,
+  onChange,
+  onFile,
+}: GuestCardProps) {
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -24,283 +31,291 @@ export function GuestCard({ data, index, onChange, onFile }: GuestCardProps) {
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) =>
     onFile(index, e);
 
-  /* =========================================================
-     FORMATEO DE MONEDA
-     ========================================================= */
-  const formatCurrency = (value: number | string | null | undefined) => {
-    if (!value) return "";
-    const num = Number(value);
-    if (isNaN(num)) return "";
-    return num.toLocaleString("es-CO", {
-      style: "currency",
-      currency: "COP",
-      minimumFractionDigits: 0,
-    });
-  };
-
-  const handleCurrencyChange = (
-    field: string,
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const raw = e.target.value.replace(/[^0-9]/g, "");
-    const parsed = raw === "" ? "" : Number(raw);
-
-    handleChange({
-      target: {
-        name: field,
-        value: parsed,
-      },
-    } as any);
-  };
-
-  /* =========================================================
-     DETECTAR DOCUMENTO PARA MOSTRAR ARCHIVOS
-     ========================================================= */
+  // ✅ SOLO SE ACTIVAN CUANDO EL USUARIO SELECCIONA
   const esCedula = data.tipoDocumento === "Cédula";
   const esPasaporte = data.tipoDocumento === "Pasaporte";
 
+  /* ========= FIELD ALINEADO PROFESIONAL ========= */
+  const Field = ({
+    label,
+    children,
+  }: {
+    label: string;
+    children: React.ReactNode;
+  }) => (
+    <div
+      style={{
+        width: "100%",
+        marginBottom: "0.8rem",
+        display: "grid",
+        gridTemplateColumns: "220px 1fr",
+        alignItems: "center",
+        gap: "0.75rem",
+      }}
+    >
+      <label
+        style={{
+          color: "#9ca3af",
+          fontSize: "0.8rem",
+          textAlign: "right",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+
   return (
     <div style={styles.card}>
-
-      {/* ===================== DATOS BÁSICOS ===================== */}
-      <div style={styles.row}>
-        <input
-          name="nombre"
-          value={data.nombre || ""}
-          onChange={handleChange}
-          placeholder="Nombre completo"
-          style={styles.input}
-        />
-
-        <select
-          name="tipoDocumento"
-          value={data.tipoDocumento || "Cédula"}
-          onChange={handleChange}
-          style={styles.input}
-        >
-          <option value="Cédula">Cédula</option>
-          <option value="Pasaporte">Pasaporte</option>
-        </select>
-
-        <input
-          name="numeroDocumento"
-          value={data.numeroDocumento || ""}
-          onChange={handleChange}
-          placeholder="Número documento"
-          style={styles.input}
-        />
-
-        <input
-          name="nacionalidad"
-          value={data.nacionalidad || ""}
-          onChange={handleChange}
-          placeholder="Nacionalidad"
-          style={styles.input}
-        />
-      </div>
-
-      {/* ===================== FECHA DE NACIMIENTO ===================== */}
-      <div style={styles.row}>
-        <div style={{ width: "100%" }}>
-          <label style={{ color: "white", fontSize: "0.85rem" }}>
-            Fecha de nacimiento:
-          </label>
-          <input
-            type="date"
-            name="fechaNacimiento"
-            value={data.fechaNacimiento || ""}
-            onChange={handleChange}
-            style={styles.input}
-          />
-        </div>
-      </div>
-
-      {/* ===================== ORIGEN / DESTINO ===================== */}
-      <div style={styles.row}>
-        <input
-          name="paisOrigen"
-          value={data.paisOrigen || ""}
-          onChange={handleChange}
-          placeholder="País de origen"
-          style={styles.input}
-        />
-        <input
-          name="paisDestino"
-          value={data.paisDestino || ""}
-          onChange={handleChange}
-          placeholder="País de destino"
-          style={styles.input}
-        />
-      </div>
-
-      {/* ===================== DIRECCIONES ===================== */}
-      <div style={styles.row}>
-        <input
-          name="direccion"
-          value={data.direccion || ""}
-          onChange={handleChange}
-          placeholder="Dirección"
-          style={styles.input}
-        />
-        <input
-          name="lugarProcedencia"
-          value={data.lugarProcedencia || ""}
-          onChange={handleChange}
-          placeholder="Lugar procedencia"
-          style={styles.input}
-        />
-        <input
-          name="lugarDestino"
-          value={data.lugarDestino || ""}
-          onChange={handleChange}
-          placeholder="Lugar destino"
-          style={styles.input}
-        />
-      </div>
-
-      {/* ===================== RESERVA ===================== */}
-      <div style={styles.row}>
-        <input
-          name="referral"
-          value={data.referral || ""}
-          onChange={handleChange}
-          placeholder="Origen reserva"
-          style={styles.input}
-        />
-
-        <input
-          name="status"
-          value={data.status || ""}
-          onChange={handleChange}
-          placeholder="Estado"
-          style={styles.input}
-        />
-
-        <input
-          name="nights"
-          type="number"
-          value={data.nights ?? ""}
-          onChange={handleChange}
-          placeholder="Noches"
-          style={styles.input}
-        />
-
-        <input
-          name="guests"
-          type="number"
-          value={data.guests ?? ""}
-          onChange={handleChange}
-          placeholder="Huéspedes"
-          style={styles.input}
-        />
-      </div>
-
-      {/* ===================== PRECIO / TOTAL ===================== */}
-      <div style={styles.row}>
-        <input
-          name="price"
-          value={formatCurrency(data.price)}
-          onChange={(e) => handleCurrencyChange("price", e)}
-          placeholder="Precio noche"
-          style={styles.input}
-        />
-
-        <input
-          name="total"
-          value={formatCurrency(data.total)}
-          onChange={(e) => handleCurrencyChange("total", e)}
-          placeholder="Total"
-          style={styles.input}
-        />
-      </div>
-
-      {/* ===================== TELÉFONO / EMAIL ===================== */}
-      <div style={styles.row}>
-        <input
-          name="telefono"
-          value={data.telefono || ""}
-          onChange={handleChange}
-          placeholder="Teléfono"
-          style={styles.input}
-        />
-
-        <input
-          name="email"
-          value={data.email || ""}
-          onChange={handleChange}
-          placeholder="Email"
-          style={styles.input}
-        />
-      </div>
-
-      {/* ===================== FECHAS ===================== */}
-      <div style={styles.row}>
-        <input
-          type="date"
-          name="fechaIngreso"
-          value={data.fechaIngreso || ""}
-          onChange={handleChange}
-          style={styles.input}
-        />
-        <input
-          type="date"
-          name="fechaSalida"
-          value={data.fechaSalida || ""}
-          onChange={handleChange}
-          style={styles.input}
-        />
-      </div>
-
-      {/* =========================================================
-         ARCHIVOS SEGÚN DOCUMENTO — AHORA RESPONSIVE
-         ========================================================= */}
-      <div style={styles.row}>
-
-        {esCedula && (
-          <>
-            <div style={{ width: "100%" }}>
-              <label style={{ color: "#ccc", fontSize: "0.85rem" }}>
-                Foto anverso (frente):
-              </label>
+      {/* ===================== TAB: DATOS PERSONALES ===================== */}
+      {activeTab === "personal" && (
+        <>
+          <div style={styles.row}>
+            <Field label="Nombre / Name">
               <input
-                type="file"
-                name="archivoAnverso"
-                onChange={handleFile}
+                name="nombre"
+                value={data.nombre || ""}
+                onChange={handleChange}
+                placeholder="Nombre completo"
                 style={styles.input}
-                className="checkin-input"
               />
-            </div>
+            </Field>
 
-            <div style={{ width: "100%" }}>
-              <label style={{ color: "#ccc", fontSize: "0.85rem" }}>
-                Foto reverso (atrás):
-              </label>
+            <Field label="Tipo documento / Document type">
+              <select
+                name="tipoDocumento"
+                value={data.tipoDocumento || ""}  // ✅ YA NO HAY DEFAULT
+                onChange={handleChange}
+                style={styles.input}
+              >
+                <option value="">Seleccione / Select</option>
+                <option value="Cédula">Cédula</option>
+                <option value="Pasaporte">Pasaporte</option>
+              </select>
+            </Field>
+
+            <Field label="Número documento / Document number">
               <input
-                type="file"
-                name="archivoReverso"
-                onChange={handleFile}
+                name="numeroDocumento"
+                value={data.numeroDocumento || ""}
+                onChange={handleChange}
+                placeholder="Número"
                 style={styles.input}
-                className="checkin-input"
               />
-            </div>
-          </>
-        )}
+            </Field>
 
-        {esPasaporte && (
-          <div style={{ width: "100%" }}>
-            <label style={{ color: "#ccc", fontSize: "0.85rem" }}>
-              Foto pasaporte:
-            </label>
-            <input
-              type="file"
-              name="archivoPasaporte"
-              onChange={handleFile}
-              style={styles.input}
-              className="checkin-input"
-            />
+            <Field label="Nacionalidad / Nationality">
+              <input
+                name="nacionalidad"
+                value={data.nacionalidad || ""}
+                onChange={handleChange}
+                placeholder="Nacionalidad"
+                style={styles.input}
+              />
+            </Field>
           </div>
-        )}
-      </div>
+
+          <div style={styles.row}>
+            <Field label="Fecha nacimiento / Birth date">
+              <input
+                type="date"
+                name="fechaNacimiento"
+                value={data.fechaNacimiento || ""}
+                onChange={handleChange}
+                style={styles.input}
+              />
+            </Field>
+          </div>
+        </>
+      )}
+
+      {/* ===================== TAB: VIAJE ===================== */}
+      {activeTab === "viaje" && (
+        <>
+          <div style={styles.row}>
+            <Field label="País origen / Country of origin">
+              <input
+                name="paisOrigen"
+                value={data.paisOrigen || ""}
+                onChange={handleChange}
+                placeholder="País origen"
+                style={styles.input}
+              />
+            </Field>
+
+            <Field label="País destino / Destination country">
+              <input
+                name="paisDestino"
+                value={data.paisDestino || ""}
+                onChange={handleChange}
+                placeholder="País destino"
+                style={styles.input}
+              />
+            </Field>
+          </div>
+
+          <div style={styles.row}>
+            <Field label="Dirección / Address">
+              <input
+                name="direccion"
+                value={data.direccion || ""}
+                onChange={handleChange}
+                placeholder="Dirección"
+                style={styles.input}
+              />
+            </Field>
+
+            <Field label="Lugar procedencia / Origin city">
+              <input
+                name="lugarProcedencia"
+                value={data.lugarProcedencia || ""}
+                onChange={handleChange}
+                placeholder="Ciudad origen"
+                style={styles.input}
+              />
+            </Field>
+
+            <Field label="Lugar destino / Destination city">
+              <input
+                name="lugarDestino"
+                value={data.lugarDestino || ""}
+                onChange={handleChange}
+                placeholder="Ciudad destino"
+                style={styles.input}
+              />
+            </Field>
+          </div>
+        </>
+      )}
+
+      {/* ===================== TAB: RESERVA ===================== */}
+      {activeTab === "reserva" && (
+        <>
+          <div style={styles.row}>
+            <Field label="Origen reserva / Booking source">
+              <input
+                name="referral"
+                value={data.referral || ""}
+                onChange={handleChange}
+                placeholder="Booking, Expedia, etc"
+                style={styles.input}
+              />
+            </Field>
+
+            <Field label="Estado / Status">
+              <input
+                name="status"
+                value={data.status || ""}
+                onChange={handleChange}
+                placeholder="Estado"
+                style={styles.input}
+              />
+            </Field>
+
+            <Field label="Noches / Nights">
+              <input
+                name="nights"
+                type="number"
+                value={data.nights ?? ""}
+                onChange={handleChange}
+                style={styles.input}
+              />
+            </Field>
+
+            <Field label="Huéspedes / Guests">
+              <input
+                name="guests"
+                type="number"
+                value={data.guests ?? ""}
+                onChange={handleChange}
+                style={styles.input}
+              />
+            </Field>
+          </div>
+
+          <div style={styles.row}>
+            <Field label="Teléfono / Phone">
+              <input
+                name="telefono"
+                value={data.telefono || ""}
+                onChange={handleChange}
+                style={styles.input}
+              />
+            </Field>
+
+            <Field label="Email">
+              <input
+                name="email"
+                value={data.email || ""}
+                onChange={handleChange}
+                style={styles.input}
+              />
+            </Field>
+          </div>
+
+          <div style={styles.row}>
+            <Field label="Ingreso / Check-in">
+              <input
+                type="date"
+                name="fechaIngreso"
+                value={data.fechaIngreso || ""}
+                onChange={handleChange}
+                style={styles.input}
+              />
+            </Field>
+
+            <Field label="Salida / Check-out">
+              <input
+                type="date"
+                name="fechaSalida"
+                value={data.fechaSalida || ""}
+                onChange={handleChange}
+                style={styles.input}
+              />
+            </Field>
+          </div>
+        </>
+      )}
+
+      {/* ===================== TAB: DOCUMENTOS ===================== */}
+      {activeTab === "documentos" && (
+        <div style={styles.row}>
+          {esCedula && (
+            <>
+              <Field label="Foto cédula frente / ID front">
+                <input
+                  type="file"
+                  name="archivoAnverso"
+                  onChange={handleFile}
+                  style={styles.input}
+                />
+              </Field>
+
+              <Field label="Foto cédula atrás / ID back">
+                <input
+                  type="file"
+                  name="archivoReverso"
+                  onChange={handleFile}
+                  style={styles.input}
+                />
+              </Field>
+            </>
+          )}
+
+          {esPasaporte && (
+            <Field label="Foto pasaporte / Passport photo">
+              <input
+                type="file"
+                name="archivoPasaporte"
+                onChange={handleFile}
+                style={styles.input}
+              />
+            </Field>
+          )}
+        </div>
+      )}
     </div>
   );
 }

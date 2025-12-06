@@ -76,10 +76,21 @@ const toDateStr = (v, fallbackDate) => {
     async (req, res) => {
       try {
         const parsed = JSON.parse(req.body.data || "{}");
-        const { huespedes = [], fechaIngreso, fechaSalida, codigoTTLock } = parsed;
+  
+        // 👉 AÑADIMOS motivoDetallado y motivoViaje global
+        const {
+          huespedes = [],
+          fechaIngreso,
+          fechaSalida,
+          codigoTTLock,
+          motivoDetallado,
+          motivoViaje: motivoViajeGlobal,
+        } = parsed;
   
         if (!Array.isArray(huespedes) || !huespedes.length) {
-          return res.status(400).json({ ok: false, error: "No llegaron huéspedes" });
+          return res
+            .status(400)
+            .json({ ok: false, error: "No llegaron huéspedes" });
         }
   
         const titular = huespedes[0];
@@ -87,11 +98,27 @@ const toDateStr = (v, fallbackDate) => {
         // ✅ GENERAR NUMERO DE RESERVA
         const numeroReserva = generarNumeroReserva();
   
-        // ✅ CONSTRUIR LA URL CORRECTA AQUÍ (NO DESDE FRONT)
+        // ✅ URL de checkin
         const checkinUrl = `http://18.206.179.50:5173/checkin?reserva=${numeroReserva}`;
   
-        const fIng = toDateStr(titular?.fechaIngreso ?? fechaIngreso, new Date());
-        const fSal = toDateStr(titular?.fechaSalida ?? fechaSalida, new Date());
+        const fIng = toDateStr(
+          titular?.fechaIngreso ?? fechaIngreso,
+          new Date()
+        );
+        const fSal = toDateStr(
+          titular?.fechaSalida ?? fechaSalida,
+          new Date()
+        );
+  
+        // 🔥 MOTIVO FINAL: tomamos de varios posibles nombres
+        const motivoFinal = toStr(
+          (titular &&
+            (titular.motivoViaje ||
+              titular.motivoDetallado ||
+              titular.motivo)) ||
+            motivoViajeGlobal ||
+            motivoDetallado
+        );
   
         const payload = {
           nombre: toStr(titular?.nombre),
@@ -103,14 +130,15 @@ const toDateStr = (v, fallbackDate) => {
           lugarDestino: toStr(titular?.lugarDestino),
           telefono: toStr(titular?.telefono),
           email: toStr(titular?.email),
-          motivoViaje: toStr(titular?.motivoViaje),
+  
+          // ✅ AHORA SE GUARDA SIEMPRE
+          motivoViaje: motivoFinal,
+  
           fechaIngreso: fIng,
           fechaSalida: fSal,
   
-          // ✅ ESTO ES LO QUE TE FALTABA
           numeroReserva,
           checkinUrl,
-  
           creadoEn: new Date(),
           codigoTTLock: toStr(codigoTTLock),
         };
@@ -120,67 +148,87 @@ const toDateStr = (v, fallbackDate) => {
         return res.json({
           ok: true,
           numeroReserva,
-          checkinUrl, // ✅ DEVUELTO YA CORRECTO
+          checkinUrl,
           total: 1,
         });
       } catch (e) {
         console.error("ERROR /api/checkin:", e);
-        res.status(500).json({ ok: false, error: "Error al registrar el check-in" });
+        res
+          .status(500)
+          .json({ ok: false, error: "Error al registrar el check-in" });
       }
     }
   );
   
+  
 /* =======================================================================
    API Check-in múltiple
    ======================================================================= */
-app.post("/api/checkin/guardar-multiple", upload.any(), async (req, res) => {
-  try {
-    let guests = parseGuestsFromFormData(req.body, req.files);
-    const parsedData = req.body?.data ? JSON.parse(req.body.data) : {};
-
-    if (!guests.length && parsedData.huespedes) {
-      guests = parsedData.huespedes;
+   app.post("/api/checkin/guardar-multiple", upload.any(), async (req, res) => {
+    try {
+      let guests = parseGuestsFromFormData(req.body, req.files);
+      const parsedData = req.body?.data ? JSON.parse(req.body.data) : {};
+  
+      if (!guests.length && parsedData.huespedes) {
+        guests = parsedData.huespedes;
+      }
+  
+      if (!guests.length) {
+        return res
+          .status(400)
+          .json({ ok: false, error: "No llegaron huéspedes" });
+      }
+  
+      const titular = guests[0];
+      const numeroReserva = generarNumeroReserva();
+  
+      const fIng = toDateStr(titular?.fechaIngreso, new Date());
+      const fSal = toDateStr(titular?.fechaSalida, new Date());
+  
+      // 🔥 MOTIVO FINAL: igual que arriba, pero usando parsedData
+      const motivoFinal = toStr(
+        (titular &&
+          (titular.motivoViaje ||
+            titular.motivoDetallado ||
+            titular.motivo)) ||
+          parsedData.motivoViaje ||
+          parsedData.motivoDetallado
+      );
+  
+      const payload = {
+        nombre: toStr(titular?.nombre),
+        tipoDocumento: toStr(titular?.tipoDocumento),
+        numeroDocumento: toStr(titular?.numeroDocumento),
+        nacionalidad: toStr(titular?.nacionalidad),
+        direccion: toStr(titular?.direccion),
+        lugarProcedencia: toStr(titular?.lugarProcedencia),
+        lugarDestino: toStr(titular?.lugarDestino),
+        telefono: toStr(titular?.telefono),
+        email: toStr(titular?.email),
+  
+        // ✅ ahora sí va a Prisma
+        motivoViaje: motivoFinal,
+  
+        fechaIngreso: fIng,
+        fechaSalida: fSal,
+        numeroReserva,
+        creadoEn: new Date(),
+  
+        checkinUrl: toStr(parsedData.checkinUrl),
+        codigoTTLock: toStr(parsedData.codigoTTLock),
+      };
+  
+      await prisma.huesped.create({ data: payload });
+  
+      res.json({ ok: true, numeroReserva, total: 1 });
+    } catch (e) {
+      console.error("error guardar-multiple:", e);
+      res
+        .status(500)
+        .json({ ok: false, error: "Error al guardar huéspedes" });
     }
-
-    if (!guests.length) {
-      return res.status(400).json({ ok: false, error: "No llegaron huéspedes" });
-    }
-
-    const titular = guests[0];
-    const numeroReserva = generarNumeroReserva();
-
-    const fIng = toDateStr(titular?.fechaIngreso, new Date());
-    const fSal = toDateStr(titular?.fechaSalida, new Date());
-
-    const payload = {
-      nombre: toStr(titular?.nombre),
-      tipoDocumento: toStr(titular?.tipoDocumento),
-      numeroDocumento: toStr(titular?.numeroDocumento),
-      nacionalidad: toStr(titular?.nacionalidad),
-      direccion: toStr(titular?.direccion),
-      lugarProcedencia: toStr(titular?.lugarProcedencia),
-      lugarDestino: toStr(titular?.lugarDestino),
-      telefono: toStr(titular?.telefono),
-      email: toStr(titular?.email),
-      motivoViaje: toStr(titular?.motivoViaje),
-      fechaIngreso: fIng,
-      fechaSalida: fSal,
-      numeroReserva,
-      creadoEn: new Date(),
-
-      /** CAMPOS NUEVOS */
-      checkinUrl: toStr(parsedData.checkinUrl),
-      codigoTTLock: toStr(parsedData.codigoTTLock),
-    };
-
-    await prisma.huesped.create({ data: payload });
-
-    res.json({ ok: true, numeroReserva, total: 1 });
-  } catch (e) {
-    console.error("error guardar-multiple:", e);
-    res.status(500).json({ ok: false, error: "Error al guardar huéspedes" });
-  }
-});
+  });
+  
 
 /* =======================================================================
    Buscar reserva

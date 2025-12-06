@@ -1,80 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useCheckinForm } from "./CheckinForm.hook";
 import { GuestCard } from "./CheckinForm.guest";
 import { ResultModal, GuestsTodayModal } from "./CheckinForm.modal";
 import { styles } from "./CheckinForm.styles";
 
-/* =========================================================
-   MODAL DE INFORMACIÓN DE CERRADURA
-   ========================================================= */
-type LockModalProps = {
-  show: boolean;
-  onClose: () => void;
-  tiene: boolean;
-};
+const TABS = [
+  { id: "personal", label: "👤 Datos personales" },
+  { id: "viaje", label: "✈️ Información del viaje" },
+  { id: "reserva", label: "🧾 Detalle de reserva" },
+  { id: "documentos", label: "📂 Documentos" }
+];
 
-function LockInfoModal({ show, onClose, tiene }: LockModalProps) {
-  if (!show) return null;
-
-  return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0, left: 0, right: 0, bottom: 0,
-        background: "rgba(0,0,0,0.65)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 9999
-      }}
-    >
-      <div
-        style={{
-          background: "#111827",
-          padding: "2rem",
-          borderRadius: "0.75rem",
-          width: "90%",
-          maxWidth: "420px",
-          color: "white",
-          textAlign: "center",
-          boxShadow: "0 0 15px rgba(0,0,0,0.4)",
-        }}
-      >
-        <h2 style={{ marginBottom: "1rem" }}>Información sobre la Cerradura</h2>
-
-        {tiene ? (
-          <p style={{ color: "#10b981", fontSize: "1.1rem" }}>
-            ✔ Esta reserva tiene una cerradura configurada.
-          </p>
-        ) : (
-          <p style={{ color: "#ef4444", fontSize: "1.1rem" }}>
-            ✘ Esta reserva NO tiene una cerradura configurada.
-          </p>
-        )}
-
-        <button
-          onClick={onClose}
-          style={{
-            marginTop: "1.5rem",
-            padding: "0.5rem 1.5rem",
-            background: "#2563eb",
-            border: "none",
-            color: "white",
-            borderRadius: "0.5rem",
-            cursor: "pointer",
-            fontWeight: "bold"
-          }}
-        >
-          Cerrar
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* =========================================================
-   MODAL — MOTIVO DETALLADO DEL VIAJE
-   ========================================================= */
 const reasonsTrip = [
   "Tourism",
   "Medical check up",
@@ -88,94 +24,6 @@ const reasonsTrip = [
   "Other",
 ];
 
-type ReasonTripModalProps = {
-  show: boolean;
-  value: string;
-  onSelect: (value: string) => void;
-  onClose: () => void;
-};
-
-function ReasonTripModal({ show, value, onSelect, onClose }: ReasonTripModalProps) {
-  if (!show) return null;
-
-  return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0, left: 0, right: 0, bottom: 0,
-        background: "rgba(0,0,0,0.75)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 99999
-      }}
-    >
-      <div
-        style={{
-          background: "#111827",
-          padding: "2rem",
-          borderRadius: "0.75rem",
-          width: "90%",
-          maxWidth: "480px",
-          color: "white",
-          boxShadow: "0 0 25px rgba(0,0,0,0.5)",
-        }}
-      >
-        <h2 style={{ textAlign: "center", marginBottom: "1.2rem" }}>
-          Reason for trip
-        </h2>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "1rem",
-            marginBottom: "1.5rem"
-          }}
-        >
-          {reasonsTrip.map((r) => (
-            <label
-              key={r}
-              style={{
-                display: "flex",
-                gap: "0.5rem",
-                alignItems: "center",
-                cursor: "pointer"
-              }}
-            >
-              <input
-                type="radio"
-                checked={value === r}
-                onChange={() => onSelect(r)}
-              />
-              {r}
-            </label>
-          ))}
-        </div>
-
-        <button
-          onClick={onClose}
-          style={{
-            width: "100%",
-            padding: "0.7rem",
-            borderRadius: "0.5rem",
-            background: "#2563eb",
-            color: "white",
-            fontWeight: "bold",
-            border: "none",
-            cursor: "pointer"
-          }}
-        >
-          Aceptar
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* =========================================================
-   COMPONENTE PRINCIPAL
-   ========================================================= */
 export default function CheckinForm() {
   const {
     formList,
@@ -194,33 +42,12 @@ export default function CheckinForm() {
     handleSubmit
   } = useCheckinForm();
 
-  /* ===== Cerradura ===== */
-  const [showLockModal, setShowLockModal] = useState(false);
-  const [tieneCerradura, setTieneCerradura] = useState(false);
-
-  useEffect(() => {
-    if (!reserva) return;
-    const tiene =
-      reserva.lockId &&
-      Number(reserva.lockId) !== 0 &&
-      reserva.lockId !== "";
-    setTieneCerradura(tiene);
-    setShowLockModal(true);
-  }, [reserva]);
-
-  /* ===== Motivo detallado (solo 1 por reserva) ===== */
-  const [showReasonTripModal, setShowReasonTripModal] = useState(false);
+  const [activeTab, setActiveTab] = useState("personal");
   const [motivoDetallado, setMotivoDetallado] = useState("");
+  const [showReasonTripModal, setShowReasonTripModal] = useState(false);
 
   return (
     <>
-      {/* MODALES */}
-      <LockInfoModal
-        show={showLockModal}
-        tiene={tieneCerradura}
-        onClose={() => setShowLockModal(false)}
-      />
-
       <ResultModal
         show={showModal}
         message={modalMessage}
@@ -233,14 +60,6 @@ export default function CheckinForm() {
         onClose={cerrarModalHoy}
       />
 
-      <ReasonTripModal
-        show={showReasonTripModal}
-        value={motivoDetallado}
-        onSelect={setMotivoDetallado}
-        onClose={() => setShowReasonTripModal(false)}
-      />
-
-      {/* CONTENIDO */}
       <div style={styles.container}>
         <h2 style={styles.title}>Registro de Huéspedes</h2>
 
@@ -249,7 +68,7 @@ export default function CheckinForm() {
           style={{
             marginBottom: "1.5rem",
             padding: "0.75rem 2rem",
-            background: "#2563eb",
+            background: "#10b981",
             borderRadius: "0.5rem",
             border: "none",
             color: "white",
@@ -260,7 +79,6 @@ export default function CheckinForm() {
           Ver huéspedes registrados hoy
         </button>
 
-        {/* CÓDIGO RESERVA */}
         {reserva?.numeroReserva && (
           <h3 style={styles.subTitle}>
             Código de Reserva:{" "}
@@ -268,10 +86,43 @@ export default function CheckinForm() {
           </h3>
         )}
 
-        {/* MOTIVO DETALLADO — SOLO 1 PARA TODA LA RESERVA */}
-        <div style={{ marginBottom: "1.5rem" }}>
+        {/* TABS */}
+        <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem", flexWrap: "wrap" }}>
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding: "0.6rem 1.5rem",
+                borderRadius: "0.5rem",
+                border: "none",
+                cursor: "pointer",
+                background: activeTab === tab.id ? "#2563eb" : "#1f2937",
+                color: "white",
+                fontWeight: "bold"
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* FORM */}
+        {formList.map((formData, index) => (
+          <GuestCard
+            key={index}
+            data={formData}
+            index={index}
+            onChange={handleChange}
+            onFile={handleFileChange}
+            activeTab={activeTab}
+          />
+        ))}
+
+        {/* MOTIVO DE VIAJE */}
+        <div style={{ marginTop: "2rem" }}>
           <label style={{ color: "white", fontWeight: "bold" }}>
-            Motivo detallado:
+            Motivo del viaje / Trip reason
           </label>
 
           <div
@@ -283,27 +134,12 @@ export default function CheckinForm() {
               borderRadius: "0.5rem",
               cursor: "pointer",
               color: motivoDetallado ? "#10b981" : "#9ca3af",
+              textAlign: "center"
             }}
           >
-            {motivoDetallado || "Seleccione una opción"}
+            {motivoDetallado || "Seleccione una opción / Select one"}
           </div>
         </div>
-
-        {/* FORM DE HUÉSPEDES */}
-        {formList.map((formData, index) => (
-          <GuestCard
-            key={index}
-            data={formData}
-            index={index}
-            onChange={handleChange}
-            onFile={handleFileChange}
-
-            // Estas dos props YA NO SE USAN para cada huésped,
-            // porque el motivo es general, no por persona.
-            motivoDetallado={motivoDetallado}
-            onOpenMotivoModal={() => setShowReasonTripModal(true)}
-          />
-        ))}
 
         {/* BOTONES */}
         <div style={styles.actions}>
@@ -316,18 +152,77 @@ export default function CheckinForm() {
             }}
             disabled={loading}
           >
-            Agregar Huésped
+            Agregar Huésped / Add Guest
           </button>
 
           <button
-            onClick={handleSubmit}
+            onClick={() => handleSubmit(motivoDetallado)}
             style={styles.button}
             disabled={loading}
           >
-            {loading ? "Enviando..." : "Enviar Registro"}
+            {loading ? "Enviando..." : "Enviar Registro / Submit"}
           </button>
         </div>
       </div>
+
+      {/* MODAL */}
+      {showReasonTripModal && (
+        <div style={{
+          position: "fixed",
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.75)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 99999
+        }}>
+          <div style={{
+            background: "#111827",
+            padding: "2rem",
+            borderRadius: "0.75rem",
+            width: "90%",
+            maxWidth: "480px",
+            color: "white"
+          }}>
+            <h2 style={{ textAlign: "center", marginBottom: "1rem" }}>
+              Reason for trip
+            </h2>
+
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "1rem",
+              marginBottom: "1.5rem"
+            }}>
+              {reasonsTrip.map(r => (
+                <label key={r} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <input
+                    type="radio"
+                    checked={motivoDetallado === r}
+                    onChange={() => setMotivoDetallado(r)}
+                  />
+                  {r}
+                </label>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setShowReasonTripModal(false)}
+              style={{
+                width: "100%",
+                padding: "0.7rem",
+                borderRadius: "0.5rem",
+                background: "#2563eb",
+                color: "white",
+                fontWeight: "bold",
+                border: "none",
+              }}
+            >
+              Aceptar
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

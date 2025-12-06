@@ -219,16 +219,23 @@ export function useCheckinForm() {
   const cerrarModalHoy = () => setShowModalHoy(false);
 
   // ======================= SUBMIT FINAL =======================
-  const handleSubmit = async () => {
+  // ⬇⬇⬇ AQUÍ INYECTAMOS EL MOTIVO DEL VIAJE ⬇⬇⬇
+  const handleSubmit = async (motivoViaje?: string) => {
     if (!formList.length) {
       alert("Agrega al menos un huésped.");
       return;
     }
 
+    // Clonar la lista y meter motivoViaje en cada huésped
+    const listaConMotivo: Huesped[] = formList.map((h) => ({
+      ...h,
+      motivoViaje: motivoViaje || h.motivoViaje || "",
+    }));
+
     setLoading(true);
 
     try {
-      const titular = formList[0];
+      const titular = listaConMotivo[0];
 
       const checkinUrl =
         `${window.location.protocol}//${window.location.host}/checkin?reserva=${reserva?.numeroReserva || ""}`;
@@ -237,7 +244,8 @@ export function useCheckinForm() {
       fd.append(
         "data",
         JSON.stringify({
-          huespedes: formList,
+          huespedes: listaConMotivo,
+          motivoViaje: motivoViaje || titular.motivoViaje || null,
           fechaIngreso: titular.fechaIngreso || null,
           fechaSalida: titular.fechaSalida || null,
           checkinUrl,

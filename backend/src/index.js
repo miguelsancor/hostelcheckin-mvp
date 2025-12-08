@@ -99,7 +99,7 @@ const toDateStr = (v, fallbackDate) => {
         const numeroReserva = generarNumeroReserva();
   
         // ✅ URL de checkin
-        const checkinUrl = `http://18.206.179.50:5173/checkin?reserva=${numeroReserva}`;
+        const checkinUrl = `http://localhost:5173/checkin?reserva=${numeroReserva}`;
   
         const fIng = toDateStr(
           titular?.fechaIngreso ?? fechaIngreso,
@@ -646,6 +646,77 @@ app.get("/api/nobeds/reservas", async (_req, res) => {
      }
    });
 
+
+// =======================================================
+// ✅ CREAR MISMO PASSCODE EN TODAS LAS CERRADURAS (USANDO /mcp/keys)
+// =======================================================
+app.post("/mcp/create-passcode-all", async (req, res) => {
+  try {
+    const { code, startAt, endAt, name } = req.body || {};
+
+    if (!startAt || !endAt || !code) {
+      return res.status(400).json({
+        ok: false,
+        error: "code, startAt y endAt son obligatorios",
+      });
+    }
+
+    const accessToken = await getAccessToken();
+
+    // 🔥 AQUÍ ESTÁ LA CLAVE: usamos /v3/key/list en lugar de /v3/lock/list
+    const keysResp = await ttPost("/v3/key/list", {
+      clientId: process.env.TTLOCK_CLIENT_ID,
+      accessToken,
+      pageNo: 1,
+      pageSize: 100,
+      date: nowMs(),
+    });
+
+    if (!Array.isArray(keysResp?.list) || !keysResp.list.length) {
+      return res.status(500).json({
+        ok: false,
+        error: "No se encontraron cerraduras en /v3/key/list",
+      });
+    }
+
+    const resultados = [];
+
+    for (const key of keysResp.list) {
+      const r = await ttPost("/v3/keyboardPwd/add", {
+        clientId: process.env.TTLOCK_CLIENT_ID,
+        accessToken,
+        lockId: key.lockId,                 // ✅ AQUÍ VIENE EL LOCK REAL
+        startDate: startAt,
+        endDate: endAt,
+        keyboardPwdType: 2,
+        keyboardPwd: String(code),
+        keyboardPwdName: name || "MASTER",
+        date: nowMs(),
+      });
+
+      resultados.push({
+        lockId: key.lockId,
+        ok: parseInt(r?.errcode ?? -1, 10) === 0,
+        result: r,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      total: resultados.length,
+      resultados,
+    });
+  } catch (err) {
+    console.error("ERROR /create-passcode-all:", err?.response?.data || err.message);
+    return res.status(500).json({
+      ok: false,
+      error: "Error creando passcode en todas las cerraduras",
+    });
+  }
+});
+
+ 
+
 /* =======================================================================
    ADMIN - CRUD / LISTA / DETALLE
    ======================================================================= */
@@ -897,5 +968,5 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 /* ================ Start ================ */
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () =>
-  console.log(`Backend corriendo en http://18.206.179.50:${PORT}`)
+  console.log(`Backend corriendo en http://localhost:${PORT}`)
 );

@@ -431,88 +431,220 @@ app.get("/api/nobeds/reservas", async (_req, res) => {
 });
 
 /* =======================================================================
-   TTLOCK
+   MCP ↔ TTLock
    ======================================================================= */
-const TTLOCK_BASE = process.env.TTLOCK_BASE || "https://api.ttlock.com";
-let _tt_token = null;
-let _tt_expiresAt = 0;
-
-async function getAccessToken() {
-  const needs = !_tt_token || Date.now() > _tt_expiresAt - 30000;
-  if (!needs) return _tt_token;
-
-  const md5Pass = crypto
-    .createHash("md5")
-    .update(process.env.TTLOCK_PASSWORD || "")
-    .digest("hex");
-
-  const form = new URLSearchParams({
-    clientId: process.env.TTLOCK_CLIENT_ID || "",
-    clientSecret: process.env.TTLOCK_CLIENT_SECRET || "",
-    username: process.env.TTLOCK_USERNAME || "",
-    password: md5Pass,
-    date: String(nowMs()),
-  });
-
-  const { data } = await axios.post(`${TTLOCK_BASE}/oauth2/token`, form, {
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    timeout: 20000,
-  });
-
-  if (!data?.access_token) throw new Error("No access_token from TTLock");
-
-  _tt_token = data.access_token;
-  _tt_expiresAt =
-    Date.now() + parseInt(data.expires_in || "7200", 10) * 1000;
-
-  return _tt_token;
-}
-
-async function ttPost(pathUrl, formBody) {
-  const { data } = await axios.post(
-    `${TTLOCK_BASE}${pathUrl}`,
-    new URLSearchParams(formBody),
-    {
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      timeout: 20000,
-    }
-  );
-  return data;
-}
-
-app.get("/mcp/locks", async (_req, res) => {
-  try {
-    const accessToken = await getAccessToken();
-
-    const r = await ttPost("/v3/lock/list", {
-      clientId: process.env.TTLOCK_CLIENT_ID,
-      accessToken,
-      pageNo: 1,
-      pageSize: 100,
-      date: nowMs(),
-    });
-
-    res.json(r);
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e?.response?.data || e.message });
-  }
-});
-
-app.get("/mcp/keys", async (_req, res) => {
-  try {
-    const accessToken = await getAccessToken();
-    const r = await ttPost("/v3/key/list", {
-      clientId: process.env.TTLOCK_CLIENT_ID,
-      accessToken,
-      pageNo: 1,
-      pageSize: 100,
-      date: nowMs(),
-    });
-    res.json(r);
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e?.response?.data || e.message });
-  }
-});
+   const TTLOCK_BASE = process.env.TTLOCK_BASE || "https://api.ttlock.com";
+   let _tt_token = null;
+   let _tt_expiresAt = 0;
+   
+   async function getAccessToken() {
+     const needs = !_tt_token || Date.now() > _tt_expiresAt - 30000;
+     if (!needs) return _tt_token;
+   
+     const md5Pass = crypto
+       .createHash("md5")
+       .update(process.env.TTLOCK_PASSWORD || "")
+       .digest("hex");
+   
+     const form = new URLSearchParams({
+       clientId: process.env.TTLOCK_CLIENT_ID || "",
+       clientSecret: process.env.TTLOCK_CLIENT_SECRET || "",
+       username: process.env.TTLOCK_USERNAME || "",
+       password: md5Pass,
+       date: String(nowMs()),
+     });
+   
+     const { data } = await axios.post(`${TTLOCK_BASE}/oauth2/token`, form, {
+       headers: { "Content-Type": "application/x-www-form-urlencoded" },
+       timeout: 20000,
+     });
+   
+     if (!data?.access_token) throw new Error("No access_token from TTLock");
+     _tt_token = data.access_token;
+     _tt_expiresAt = Date.now() + (parseInt(data.expires_in || "7200", 10) * 1000);
+     return _tt_token;
+   }
+   
+   async function ttPost(pathUrl, formBody) {
+     const { data } = await axios.post(
+       `${TTLOCK_BASE}${pathUrl}`,
+       new URLSearchParams(formBody),
+       { headers: { "Content-Type": "application/x-www-form-urlencoded" }, timeout: 20000 }
+     );
+     return data;
+   }
+   
+   // Enviar eKey
+   app.post("/mcp/create-key", async (req, res) => {
+     try {
+       const { lockId, receiverUsername, endAt, startAt, keyName, remarks, correlationId } = req.body || {};
+       if (!lockId || !receiverUsername || !endAt) {
+         console.log("→ /mcp/create-key FALTAN CAMPOS", { body:req.body });
+         return res.status(400).json({ ok:false, error:"lockId, receiverUsername y endAt son requeridos" });
+       }
+   
+       const accessToken = await getAccessToken();
+   
+       const r = await ttPost("/v3/key/send", {
+         clientId: process.env.TTLOCK_CLIENT_ID,
+         accessToken,
+         lockId,
+         receiverUsername,
+         keyName: keyName || "GuestKey",
+         remarks: remarks || "",
+         startDate: startAt || nowMs(),
+         endDate: endAt,
+         date: nowMs(),
+       });
+   
+       if (r?.errcode && r.errcode !== 0) {
+         console.error("TTLock key/send ERROR:", r, {
+           base: TTLOCK_BASE,
+           clientId: process.env.TTLOCK_CLIENT_ID,
+           body: req.body,
+         });
+         // Reenvía el detalle para verlo en Network → Response
+         return res.status(400).json({
+           ok: false,
+           provider: "ttlock",
+           ...r,
+         });
+       }
+   
+       res.json({ ok: true, provider: "ttlock", correlationId, result: r });
+     } catch (e) {
+       console.error("mcp/create-key exception:", e?.response?.data || e.message);
+       res.status(500).json({ ok:false, error: e?.response?.data || e.message });
+     }
+   });
+   
+   // === Crear PASSCODE (como en la app TTLock) ===
+   // Modo A: TTLock genera el código (keyboardPwdType=3)
+   // Modo B: Tú eliges el código 6–9 dígitos (keyboardPwdType=2 con 'keyboardPwd')
+   app.post("/mcp/create-passcode", async (req, res) => {
+     try {
+       const { lockId, endAt, startAt, code, name } = req.body || {};
+       if (!lockId || !endAt) {
+         return res.status(400).json({ ok: false, error: "lockId y endAt son requeridos" });
+       }
+   
+       const accessToken = await getAccessToken();
+       const base = {
+         clientId: process.env.TTLOCK_CLIENT_ID,
+         accessToken,
+         lockId,
+         startDate: startAt || nowMs(),
+         endDate: endAt,
+         date: nowMs(),
+       };
+   
+       let r;
+   
+       // ¿Te pasan un código propio?
+       if (code !== undefined && code !== null && String(code).trim() !== "") {
+         const pwd = String(code).trim();
+         if (!/^\d{6,9}$/.test(pwd)) {
+           return res.status(400).json({ ok: false, error: "El code debe ser 6–9 dígitos" });
+         }
+         r = await ttPost("/v3/keyboardPwd/add", {
+           ...base,
+           keyboardPwdType: 2,                 // custom
+           keyboardPwd: pwd,                   // **campo correcto**
+           keyboardPwdName: name || "AutoCheckin",
+         });
+       } else {
+         // Generado por TTLock
+         r = await ttPost("/v3/keyboardPwd/get", {
+           ...base,
+           keyboardPwdType: 3,                 // time-limited generado
+         });
+       }
+   
+       if (parseInt(r?.errcode ?? 0, 10) !== 0) {
+         return res.status(400).json({ ok: false, error: r });
+       }
+       res.json({ ok: true, provider: "ttlock", result: r });
+     } catch (e) {
+       console.error("mcp/create-passcode error:", e?.response?.data || e.message);
+       res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+     }
+   });
+   
+   // Apertura remota
+   app.post("/mcp/open-lock", async (req, res) => {
+     try {
+       const { lockId, correlationId } = req.body || {};
+       if (!lockId) return res.status(400).json({ ok: false, error: "lockId requerido" });
+   
+       const accessToken = await getAccessToken();
+       const r = await ttPost("/v3/lock/remoteUnlock", {
+         clientId: process.env.TTLOCK_CLIENT_ID,
+         accessToken,
+         lockId,
+         date: nowMs(),
+       });
+       if (parseInt(r.errcode ?? -1, 10) !== 0) return res.status(400).json({ ok: false, error: r });
+       res.json({ ok: true, provider: "ttlock", correlationId, result: r });
+     } catch (e) {
+       console.error("mcp/open-lock error:", e?.response?.data || e.message);
+       res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+     }
+   });
+   
+   // Revocar eKey
+   app.post("/mcp/revoke-key", async (req, res) => {
+     try {
+       const { keyId, remarks, correlationId } = req.body || {};
+       if (!keyId) return res.status(400).json({ ok: false, error: "keyId requerido" });
+   
+       const accessToken = await getAccessToken();
+       const r = await ttPost("/v3/key/delete", {
+         clientId: process.env.TTLOCK_CLIENT_ID,
+         accessToken,
+         keyId,
+         remarks: remarks || "",
+         date: nowMs(),
+       });
+       if (parseInt(r.errcode ?? -1, 10) !== 0) return res.status(400).json({ ok: false, error: r });
+       res.json({ ok: true, provider: "ttlock", correlationId, result: r });
+     } catch (e) {
+       console.error("mcp/revoke-key error:", e?.response?.data || e.message);
+       res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+     }
+   });
+   
+   // Listados útiles
+   app.get("/mcp/locks", async (_req, res) => {
+     try {
+       const accessToken = await getAccessToken();
+       const r = await ttPost("/v3/lock/list", {
+         clientId: process.env.TTLOCK_CLIENT_ID,
+         accessToken,
+         pageNo: 1,
+         pageSize: 100,
+         date: nowMs(),
+       });
+       res.json(r);
+     } catch (e) {
+       res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+     }
+   });
+   
+   app.get("/mcp/keys", async (_req, res) => {
+     try {
+       const accessToken = await getAccessToken();
+       const r = await ttPost("/v3/key/list", {
+         clientId: process.env.TTLOCK_CLIENT_ID,
+         accessToken,
+         pageNo: 1,
+         pageSize: 100,
+         date: nowMs(),
+       });
+       res.json(r);
+     } catch (e) {
+       res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+     }
+   });
 
 /* =======================================================================
    ADMIN - CRUD / LISTA / DETALLE

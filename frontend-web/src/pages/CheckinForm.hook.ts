@@ -3,24 +3,8 @@ import type { Huesped, Reserva, LockItem, HuespedBD } from "./CheckinForm.types"
 import { roomMapping } from "./roomMapping";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
-const DEFAULT_LOCK_ID = Number(import.meta.env.VITE_TTLOCK_LOCK_ID || "0");
 
 // ======================= HELPERS =======================
-function endOfDayEpochMs(date?: string) {
-  if (!date) return null;
-  return new Date(date + "T23:59:59.999").getTime();
-}
-
-async function createMcpPasscode(params: any) {
-  const res = await fetch(`${API_BASE}/mcp/create-passcode`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
-  const json = await res.json().catch(() => ({}));
-  return { ok: res.ok && json?.ok !== false, data: json };
-}
-
 function getQueryParams() {
   if (typeof window === "undefined") return { orderId: null as string | null };
   const params = new URLSearchParams(window.location.search);
@@ -94,7 +78,6 @@ export function useCheckinForm() {
           fallbackFromLocalStorage();
         }
       })();
-
       return;
     }
 
@@ -109,12 +92,12 @@ export function useCheckinForm() {
 
         const huesped: Huesped = {
           nombre: parsed.nombre || parsed.name || "",
-          tipoDocumento: parsed.tipoDocumento || "",
-          numeroDocumento: parsed.numeroDocumento || "",
-          nacionalidad: parsed.nacionalidad || "",
-          direccion: parsed.direccion || "",
-          lugarProcedencia: parsed.lugarProcedencia || "",
-          lugarDestino: parsed.lugarDestino || "",
+          tipoDocumento: "",
+          numeroDocumento: "",
+          nacionalidad: "",
+          direccion: "",
+          lugarProcedencia: "",
+          lugarDestino: "",
           telefono: parsed.telefono || "",
           email: parsed.email || "",
           motivoViaje: parsed.motivoViaje || "",
@@ -142,11 +125,7 @@ export function useCheckinForm() {
     setReserva(null);
   }
 
-  useEffect(() => {
-    if (reserva) localStorage.setItem("reserva", JSON.stringify(reserva));
-  }, [reserva]);
-
-  // ======================= TTLOCK =======================
+  // ======================= TTLOCK (solo para ver cerraduras) =======================
   useEffect(() => {
     fetch(`${API_BASE}/mcp/keys`)
       .then((res) => res.json())
@@ -155,30 +134,6 @@ export function useCheckinForm() {
       })
       .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    if (!reserva?.room_id || !locks.length) return;
-
-    const roomNameFromExcel = roomMapping[String(reserva.room_id)];
-
-    if (!roomNameFromExcel || roomNameFromExcel.toLowerCase().includes("no tiene cerradura")) {
-      setReserva((prev) => (prev ? { ...prev, lockId: undefined } : prev));
-      return;
-    }
-
-    const target = normalizeName(roomNameFromExcel);
-
-    const match = locks.find((l) => {
-      const alias = normalizeName(l.lockAlias);
-      const keyName = normalizeName((l as any).keyName);
-      const lockName = normalizeName((l as any).lockName);
-      return alias === target || keyName === target || lockName === target;
-    });
-
-    if (match && match.lockId !== reserva.lockId) {
-      setReserva((prev) => (prev ? { ...prev, lockId: match.lockId } : prev));
-    }
-  }, [reserva?.room_id, locks]);
 
   // ======================= HANDLERS =======================
   const handleChange = (index: number, e: any) => {
@@ -211,7 +166,7 @@ export function useCheckinForm() {
 
   const cerrarModalHoy = () => setShowModalHoy(false);
 
-  // ======================= SUBMIT FINAL =======================
+  // ======================= SUBMIT FINAL (YA NO CREA PASSCODE) =======================
   const handleSubmit = async (motivoViaje?: string) => {
     if (!formList.length) {
       alert("Agrega al menos un huésped.");
@@ -262,34 +217,7 @@ export function useCheckinForm() {
         numeroReserva,
       }));
 
-      let msg = `✅ Huéspedes registrados\nReserva: ${numeroReserva}\n`;
-
-      const lockId = reserva?.lockId || DEFAULT_LOCK_ID;
-      const endAt = endOfDayEpochMs(titular.fechaSalida || reserva?.checkout || "");
-
-      if (lockId && endAt) {
-        try {
-          const r = await createMcpPasscode({
-            lockId,
-            startAt: Date.now(),
-            endAt,
-            name: `Reserva-${numeroReserva}`,
-          });
-
-          if (r.ok) {
-            const data = r.data?.result || {};
-            const code = data.keyboardPwd || data.password || data.code;
-            msg += "\n🔐 Passcode creado correctamente.";
-            if (code) msg += "\n🔢 Código: " + code;
-          } else {
-            msg += "\n⚠️ No se pudo generar el passcode.";
-          }
-        } catch {
-          msg += "\n⚠️ Error en TTLock.";
-        }
-      } else {
-        msg += "\nℹ️ No se generó passcode (faltan datos de habitación o fechas).";
-      }
+      const msg = `✅ Huéspedes registrados\nReserva: ${numeroReserva}`;
 
       setModalMessage(msg);
       setShowModal(true);

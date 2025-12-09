@@ -35,32 +35,36 @@ export function ResultModal({
       alert("Huésped sin fechas completas");
       return;
     }
-
+  
     try {
       setLoading(true);
-
-      const code = String(
-        Math.floor(100000 + Math.random() * 900000)
-      ); // 6 dígitos
-
+  
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+  
+      // ✅ CONVERSIÓN CORRECTA A SEGUNDOS UNIX (NO MILISEGUNDOS)
+      const startAt = Math.floor(
+        new Date(guest.fechaIngreso + "T14:00:00").getTime() / 1000
+      );
+  
+      const endAt = Math.floor(
+        new Date(guest.fechaSalida + "T12:00:00").getTime() / 1000
+      );
+  
       const payload = {
         code,
-        startAt: new Date(guest.fechaIngreso).getTime(),
-        endAt: new Date(guest.fechaSalida).getTime(),
+        startAt,   // ✅ SEGUNDOS
+        endAt,     // ✅ SEGUNDOS
         name: `Reserva - ${guest.nombre}`,
       };
-
-      const res = await fetch(
-        "http://localhost:4000/mcp/create-passcode-all",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
+  
+      const res = await fetch("http://localhost:4000/mcp/create-passcode-all", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+  
       const data = await res.json();
       setTtlockResult({ ...data, code, payload });
     } catch (err) {
@@ -70,6 +74,7 @@ export function ResultModal({
       setLoading(false);
     }
   }
+  
 
   return (
     <div style={modalOverlay}>

@@ -48,9 +48,11 @@ export default function CheckinForm() {
 
   return (
     <>
+      {/* ✅ AQUÍ VA EL guest CORRECTAMENTE */}
       <ResultModal
         show={showModal}
         message={modalMessage}
+        guest={formList?.[0]}   // ✅ ESTO QUITA EL ERROR ROJO
         onClose={() => setShowModal(false)}
       />
 
@@ -165,7 +167,7 @@ export default function CheckinForm() {
         </div>
       </div>
 
-      {/* MODAL */}
+      {/* MODAL MOTIVO */}
       {showReasonTripModal && (
         <div style={{
           position: "fixed",

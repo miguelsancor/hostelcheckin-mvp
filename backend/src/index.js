@@ -99,7 +99,7 @@ const toDateStr = (v, fallbackDate) => {
         const numeroReserva = generarNumeroReserva();
   
         // ✅ URL de checkin
-        const checkinUrl = `http://localhost:5173/checkin?reserva=${numeroReserva}`;
+        const checkinUrl = `http://18.206.179.50:5173/checkin?reserva=${numeroReserva}`;
   
         const fIng = toDateStr(
           titular?.fechaIngreso ?? fechaIngreso,
@@ -968,5 +968,5 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 /* ================ Start ================ */
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () =>
-  console.log(`Backend corriendo en http://localhost:${PORT}`)
+  console.log(`Backend corriendo en http://18.206.179.50:${PORT}`)
 );

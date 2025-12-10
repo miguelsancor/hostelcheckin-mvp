@@ -5,113 +5,118 @@ const {
   toStr,
   toDateStr,
 } = require("../utils/helpers");
+
 const { parseGuestsFromFormData } = require("../utils/guestparser");
+
+// 🔥 Nuevo: renombrar archivos automáticamente con extensión real
+const { renameWithExtension } = require("../utils/upload");
 
 /* =======================================================================
    Check-in simple
    ======================================================================= */
-   async function postCheckinSimple(req, res) {
-    try {
-      console.log("FILES RECIBIDOS:", req.files);   // DEBUG
-      console.log("BODY:", req.body);
-  
-      const parsed = JSON.parse(req.body.data || "{}");
-  
-      const {
-        huespedes = [],
-        fechaIngreso,
-        fechaSalida,
-        codigoTTLock,
-        motivoDetallado,
-        motivoViaje: motivoViajeGlobal,
-      } = parsed;
-  
-      if (!Array.isArray(huespedes) || !huespedes.length) {
-        return res
-          .status(400)
-          .json({ ok: false, error: "No llegaron huéspedes" });
-      }
-  
-      const titular = huespedes[0];
-  
-      const numeroReserva = generarNumeroReserva();
-      const checkinUrl = `http://18.206.179.50:5173/checkin?reserva=${numeroReserva}`;
-  
-      const fIng = toDateStr(
-        titular?.fechaIngreso ?? fechaIngreso,
-        new Date()
-      );
-      const fSal = toDateStr(
-        titular?.fechaSalida ?? fechaSalida,
-        new Date()
-      );
-  
-      const motivoFinal = toStr(
-        titular.motivoViaje ||
-        titular.motivoDetallado ||
-        titular.motivo ||
-        motivoViajeGlobal ||
-        motivoDetallado
-      );
-  
-      /* ==========================================================
-         🔥 PROCESAR ARCHIVOS
-         ========================================================== */
-  
-      const archivos = {};
-  
-      if (req.files && req.files.length > 0) {
-        req.files.forEach((file) => {
-          archivos[file.fieldname] = file.filename; // Nombre del archivo guardado
-        });
-      }
-  
-      console.log("ARCHIVOS PROCESADOS:", archivos);
-  
-      /* ==========================================================
-         GUARDAR EN BD
-         ========================================================== */
-  
-      const payload = {
-        nombre: toStr(titular?.nombre),
-        tipoDocumento: toStr(titular?.tipoDocumento),
-        numeroDocumento: toStr(titular?.numeroDocumento),
-        nacionalidad: toStr(titular?.nacionalidad),
-        direccion: toStr(titular?.direccion),
-        lugarProcedencia: toStr(titular?.lugarProcedencia),
-        lugarDestino: toStr(titular?.lugarDestino),
-        telefono: toStr(titular?.telefono),
-        email: toStr(titular?.email),
-        motivoViaje: motivoFinal,
-        fechaIngreso: fIng,
-        fechaSalida: fSal,
-        numeroReserva,
-        checkinUrl,
-        creadoEn: new Date(),
-        codigoTTLock: toStr(codigoTTLock),
-  
-        // 🔥 Guardamos los nombres de archivos
-        archivoPasaporte: archivos.archivoPasaporte_0 || null,
-        archivoCedula: archivos.archivoCedula_0 || null,
-        archivoFirma: archivos.firma_0 || null,
-      };
-  
-      await prisma.huesped.create({ data: payload });
-  
-      return res.json({
-        ok: true,
-        numeroReserva,
-        checkinUrl,
-        archivos,
-        total: 1,
-      });
-  
-    } catch (e) {
-      console.error("ERROR /api/checkin:", e);
-      res.status(500).json({ ok: false, error: "Error al registrar el check-in" });
+async function postCheckinSimple(req, res) {
+  try {
+    console.log("FILES RECIBIDOS:", req.files); // DEBUG
+    console.log("BODY:", req.body);
+
+    const parsed = JSON.parse(req.body.data || "{}");
+
+    const {
+      huespedes = [],
+      fechaIngreso,
+      fechaSalida,
+      codigoTTLock,
+      motivoDetallado,
+      motivoViaje: motivoViajeGlobal,
+    } = parsed;
+
+    if (!Array.isArray(huespedes) || !huespedes.length) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "No llegaron huéspedes" });
     }
+
+    const titular = huespedes[0];
+
+    const numeroReserva = generarNumeroReserva();
+    const checkinUrl = `http://18.206.179.50:5173/checkin?reserva=${numeroReserva}`;
+
+    const fIng = toDateStr(
+      titular?.fechaIngreso ?? fechaIngreso,
+      new Date()
+    );
+    const fSal = toDateStr(
+      titular?.fechaSalida ?? fechaSalida,
+      new Date()
+    );
+
+    const motivoFinal = toStr(
+      titular.motivoViaje ||
+      titular.motivoDetallado ||
+      titular.motivo ||
+      motivoViajeGlobal ||
+      motivoDetallado
+    );
+
+    /* ==========================================================
+       🔥 PROCESAR ARCHIVOS Y RENOMBRARLOS
+       ========================================================== */
+
+    const archivos = {};
+
+    if (req.files && req.files.length > 0) {
+      for (const f of req.files) {
+        const nombreFinal = await renameWithExtension(f); // <-- aquí renombramos
+        archivos[f.fieldname] = nombreFinal;
+      }
+    }
+
+    console.log("ARCHIVOS PROCESADOS:", archivos);
+
+    /* ==========================================================
+       GUARDAR EN BD
+       ========================================================== */
+
+    const payload = {
+      nombre: toStr(titular?.nombre),
+      tipoDocumento: toStr(titular?.tipoDocumento),
+      numeroDocumento: toStr(titular?.numeroDocumento),
+      nacionalidad: toStr(titular?.nacionalidad),
+      direccion: toStr(titular?.direccion),
+      lugarProcedencia: toStr(titular?.lugarProcedencia),
+      lugarDestino: toStr(titular?.lugarDestino),
+      telefono: toStr(titular?.telefono),
+      email: toStr(titular?.email),
+      motivoViaje: motivoFinal,
+      fechaIngreso: fIng,
+      fechaSalida: fSal,
+      numeroReserva,
+      checkinUrl,
+      creadoEn: new Date(),
+      codigoTTLock: toStr(codigoTTLock),
+
+      // 🔥 Guardamos los nombres FINALES de los archivos ya renombrados
+      archivoPasaporte: archivos["archivoPasaporte_0"] || null,
+      archivoCedula: archivos["archivoCedula_0"] || null,
+      archivoFirma: archivos["firma_0"] || null,
+    };
+
+    await prisma.huesped.create({ data: payload });
+
+    return res.json({
+      ok: true,
+      numeroReserva,
+      checkinUrl,
+      archivos,
+      total: 1,
+    });
+
+  } catch (e) {
+    console.error("ERROR /api/checkin:", e);
+    res.status(500).json({ ok: false, error: "Error al registrar el check-in" });
   }
-  
+}
+
 /* =======================================================================
    Check-in múltiple
    ======================================================================= */
@@ -239,7 +244,7 @@ async function huespedesHoy(_req, res) {
 }
 
 /* =======================================================================
-   CONTACTOS (autocomplete)
+   AUTOCOMPLETE CONTACTOS
    ======================================================================= */
 async function contactos(req, res) {
   try {
@@ -351,7 +356,7 @@ async function buscarCombinado(req, res) {
 }
 
 /* =======================================================================
-   Buscar por NÚMERO DE RESERVA (URL)
+   Buscar por número de reserva
    ======================================================================= */
 async function getByNumeroReserva(req, res) {
   try {

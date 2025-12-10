@@ -15,24 +15,53 @@ app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 
 /* ============================================================
-   🔥 SERVIR ARCHIVOS ESTÁTICOS DE /uploads
-   Esto es lo que faltaba para que funcionen las imágenes
+   🔥 SERVIR ARCHIVOS SUBIDOS (IMÁGENES / FIRMAS / DOCUMENTOS)
    ============================================================ */
-app.use(
-  "/uploads",
-  express.static(path.join(__dirname, "../uploads"))
-);
+const uploadsPath = path.join(__dirname, "..", "uploads");
+const fs = require("fs");
+const mime = require("mime-types");
 
-// Rutas principales
-app.use("/api", checkinRoutes);        
-app.use("/api/nobeds", nobedsRoutes);  
-app.use("/mcp", mcpRoutes);            
-app.use("/admin", adminRoutes);        
+/* ==========================================
+   SERVIR ARCHIVOS DE UPLOADS CON MIME REAL
+   ========================================== */
+app.get("/uploads/:file", (req, res) => {
+  const filename = req.params.file;
+  const filepath = path.join(process.cwd(), "uploads", filename);
 
-// Healthcheck simple
+  if (!fs.existsSync(filepath)) {
+    return res.status(404).send("Archivo no encontrado");
+  }
+
+  // Detectar tipo MIME correcto
+  const mimeType = mime.lookup(filepath) || "application/octet-stream";
+
+  res.setHeader("Content-Type", mimeType);
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+
+  res.sendFile(filepath);
+});
+
+
+console.log("📁 Carpeta de uploads sirviéndose desde:", uploadsPath);
+
+/* ============================================================
+   RUTAS PRINCIPALES
+   ============================================================ */
+app.use("/api", checkinRoutes);        // /api/checkin, /api/checkin/...
+app.use("/api/nobeds", nobedsRoutes);  // /api/nobeds/reserva/:id, /reservas
+app.use("/mcp", mcpRoutes);            // /mcp/create-key, etc.
+app.use("/admin", adminRoutes);        // /admin/huespedes, /stats, etc.
+
+/* ============================================================
+   HEALTHCHECK
+   ============================================================ */
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
+/* ============================================================
+   SERVER
+   ============================================================ */
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
-  console.log(`Backend corriendo en http://localhost:${PORT}`);
+  console.log(`🚀 Backend corriendo en http://localhost:${PORT}`);
 });

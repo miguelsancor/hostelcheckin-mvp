@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Huesped, Reserva, LockItem, HuespedBD } from "./CheckinForm.types";
 import { roomMapping } from "./roomMapping";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
 /* ======================= HELPERS ======================= */
 function getQueryParams() {
@@ -206,55 +206,82 @@ export function useCheckinForm() {
       alert("Agrega al menos un huésped.");
       return;
     }
-
+  
     const listaConMotivo: Huesped[] = formList.map((h) => ({
       ...h,
       motivoViaje: motivoViaje || h.motivoViaje || "",
     }));
-
+  
     setLoading(true);
-
+  
     try {
       const titular = listaConMotivo[0];
-
+  
       const checkinUrl =
         `${window.location.protocol}//${window.location.host}/checkin?reserva=${reserva?.numeroReserva || ""}`;
-
+  
       const fd = new FormData();
+  
+      // ==========================================
+      // 🔥 1. Agregamos los datos en JSON
+      // ==========================================
       fd.append(
         "data",
         JSON.stringify({
-          huespedes: listaConMotivo,
+          huespedes: listaConMotivo.map((h) => ({
+            ...h,
+            archivoAnverso: undefined,
+            archivoReverso: undefined,
+            archivoPasaporte: undefined,
+          })),
           motivoViaje: motivoViaje || titular.motivoViaje || null,
           fechaIngreso: titular.fechaIngreso || null,
           fechaSalida: titular.fechaSalida || null,
           checkinUrl,
         })
       );
-
+  
+      // ==========================================
+      // 🔥 2. AGREGAR LOS ARCHIVOS REALES AL FORM DATA
+      // ==========================================
+      listaConMotivo.forEach((h, idx) => {
+        if (h.archivoAnverso)
+          fd.append(`archivoAnverso_${idx}`, h.archivoAnverso);
+  
+        if (h.archivoReverso)
+          fd.append(`archivoReverso_${idx}`, h.archivoReverso);
+  
+        if (h.archivoPasaporte)
+          fd.append(`archivoPasaporte_${idx}`, h.archivoPasaporte);
+      });
+  
+      // ==========================================
+      // 🔥 3. Enviar el FormData completo
+      // ==========================================
       const res = await fetch(`${API_BASE}/api/checkin`, {
         method: "POST",
         body: fd,
       });
-
+  
       const json = await res.json();
-
+  
       if (!json.ok) {
         alert("Error guardando en la base de datos.");
         return;
       }
-
+  
       const numeroReserva = json.numeroReserva;
-
+  
       setReserva((prev) => ({
         ...(prev || {}),
         numeroReserva,
       }));
-
+  
       const msg = `✅ Huéspedes registrados\nReserva: ${numeroReserva}`;
-
+  
       setModalMessage(msg);
       setShowModal(true);
+  
     } catch (err) {
       console.error("Error en handleSubmit:", err);
       alert("Error de conexión.");
@@ -262,6 +289,7 @@ export function useCheckinForm() {
       setLoading(false);
     }
   };
+  
 
   /* ======================= RETORNO ======================= */
   return {

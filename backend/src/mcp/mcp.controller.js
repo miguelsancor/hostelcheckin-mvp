@@ -261,6 +261,7 @@ async function createPasscodeAll(req, res) {
 
       resultados.push({
         lockId: key.lockId,
+        lockAlias: key.lockAlias || null,      // 👈 AQUI EL CAMBIO
         ok: parseInt(r?.errcode ?? -1, 10) === 0,
         result: r,
       });

@@ -102,11 +102,10 @@ export function ResultModal({
 
 🔐 RESULTADOS POR PUERTA:
 ${ttlockResult.resultados
-  .map(
-    (r: any) =>
-      `Puerta ${r.lockId}: ${
-        r.ok ? "✅ OK" : "⚠ YA EXISTE"
-      } | ID: ${r.result?.keyboardPwdId}`
+  .map((r: any) =>
+    `Puerta ${r.lockAlias ?? r.lockId}: ${
+      r.ok ? "✅ OK" : "⚠ YA EXISTE"
+    } | ID: ${r.result?.keyboardPwdId ?? r.result?.keyboardPwd?.keyboardPwdId}`
   )
   .join("\n")}
 `}

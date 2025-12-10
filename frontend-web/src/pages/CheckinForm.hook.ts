@@ -20,7 +20,7 @@ function normalizeName(name?: string | null) {
 /* ======================= CREAR HUESPED VACÍO CON ID ======================= */
 function nuevoHuesped(): Huesped {
   return {
-    _id: crypto.randomUUID(),  // ✅ el mismo que usamos en la key
+    _id: self.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2),
     nombre: "",
     tipoDocumento: "",
     numeroDocumento: "",

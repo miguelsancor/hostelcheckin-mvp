@@ -14,11 +14,20 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 
+/* ============================================================
+   🔥 SERVIR ARCHIVOS ESTÁTICOS DE /uploads
+   Esto es lo que faltaba para que funcionen las imágenes
+   ============================================================ */
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "../uploads"))
+);
+
 // Rutas principales
-app.use("/api", checkinRoutes);        // /api/checkin, /api/checkin/...
-app.use("/api/nobeds", nobedsRoutes);  // /api/nobeds/reserva/:id, /reservas
-app.use("/mcp", mcpRoutes);            // /mcp/create-key, /mcp/locks, etc.
-app.use("/admin", adminRoutes);        // /admin/huespedes, /stats, etc.
+app.use("/api", checkinRoutes);        
+app.use("/api/nobeds", nobedsRoutes);  
+app.use("/mcp", mcpRoutes);            
+app.use("/admin", adminRoutes);        
 
 // Healthcheck simple
 app.get("/health", (_req, res) => res.json({ ok: true }));

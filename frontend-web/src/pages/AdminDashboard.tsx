@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = "http://18.206.179.50:4000";
 const ADMIN_PASSWORD = "admin123";
 
 type Huesped = {
@@ -24,7 +24,7 @@ type Huesped = {
   checkinUrl?: string | null;
   codigoTTLock?: string | null;
 
-  // 🔥 campos de imágenes
+  // 🔥 campos de archivos que vienen de Prisma
   archivoPasaporte?: string | null;
   archivoCedula?: string | null;
   archivoFirma?: string | null;
@@ -61,6 +61,9 @@ export default function AdminDashboard() {
   const [metrics, setMetrics] = useState<any>(null);
   const [detalle, setDetalle] = useState<Huesped | null>(null);
   const [vista, setVista] = useState<"tabla" | "galeria">("tabla");
+
+  // 🔍 imagen a hacer zoom
+  const [imagenZoom, setImagenZoom] = useState<string | null>(null);
 
   const cargarHuespedes = async () => {
     const res = await fetch(`${API_BASE}/api/checkin/hoy`);
@@ -126,20 +129,6 @@ export default function AdminDashboard() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Huespedes");
     XLSX.writeFile(wb, `huespedes_${Date.now()}.xlsx`);
-  };
-
-  const getFotoPrincipal = (h: Huesped): string | null => {
-    return (
-      h.archivoPasaporte ||
-      h.archivoCedula ||
-      h.archivoFirma ||
-      null
-    );
-  };
-
-  const buildImageUrl = (fileName?: string | null): string | null => {
-    if (!fileName) return null;
-    return `${API_BASE}/uploads/${fileName}`;
   };
 
   /* =========================
@@ -220,52 +209,58 @@ export default function AdminDashboard() {
         </div>
 
         {/* =========================
-            VISTA GALERÍA (OPCIÓN A)
+            VISTA GALERÍA
         ========================= */}
         {vista === "galeria" && (
           <div style={galeriaGrid}>
             {filtrados.map((h) => {
-              const fotoPrincipal = getFotoPrincipal(h);
-              const src = buildImageUrl(fotoPrincipal);
+              const urlPasaporte = h.archivoPasaporte
+                ? `${API_BASE}/uploads/${h.archivoPasaporte}`
+                : null;
+              const urlCedula = h.archivoCedula
+                ? `${API_BASE}/uploads/${h.archivoCedula}`
+                : null;
+              const urlFirma = h.archivoFirma
+                ? `${API_BASE}/uploads/${h.archivoFirma}`
+                : null;
+
+              const thumbUrl = urlPasaporte || urlCedula || urlFirma || null;
+
+              const inicial =
+                h.nombre && h.nombre.trim().length > 0
+                  ? h.nombre.trim()[0].toUpperCase()
+                  : "?";
 
               return (
                 <div key={h.id} style={galeriaCard}>
-                  {/* Foto grande */}
-                  {src ? (
+                  {/* Imagen / inicial */}
+                  {thumbUrl ? (
                     <img
-                      src={src}
-                      style={galeriaImagen}
-                      alt={h.nombre}
+                      src={thumbUrl}
+                      style={imagenGaleria}
+                      onClick={() => setImagenZoom(thumbUrl)}
                     />
                   ) : (
-                    <div style={galeriaPlaceholder}>
-                      <span style={{ fontSize: "2rem" }}>
-                        {h.nombre?.charAt(0) || "?"}
-                      </span>
-                    </div>
+                    <div style={imagenPlaceholder}>{inicial}</div>
                   )}
 
-                  {/* Info básica */}
-                  <div style={{ marginTop: "0.7rem" }}>
-                    <h3 style={{ marginBottom: "0.3rem" }}>{h.nombre}</h3>
-                    <p>
-                      <b>Documento:</b> {h.tipoDocumento} {h.numeroDocumento}
-                    </p>
-                    <p>
-                      <b>Tel:</b> {h.telefono}
-                    </p>
-                    <p>
-                      <b>Email:</b> {h.email}
-                    </p>
-                    <p>
-                      <b>Ingreso:</b> {h.fechaIngreso}
-                    </p>
-                    <p>
-                      <b>Reserva:</b> {h.numeroReserva}
-                    </p>
-                  </div>
+                  <h3>{h.nombre}</h3>
+                  <p>
+                    <b>Documento:</b> {h.tipoDocumento} {h.numeroDocumento}
+                  </p>
+                  <p>
+                    <b>Tel:</b> {h.telefono}
+                  </p>
+                  <p>
+                    <b>Email:</b> {h.email}
+                  </p>
+                  <p>
+                    <b>Ingreso:</b> {h.fechaIngreso}
+                  </p>
+                  <p>
+                    <b>Reserva:</b> {h.numeroReserva}
+                  </p>
 
-                  {/* Link checkin */}
                   {h.checkinUrl ? (
                     <a
                       href={h.checkinUrl}
@@ -276,17 +271,14 @@ export default function AdminDashboard() {
                       Abrir check-in
                     </a>
                   ) : (
-                    <span style={{ opacity: 0.5, marginTop: "0.5rem" }}>
-                      Sin check-in
-                    </span>
+                    <span style={{ opacity: 0.5 }}>Sin check-in</span>
                   )}
 
-                  {/* Botones */}
                   <div
                     style={{
                       display: "flex",
                       gap: "0.5rem",
-                      marginTop: "0.8rem",
+                      marginTop: "1rem",
                     }}
                   >
                     <button style={btnEye} onClick={() => setDetalle(h)}>
@@ -338,11 +330,7 @@ export default function AdminDashboard() {
                     <td>{h.numeroReserva}</td>
                     <td>
                       {h.checkinUrl ? (
-                        <a
-                          href={h.checkinUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
+                        <a href={h.checkinUrl} target="_blank" rel="noreferrer">
                           abrir
                         </a>
                       ) : (
@@ -367,7 +355,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* =========================
-          MODAL DETALLE
+          MODAL DETALLE TEXTO + INFO
       ========================= */}
       {detalle && (
         <div style={modal}>
@@ -418,43 +406,34 @@ export default function AdminDashboard() {
               <b>Código TTLock:</b> {detalle.codigoTTLock ?? "-"}
             </p>
 
-            {/* Imágenes en detalle */}
+            {/* Miniaturas dentro del detalle (también clicables para zoom) */}
             <div style={imagenesDetalleGrid}>
-              {buildImageUrl(detalle.archivoPasaporte) && (
-                <div>
-                  <p style={{ marginBottom: "0.3rem" }}>
-                    <b>Pasaporte</b>
-                  </p>
-                  <img
-                    src={buildImageUrl(detalle.archivoPasaporte)!}
-                    style={imagenDetalle}
-                    alt="Pasaporte"
-                  />
-                </div>
+              {detalle.archivoPasaporte && (
+                <img
+                  src={`${API_BASE}/uploads/${detalle.archivoPasaporte}`}
+                  style={imagenDetalle}
+                  onClick={() =>
+                    setImagenZoom(`${API_BASE}/uploads/${detalle.archivoPasaporte}`)
+                  }
+                />
               )}
-              {buildImageUrl(detalle.archivoCedula) && (
-                <div>
-                  <p style={{ marginBottom: "0.3rem" }}>
-                    <b>Cédula</b>
-                  </p>
-                  <img
-                    src={buildImageUrl(detalle.archivoCedula)!}
-                    style={imagenDetalle}
-                    alt="Cédula"
-                  />
-                </div>
+              {detalle.archivoCedula && (
+                <img
+                  src={`${API_BASE}/uploads/${detalle.archivoCedula}`}
+                  style={imagenDetalle}
+                  onClick={() =>
+                    setImagenZoom(`${API_BASE}/uploads/${detalle.archivoCedula}`)
+                  }
+                />
               )}
-              {buildImageUrl(detalle.archivoFirma) && (
-                <div>
-                  <p style={{ marginBottom: "0.3rem" }}>
-                    <b>Firma</b>
-                  </p>
-                  <img
-                    src={buildImageUrl(detalle.archivoFirma)!}
-                    style={imagenDetalle}
-                    alt="Firma"
-                  />
-                </div>
+              {detalle.archivoFirma && (
+                <img
+                  src={`${API_BASE}/uploads/${detalle.archivoFirma}`}
+                  style={imagenDetalle}
+                  onClick={() =>
+                    setImagenZoom(`${API_BASE}/uploads/${detalle.archivoFirma}`)
+                  }
+                />
               )}
             </div>
 
@@ -462,6 +441,15 @@ export default function AdminDashboard() {
               Cerrar
             </button>
           </div>
+        </div>
+      )}
+
+      {/* =========================
+          OVERLAY DE ZOOM IMAGEN
+      ========================= */}
+      {imagenZoom && (
+        <div style={zoomOverlay} onClick={() => setImagenZoom(null)}>
+          <img src={imagenZoom} style={zoomImage} />
         </div>
       )}
     </div>
@@ -581,11 +569,9 @@ const btnToggle: React.CSSProperties = {
   padding: "0.5rem 1rem",
 };
 
-/* GALERÍA (OPCIÓN A) */
-
 const galeriaGrid: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
   gap: "1rem",
   width: "100%",
 };
@@ -600,36 +586,36 @@ const galeriaCard: React.CSSProperties = {
   gap: "0.3rem",
 };
 
-const galeriaImagen: React.CSSProperties = {
+const imagenGaleria: React.CSSProperties = {
   width: "100%",
-  height: "220px",
+  height: "200px",
   objectFit: "cover",
   borderRadius: "0.6rem",
+  cursor: "zoom-in",
+  marginBottom: "0.5rem",
   border: "1px solid #1f2937",
 };
 
-const galeriaPlaceholder: React.CSSProperties = {
+const imagenPlaceholder: React.CSSProperties = {
   width: "100%",
-  height: "220px",
+  height: "200px",
   borderRadius: "0.6rem",
-  background:
-    "linear-gradient(135deg, rgba(15,23,42,1) 0%, rgba(30,64,175,1) 100%)",
+  background: "linear-gradient(135deg,#1e293b,#020617)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+  fontSize: "3rem",
+  fontWeight: 700,
 };
 
 const galeriaLink: React.CSSProperties = {
   background: "#2563eb",
-  padding: "0.4rem 0.6rem",
+  padding: "0.3rem 0.5rem",
   color: "white",
   textAlign: "center",
   borderRadius: "0.3rem",
   marginTop: "0.5rem",
-  textDecoration: "none",
 };
-
-/* MODAL */
 
 const modal: React.CSSProperties = {
   position: "fixed",
@@ -638,6 +624,7 @@ const modal: React.CSSProperties = {
   display: "flex",
   justifyContent: "center",
   alignItems: "center",
+  zIndex: 10000,
 };
 
 const modalBox: React.CSSProperties = {
@@ -645,8 +632,7 @@ const modalBox: React.CSSProperties = {
   padding: "2rem",
   borderRadius: "1rem",
   color: "white",
-  maxWidth: "900px",
-  width: "95%",
+  maxWidth: "600px",
   maxHeight: "90vh",
   overflowY: "auto",
 };
@@ -657,10 +643,8 @@ const btnClose: React.CSSProperties = {
   color: "white",
   width: "100%",
   border: "none",
-  padding: "0.7rem",
+  padding: "0.6rem",
 };
-
-/* Imágenes en modal detalle */
 
 const imagenesDetalleGrid: React.CSSProperties = {
   display: "grid",
@@ -675,4 +659,23 @@ const imagenDetalle: React.CSSProperties = {
   objectFit: "cover",
   borderRadius: "0.6rem",
   border: "1px solid #1f2937",
+  cursor: "zoom-in",
+};
+
+const zoomOverlay: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0,0,0,0.9)",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  zIndex: 11000,
+};
+
+const zoomImage: React.CSSProperties = {
+  maxWidth: "90vw",
+  maxHeight: "90vh",
+  borderRadius: "1rem",
+  border: "2px solid #1d4ed8",
+  objectFit: "contain",
 };

@@ -70,7 +70,7 @@ export const styles: { [key: string]: React.CSSProperties } = {
     flexDirection: "column",
     alignItems: "center",
 
-    // El fondo que ya tenías
+    // Fondo con imagen (ya lo tenías)
     backgroundSize: "cover",
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
@@ -94,7 +94,7 @@ export const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: "1rem",
     backgroundColor: "rgba(0,0,0,0.7)",
     width: "100%",
-    maxWidth: "900px",  // ESCRITORIO intacto
+    maxWidth: "900px", // como lo tenías
     marginBottom: "2rem",
   },
 
@@ -116,6 +116,19 @@ export const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "1rem",
   },
 
+  // 🔥 NECESARIO PARA QUE LOS INPUT FILE FUNCIONEN
+  fileInput: {
+    flex: "1",
+    minWidth: "180px",
+    padding: "0.55rem",
+    borderRadius: "0.5rem",
+    border: "1px solid #4b5563",
+    backgroundColor: "#1f2937",
+    color: "#fff",
+    cursor: "pointer",
+    fontSize: "1rem",
+  },
+
   actions: {
     marginTop: "1.5rem",
     textAlign: "center",
@@ -134,26 +147,23 @@ export const styles: { [key: string]: React.CSSProperties } = {
 };
 
 /* ============================================================
-   MEDIA QUERIES PARA MÓVIL — NO AFECTAN ESCRITORIO
+   MEDIA QUERIES PARA MÓVIL (intactas)
 ============================================================ */
 const mobileCss = `
 @media (max-width: 768px) {
 
-  /* Contenedor principal */
   .checkin-container {
     padding: 1rem !important;
     width: 100% !important;
     max-width: 100% !important;
   }
 
-  /* Tarjeta */
   .checkin-card {
     width: 100% !important;
     max-width: 100% !important;
     padding: 1rem !important;
   }
 
-  /* Inputs full width */
   .checkin-input {
     min-width: 100% !important;
     width: 100% !important;

@@ -48,11 +48,11 @@ export default function CheckinForm() {
 
   return (
     <>
-      {/* ✅ AQUÍ VA EL guest CORRECTAMENTE */}
+      {/* ================= MODAL RESULTADOS ================= */}
       <ResultModal
         show={showModal}
         message={modalMessage}
-        guest={formList?.[0]}   // ✅ ESTO QUITA EL ERROR ROJO
+        guest={formList?.[0]}
         onClose={() => setShowModal(false)}
       />
 
@@ -88,9 +88,16 @@ export default function CheckinForm() {
           </h3>
         )}
 
-        {/* TABS */}
-        <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem", flexWrap: "wrap" }}>
-          {TABS.map(tab => (
+        {/* ================= TABS ================= */}
+        <div
+          style={{
+            display: "flex",
+            gap: "1rem",
+            marginBottom: "2rem",
+            flexWrap: "wrap",
+          }}
+        >
+          {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -101,7 +108,7 @@ export default function CheckinForm() {
                 cursor: "pointer",
                 background: activeTab === tab.id ? "#2563eb" : "#1f2937",
                 color: "white",
-                fontWeight: "bold"
+                fontWeight: "bold",
               }}
             >
               {tab.label}
@@ -109,10 +116,12 @@ export default function CheckinForm() {
           ))}
         </div>
 
-        {/* FORM */}
+     
+         
+        {/* =============== FORMULARIO =============== */}
         {formList.map((formData, index) => (
           <GuestCard
-            key={index}
+            key={formData._id ?? index}   // ✅ usa _id; si no existe, cae al índice
             data={formData}
             index={index}
             onChange={handleChange}
@@ -120,8 +129,7 @@ export default function CheckinForm() {
             activeTab={activeTab}
           />
         ))}
-
-        {/* MOTIVO DE VIAJE */}
+        {/* ================= MOTIVO DE VIAJE ================= */}
         <div style={{ marginTop: "2rem" }}>
           <label style={{ color: "white", fontWeight: "bold" }}>
             Motivo del viaje / Trip reason
@@ -136,14 +144,14 @@ export default function CheckinForm() {
               borderRadius: "0.5rem",
               cursor: "pointer",
               color: motivoDetallado ? "#10b981" : "#9ca3af",
-              textAlign: "center"
+              textAlign: "center",
             }}
           >
             {motivoDetallado || "Seleccione una opción / Select one"}
           </div>
         </div>
 
-        {/* BOTONES */}
+        {/* ================= BOTONES ================= */}
         <div style={styles.actions}>
           <button
             onClick={handleAddGuest}
@@ -167,37 +175,49 @@ export default function CheckinForm() {
         </div>
       </div>
 
-      {/* MODAL MOTIVO */}
+      {/* ================= MODAL MOTIVO VIAJE ================= */}
       {showReasonTripModal && (
-        <div style={{
-          position: "fixed",
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.75)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 99999
-        }}>
-          <div style={{
-            background: "#111827",
-            padding: "2rem",
-            borderRadius: "0.75rem",
-            width: "90%",
-            maxWidth: "480px",
-            color: "white"
-          }}>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 99999,
+          }}
+        >
+          <div
+            style={{
+              background: "#111827",
+              padding: "2rem",
+              borderRadius: "0.75rem",
+              width: "90%",
+              maxWidth: "480px",
+              color: "white",
+            }}
+          >
             <h2 style={{ textAlign: "center", marginBottom: "1rem" }}>
               Reason for trip
             </h2>
 
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "1rem",
-              marginBottom: "1.5rem"
-            }}>
-              {reasonsTrip.map(r => (
-                <label key={r} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "1rem",
+                marginBottom: "1.5rem",
+              }}
+            >
+              {reasonsTrip.map((r) => (
+                <label
+                  key={r}
+                  style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
+                >
                   <input
                     type="radio"
                     checked={motivoDetallado === r}

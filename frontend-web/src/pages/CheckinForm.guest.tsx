@@ -28,14 +28,14 @@ export function GuestCard({
     >
   ) => onChange(index, e);
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) =>
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("handleFile (GuestCard)", index, e.target.files?.[0]);
     onFile(index, e);
+  };
 
-  // ✅ SOLO SE ACTIVAN CUANDO EL USUARIO SELECCIONA
   const esCedula = data.tipoDocumento === "Cédula";
   const esPasaporte = data.tipoDocumento === "Pasaporte";
 
-  /* ========= FIELD ALINEADO PROFESIONAL ========= */
   const Field = ({
     label,
     children,
@@ -86,7 +86,7 @@ export function GuestCard({
             <Field label="Tipo documento / Document type">
               <select
                 name="tipoDocumento"
-                value={data.tipoDocumento || ""}  // ✅ YA NO HAY DEFAULT
+                value={data.tipoDocumento || ""}
                 onChange={handleChange}
                 style={styles.input}
               >
@@ -281,41 +281,65 @@ export function GuestCard({
 
       {/* ===================== TAB: DOCUMENTOS ===================== */}
       {activeTab === "documentos" && (
-        <div style={styles.row}>
-          {esCedula && (
-            <>
-              <Field label="Foto cédula frente / ID front">
-                <input
-                  type="file"
-                  name="archivoAnverso"
-                  onChange={handleFile}
-                  style={styles.input}
-                />
-              </Field>
+          <div style={styles.row}>
 
-              <Field label="Foto cédula atrás / ID back">
-                <input
-                  type="file"
-                  name="archivoReverso"
-                  onChange={handleFile}
-                  style={styles.input}
-                />
-              </Field>
-            </>
-          )}
+            {esCedula && (
+              <>
+                <Field label="Foto cédula frente / ID front">
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <input
+                      type="file"
+                      name="archivoAnverso"
+                      onChange={handleFile}
+                      style={styles.fileInput}
+                    />
+                    {data.archivoAnverso && (
+                      <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
+                        {(data.archivoAnverso as File).name}
+                      </span>
+                    )}
+                  </div>
+                </Field>
 
-          {esPasaporte && (
-            <Field label="Foto pasaporte / Passport photo">
-              <input
-                type="file"
-                name="archivoPasaporte"
-                onChange={handleFile}
-                style={styles.input}
-              />
-            </Field>
-          )}
-        </div>
-      )}
+                <Field label="Foto cédula atrás / ID back">
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <input
+                      type="file"
+                      name="archivoReverso"
+                      onChange={handleFile}
+                      style={styles.fileInput}
+                    />
+                    {data.archivoReverso && (
+                      <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
+                        {(data.archivoReverso as File).name}
+                      </span>
+                    )}
+                  </div>
+                </Field>
+              </>
+            )}
+
+            {esPasaporte && (
+              <Field label="Foto pasaporte / Passport photo">
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <input
+                    type="file"
+                    name="archivoPasaporte"
+                    onChange={handleFile}
+                    style={styles.fileInput}
+                  />
+                  {data.archivoPasaporte && (
+                    <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
+                      {(data.archivoPasaporte as File).name}
+                    </span>
+                  )}
+                </div>
+              </Field>
+            )}
+
+          </div>
+        )}
+
     </div>
   );
 }

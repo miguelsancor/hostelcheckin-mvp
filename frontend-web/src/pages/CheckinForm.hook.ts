@@ -4,7 +4,7 @@ import { roomMapping } from "./roomMapping";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
 
-// ======================= HELPERS =======================
+/* ======================= HELPERS ======================= */
 function getQueryParams() {
   if (typeof window === "undefined") return { orderId: null as string | null };
   const params = new URLSearchParams(window.location.search);
@@ -17,9 +17,31 @@ function normalizeName(name?: string | null) {
   return (name || "").trim().toUpperCase();
 }
 
-// ======================= HOOK PRINCIPAL =======================
+/* ======================= CREAR HUESPED VACÍO CON ID ======================= */
+function nuevoHuesped(): Huesped {
+  return {
+    _id: crypto.randomUUID(),  // ✅ el mismo que usamos en la key
+    nombre: "",
+    tipoDocumento: "",
+    numeroDocumento: "",
+    nacionalidad: "",
+    direccion: "",
+    lugarProcedencia: "",
+    lugarDestino: "",
+    telefono: "",
+    email: "",
+    motivoViaje: "",
+    fechaIngreso: "",
+    fechaSalida: "",
+    archivoAnverso: null,
+    archivoReverso: null,
+    archivoPasaporte: null,
+  };
+}
+
+/* ======================= HOOK PRINCIPAL ======================= */
 export function useCheckinForm() {
-  const [formList, setFormList] = useState<Huesped[]>([]);
+  const [formList, setFormList] = useState<Huesped[]>([nuevoHuesped()]);
   const [reserva, setReserva] = useState<Reserva | null>(null);
   const [loading, setLoading] = useState(false);
   const [locks, setLocks] = useState<LockItem[]>([]);
@@ -29,7 +51,7 @@ export function useCheckinForm() {
   const [modalMessage, setModalMessage] = useState("");
   const [showModalHoy, setShowModalHoy] = useState(false);
 
-  // ======================= CARGA INICIAL =======================
+  /* ======================= CARGA INICIAL ======================= */
   useEffect(() => {
     const { orderId } = getQueryParams();
 
@@ -47,6 +69,7 @@ export function useCheckinForm() {
           const p = json.data;
 
           const huesped: Huesped = {
+            ...nuevoHuesped(),
             nombre: p.nombre || "",
             tipoDocumento: p.tipoDocumento || "",
             numeroDocumento: p.numeroDocumento || "",
@@ -84,6 +107,7 @@ export function useCheckinForm() {
     fallbackFromLocalStorage();
   }, []);
 
+  /* ======================= FALLBACK LOCAL STORAGE ======================= */
   function fallbackFromLocalStorage() {
     const data = localStorage.getItem("reserva");
     if (data) {
@@ -91,6 +115,7 @@ export function useCheckinForm() {
         const parsed = JSON.parse(data);
 
         const huesped: Huesped = {
+          ...nuevoHuesped(),
           nombre: parsed.nombre || parsed.name || "",
           tipoDocumento: "",
           numeroDocumento: "",
@@ -121,11 +146,11 @@ export function useCheckinForm() {
       } catch {}
     }
 
-    setFormList([{} as Huesped]);
+    setFormList([nuevoHuesped()]);
     setReserva(null);
   }
 
-  // ======================= TTLOCK (solo para ver cerraduras) =======================
+  /* ======================= TTLOCK ======================= */
   useEffect(() => {
     fetch(`${API_BASE}/mcp/keys`)
       .then((res) => res.json())
@@ -135,23 +160,32 @@ export function useCheckinForm() {
       .catch(() => {});
   }, []);
 
-  // ======================= HANDLERS =======================
+  /* ======================= HANDLERS ======================= */
+
   const handleChange = (index: number, e: any) => {
-    const updated = [...formList];
-    updated[index] = { ...updated[index], [e.target.name]: e.target.value };
-    setFormList(updated);
+    setFormList((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [e.target.name]: e.target.value };
+      return updated;
+    });
   };
 
   const handleFileChange = (index: number, e: any) => {
     if (!e.target.files?.length) return;
-    const updated = [...formList];
-    updated[index] = { ...updated[index], [e.target.name]: e.target.files[0] };
-    setFormList(updated);
+
+    const file = e.target.files[0];
+
+    setFormList((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [e.target.name]: file };
+      return updated;
+    });
   };
 
-  const handleAddGuest = () => setFormList((prev) => [...prev, {} as Huesped]);
+  const handleAddGuest = () =>
+    setFormList((prev) => [...prev, nuevoHuesped()]);
 
-  // ======================= HOY =======================
+  /* ======================= HOY ======================= */
   const cargarHuespedesHoy = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/checkin/hoy`);
@@ -166,7 +200,7 @@ export function useCheckinForm() {
 
   const cerrarModalHoy = () => setShowModalHoy(false);
 
-  // ======================= SUBMIT FINAL (YA NO CREA PASSCODE) =======================
+  /* ======================= SUBMIT FINAL ======================= */
   const handleSubmit = async (motivoViaje?: string) => {
     if (!formList.length) {
       alert("Agrega al menos un huésped.");
@@ -229,6 +263,7 @@ export function useCheckinForm() {
     }
   };
 
+  /* ======================= RETORNO ======================= */
   return {
     formList,
     reserva,
@@ -238,10 +273,12 @@ export function useCheckinForm() {
     showModal,
     modalMessage,
     showModalHoy,
+
     handleChange,
     handleFileChange,
     handleAddGuest,
     handleSubmit,
+
     cargarHuespedesHoy,
     cerrarModalHoy,
     setShowModal,

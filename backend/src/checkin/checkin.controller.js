@@ -98,7 +98,7 @@ async function postCheckinSimple(req, res) {
       // 🔥 Guardamos los nombres FINALES de los archivos ya renombrados
       archivoPasaporte: archivos["archivoPasaporte_0"] || null,
       archivoCedula: archivos["archivoCedula_0"] || null,
-      archivoFirma: archivos["firma_0"] || null,
+      archivoFirma: archivos["archivoFirma_0"] || null,
     };
 
     await prisma.huesped.create({ data: payload });

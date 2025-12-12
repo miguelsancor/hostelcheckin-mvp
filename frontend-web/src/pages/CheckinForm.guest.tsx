@@ -289,13 +289,13 @@ export function GuestCard({
                   <div style={{ display: "flex", flexDirection: "column" }}>
                     <input
                       type="file"
-                      name="archivoAnverso"
+                      name="archivoCedula"
                       onChange={handleFile}
                       style={styles.fileInput}
                     />
-                    {data.archivoAnverso && (
+                    {data.archivoCedula && (
                       <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
-                        {(data.archivoAnverso as File).name}
+                        {(data.archivoCedula as File).name}
                       </span>
                     )}
                   </div>
@@ -305,13 +305,13 @@ export function GuestCard({
                   <div style={{ display: "flex", flexDirection: "column" }}>
                     <input
                       type="file"
-                      name="archivoReverso"
+                      name="archivoFirma"
                       onChange={handleFile}
                       style={styles.fileInput}
                     />
-                    {data.archivoReverso && (
+                    {data.archivoFirma && (
                       <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
-                        {(data.archivoReverso as File).name}
+                        {(data.archivoFirma as File).name}
                       </span>
                     )}
                   </div>

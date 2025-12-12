@@ -33,8 +33,8 @@ function nuevoHuesped(): Huesped {
     motivoViaje: "",
     fechaIngreso: "",
     fechaSalida: "",
-    archivoAnverso: null,
-    archivoReverso: null,
+    archivoCedula: null,
+    archivoFirma: null,
     archivoPasaporte: null,
   };
 }
@@ -230,8 +230,8 @@ export function useCheckinForm() {
         JSON.stringify({
           huespedes: listaConMotivo.map((h) => ({
             ...h,
-            archivoAnverso: undefined,
-            archivoReverso: undefined,
+            archivoCedula: undefined,
+            archivoFirma: undefined,
             archivoPasaporte: undefined,
           })),
           motivoViaje: motivoViaje || titular.motivoViaje || null,
@@ -245,11 +245,11 @@ export function useCheckinForm() {
       // 🔥 2. AGREGAR LOS ARCHIVOS REALES AL FORM DATA
       // ==========================================
       listaConMotivo.forEach((h, idx) => {
-        if (h.archivoAnverso)
-          fd.append(`archivoAnverso_${idx}`, h.archivoAnverso);
+        if (h.archivoCedula)
+          fd.append(`archivoCedula_${idx}`, h.archivoCedula);
   
-        if (h.archivoReverso)
-          fd.append(`archivoReverso_${idx}`, h.archivoReverso);
+        if (h.archivoFirma)
+          fd.append(`archivoFirma_${idx}`, h.archivoFirma);
   
         if (h.archivoPasaporte)
           fd.append(`archivoPasaporte_${idx}`, h.archivoPasaporte);

@@ -9,6 +9,8 @@ const {
   listLocks,
   listKeys,
   createPasscodeAll,
+  listPasscodesAll,
+  deletePasscode,
   debugEnv,
 } = require("./mcp.controller");
 
@@ -19,6 +21,9 @@ router.post("/revoke-key", revokeKey);
 router.get("/locks", listLocks);
 router.get("/keys", listKeys);
 router.post("/create-passcode-all", createPasscodeAll);
+router.post("/list-passcodes-all", listPasscodesAll);
+router.post("/delete-passcode", deletePasscode);
+
 
 // debug env
 router.get("/debug/env", debugEnv);

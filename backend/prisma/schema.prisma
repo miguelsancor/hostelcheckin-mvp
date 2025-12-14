@@ -31,5 +31,31 @@ model Huesped {
   archivoPasaporte String?
   archivoCedula    String?
   archivoFirma     String?
+  passcodes        Passcode[]
 }
 
+model Passcode {
+  id              Int      @id @default(autoincrement())
+
+  // Relación con huésped
+  huespedId       Int
+  huesped         Huesped  @relation(fields: [huespedId], references: [id], onDelete: Cascade)
+
+  // TTLock
+  lockId          Int
+  codigo          String
+  keyboardPwdId   Int?
+  tipo            String   // "ADD" | "GET"
+
+  // Vigencia
+  startDate       Int
+  endDate         Int
+
+  // Estado interno
+  estado          String   @default("ACTIVO")
+
+  creadoEn        DateTime @default(now())
+
+  @@index([huespedId])
+  @@index([lockId])
+}

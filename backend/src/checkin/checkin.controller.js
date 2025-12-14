@@ -101,15 +101,62 @@ async function postCheckinSimple(req, res) {
       archivoFirma: archivos["archivoFirma_0"] || null,
     };
 
-    await prisma.huesped.create({ data: payload });
+// 1. Crear huésped
+const huesped = await prisma.huesped.create({ data: payload });
 
-    return res.json({
-      ok: true,
-      numeroReserva,
-      checkinUrl,
-      archivos,
-      total: 1,
+// 2. Crear passcode TTLock SOLO si hay codigoTTLock
+let passcodeResult = null;
+
+if (payload.codigoTTLock) {
+  try {
+    const accessToken = await getAccessToken();
+
+    const r = await ttPost("/v3/keyboardPwd/add", {
+      clientId: process.env.TTLOCK_CLIENT_ID,
+      accessToken,
+      lockId: Number(payload.codigoTTLock), // 👈 si aquí usas lockId, ajústalo
+      startDate: nowMs(),
+      endDate: new Date(payload.fechaSalida).getTime(),
+      keyboardPwdType: 2,
+      keyboardPwd: payload.codigoTTLock,
+      keyboardPwdName: "AutoCheckin",
+      date: nowMs(),
     });
+
+    if (parseInt(r?.errcode ?? 0, 10) === 0) {
+      await prisma.passcode.create({
+        data: {
+          huespedId: huesped.id,
+          lockId: Number(payload.codigoTTLock),
+          codigo: payload.codigoTTLock,
+          keyboardPwdId: r.keyboardPwdId,
+          tipo: "ADD",
+          startDate: nowMs(),
+          endDate: new Date(payload.fechaSalida).getTime(),
+          estado: "ACTIVO",
+        },
+      });
+
+      passcodeResult = { ok: true };
+    } else {
+      passcodeResult = { ok: false, error: r };
+    }
+  } catch (err) {
+    console.error("ERROR creando passcode TTLock:", err);
+    passcodeResult = { ok: false };
+  }
+}
+
+// 3. Respuesta final (frontend NO se rompe)
+return res.json({
+  ok: true,
+  numeroReserva,
+  checkinUrl,
+  archivos,
+  total: 1,
+  passcode: passcodeResult,
+});
+
 
   } catch (e) {
     console.error("ERROR /api/checkin:", e);

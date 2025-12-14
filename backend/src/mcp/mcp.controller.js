@@ -285,6 +285,139 @@ async function createPasscodeAll(req, res) {
 }
 
 /* =======================================================================
+   Listar PASSCODES de todas las cerraduras (robusto / hotel-safe)
+   ======================================================================= */
+   async function listPasscodesAll(req, res) {
+    try {
+      const accessToken = await getAccessToken();
+  
+      // 1. Obtener cerraduras accesibles vía eKeys
+      const keysResp = await ttPost("/v3/key/list", {
+        clientId: process.env.TTLOCK_CLIENT_ID,
+        accessToken,
+        pageNo: 1,
+        pageSize: 100,
+        date: nowMs(),
+      });
+  
+      if (!Array.isArray(keysResp?.list)) {
+        return res.status(500).json({
+          ok: false,
+          error: "Respuesta inválida de TTLock (/v3/key/list)",
+        });
+      }
+  
+      if (keysResp.list.length === 0) {
+        return res.json({
+          ok: true,
+          totalLocks: 0,
+          resultados: [],
+          warning: "La cuenta no tiene cerraduras asociadas",
+        });
+      }
+  
+      const resultados = [];
+  
+      // 2. Por cada cerradura, intentar listar passcodes
+      for (const key of keysResp.list) {
+        try {
+          const r = await ttPost("/v3/keyboardPwd/list", {
+            clientId: process.env.TTLOCK_CLIENT_ID,
+            accessToken,
+            lockId: key.lockId,
+            pageNo: 1,
+            pageSize: 100,
+            date: nowMs(),
+          });
+  
+          resultados.push({
+            lockId: key.lockId,
+            lockAlias: key.lockAlias || null,
+            total: r?.total || 0,
+            passcodes: Array.isArray(r?.list) ? r.list : [],
+            ok: parseInt(r?.errcode ?? 0, 10) === 0,
+          });
+        } catch (err) {
+          // 🔒 Cerradura sin soporte de passcodes (404 Tomcat)
+          resultados.push({
+            lockId: key.lockId,
+            lockAlias: key.lockAlias || null,
+            total: 0,
+            passcodes: [],
+            ok: false,
+            warning: "La cerradura no soporta passcodes (keyboardPwd)",
+          });
+        }
+      }
+  
+      return res.json({
+        ok: true,
+        totalLocks: resultados.length,
+        resultados,
+      });
+    } catch (err) {
+      console.error(
+        "ERROR /list-passcodes-all:",
+        err?.response?.data || err.message
+      );
+  
+      return res.status(500).json({
+        ok: false,
+        error: "Error consultando passcodes",
+      });
+    }
+  }
+  
+
+   /* =======================================================================
+   Borrar PASSCODE (TTLock)
+   ======================================================================= */
+async function deletePasscode(req, res) {
+  try {
+    const { lockId, keyboardPwdId } = req.body || {};
+
+    if (!lockId || !keyboardPwdId) {
+      return res.status(400).json({
+        ok: false,
+        error: "lockId y keyboardPwdId son requeridos",
+      });
+    }
+
+    const accessToken = await getAccessToken();
+
+    const r = await ttPost("/v3/keyboardPwd/delete", {
+      clientId: process.env.TTLOCK_CLIENT_ID,
+      accessToken,
+      lockId,
+      keyboardPwdId,
+      date: nowMs(),
+    });
+
+    if (parseInt(r?.errcode ?? -1, 10) !== 0) {
+      return res.status(400).json({
+        ok: false,
+        provider: "ttlock",
+        error: r,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      provider: "ttlock",
+      result: r,
+    });
+  } catch (e) {
+    console.error("mcp/delete-passcode error:", e?.response?.data || e.message);
+    return res.status(500).json({
+      ok: false,
+      error: e?.response?.data || e.message,
+    });
+  }
+}
+
+  
+
+/* =======================================================================
    Debug env
    ======================================================================= */
 function debugEnv(_req, res) {
@@ -307,5 +440,7 @@ module.exports = {
   listLocks,
   listKeys,
   createPasscodeAll,
+  listPasscodesAll,
+  deletePasscode,
   debugEnv,
 };

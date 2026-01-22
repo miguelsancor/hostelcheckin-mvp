@@ -1,4 +1,7 @@
 const prisma = require("../utils/prismaClient");
+const { nowMs } = require("../utils/helpers");
+const { getAccessToken, ttPost } = require("../mcp/ttlock.service");
+
 
 /* =======================================================================
    ADMIN - LISTA / DETALLE / DELETE
@@ -38,17 +41,87 @@ async function eliminarHuesped(req, res) {
   try {
     const id = Number(req.params.id);
 
-    if (!id)
+    if (!id) {
       return res.status(400).json({ ok: false, error: "ID inválido" });
+    }
 
+    // 1) Validar huésped
+    const huesped = await prisma.huesped.findUnique({ where: { id } });
+    if (!huesped) {
+      return res.status(404).json({ ok: false, error: "No encontrado" });
+    }
+
+    // 2) Buscar passcodes asociados en BD
+    const passcodes = await prisma.passcode.findMany({
+      where: { huespedId: id },
+      select: { id: true, lockId: true, keyboardPwdId: true, lockAlias: true },
+    });
+
+    const resultadosTTLock = [];
+
+    // 3) Borrar en TTLock (si hay passcodes y tienen ids válidos)
+    if (passcodes.length > 0) {
+      const accessToken = await getAccessToken();
+
+      for (const p of passcodes) {
+        if (!p.lockId || !p.keyboardPwdId) {
+          resultadosTTLock.push({
+            passcodeId: p.id,
+            lockId: p.lockId ?? null,
+            lockAlias: p.lockAlias ?? null,
+            keyboardPwdId: p.keyboardPwdId ?? null,
+            ok: false,
+            warning: "Sin lockId o keyboardPwdId (no se puede borrar en TTLock)",
+          });
+          continue;
+        }
+
+        try {
+          const r = await ttPost("/v3/keyboardPwd/delete", {
+            clientId: process.env.TTLOCK_CLIENT_ID,
+            accessToken,
+            lockId: p.lockId,
+            keyboardPwdId: p.keyboardPwdId,
+            date: nowMs(),
+          });
+
+          resultadosTTLock.push({
+            passcodeId: p.id,
+            lockId: p.lockId,
+            lockAlias: p.lockAlias ?? null,
+            keyboardPwdId: p.keyboardPwdId,
+            ok: parseInt(r?.errcode ?? -1, 10) === 0,
+            result: r,
+          });
+        } catch (err) {
+          resultadosTTLock.push({
+            passcodeId: p.id,
+            lockId: p.lockId,
+            lockAlias: p.lockAlias ?? null,
+            keyboardPwdId: p.keyboardPwdId,
+            ok: false,
+            error: err?.response?.data || err.message,
+          });
+        }
+      }
+    }
+
+    // 4) Borrar en BD (Passcodes -> Huésped)
+    await prisma.passcode.deleteMany({ where: { huespedId: id } });
     await prisma.huesped.delete({ where: { id } });
 
-    res.json({ ok: true });
+    return res.json({
+      ok: true,
+      deletedHuespedId: id,
+      totalPasscodes: passcodes.length,
+      resultadosTTLock,
+    });
   } catch (e) {
-    console.error("admin delete:", e);
-    res.status(500).json({ ok: false, error: "No se pudo eliminar" });
+    console.error("admin delete:", e?.response?.data || e.message);
+    return res.status(500).json({ ok: false, error: "No se pudo eliminar" });
   }
 }
+
 
 /* =======================================================================
    ADMIN - GUARDAR / ACTUALIZAR CHECKIN URL

@@ -1,5 +1,8 @@
 # 🏃‍♂️ Proyecto de Rutinas de Entrenamiento (Frontend + Backend)
 
+# para arrancar npx estudio
+npx prisma studio
+
 ## 🧱 Requisitos
 
 - Node.js (v18 o superior)

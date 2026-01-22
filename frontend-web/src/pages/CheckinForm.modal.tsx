@@ -14,7 +14,8 @@ import type { HuespedBD } from "./CheckinForm.types";
 type ResultModalProps = {
   show: boolean;
   message: string;
-  guest?: HuespedBD; // ✅ AHORA RECIBE EL HUÉSPED
+  guest?: any; 
+  reserva?: any;
   onClose: () => void;
 };
 
@@ -22,6 +23,7 @@ export function ResultModal({
   show,
   message,
   guest,
+  reserva,
   onClose,
 }: ResultModalProps) {
   const [loading, setLoading] = useState(false);
@@ -31,8 +33,15 @@ export function ResultModal({
 
   // ✅ FUNCIÓN REAL QUE CREA EL CÓDIGO EN TODAS LAS CERRADURAS
   async function crearCodigoGlobal() {
-    if (!guest?.nombre || !guest?.fechaIngreso || !guest?.fechaSalida) {
-      alert("Huésped sin fechas completas");
+    // ✅ fechas desde el formulario
+    if (!guest?.fechaIngreso || !guest?.fechaSalida || !guest?.nombre) {
+      alert("Huésped sin fechas completas (fechaIngreso/fechaSalida)");
+      return;
+    }
+  
+    // ✅ numeroReserva REAL desde backend
+    if (!reserva?.numeroReserva) {
+      alert("No hay numeroReserva (reserva del backend no llegó).");
       return;
     }
   
@@ -41,31 +50,32 @@ export function ResultModal({
   
       const code = String(Math.floor(100000 + Math.random() * 900000));
   
-      // ✅ CONVERSIÓN CORRECTA A SEGUNDOS UNIX (NO MILISEGUNDOS)
-      const startAt = Math.floor(
-        new Date(guest.fechaIngreso + "T14:00:00").getTime() / 1000
-      );
-  
-      const endAt = Math.floor(
-        new Date(guest.fechaSalida + "T12:00:00").getTime() / 1000
-      );
+      // ✅ MILISEGUNDOS
+      const startAt = new Date(guest.fechaIngreso + "T14:00:00").getTime();
+      const endAt = new Date(guest.fechaSalida + "T12:00:00").getTime();
   
       const payload = {
+        numeroReserva: reserva.numeroReserva, // ✅ este es el que existe en BD
         code,
-        startAt,   // ✅ SEGUNDOS
-        endAt,     // ✅ SEGUNDOS
+        startAt,
+        endAt,
         name: `Reserva - ${guest.nombre}`,
       };
   
       const res = await fetch("http://localhost:4000/mcp/create-passcode-all", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
   
       const data = await res.json();
+  
+      if (!res.ok || data?.ok === false) {
+        console.error("Error TTLock/BD:", data);
+        alert(data?.error || "Error creando códigos en TTLock/BD");
+        return;
+      }
+  
       setTtlockResult({ ...data, code, payload });
     } catch (err) {
       console.error(err);
@@ -74,6 +84,8 @@ export function ResultModal({
       setLoading(false);
     }
   }
+  
+  
   
 
   return (

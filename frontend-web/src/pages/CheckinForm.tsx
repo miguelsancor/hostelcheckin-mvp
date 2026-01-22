@@ -53,6 +53,7 @@ export default function CheckinForm() {
         show={showModal}
         message={modalMessage}
         guest={formList?.[0]}
+        reserva={reserva as any} 
         onClose={() => setShowModal(false)}
       />
 

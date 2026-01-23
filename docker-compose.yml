@@ -24,7 +24,7 @@ services:
       - "5173:5173"
     environment:
       # ESTA VARIABLE ES LA CLAVE DEL ERROR QUE TENÍAS
-      VITE_API_BASE: "http://localhost:4000"
+      VITE_API_BASE: "http://18.206.179.50:4000"
     volumes:
       - ./frontend-web:/app
       - /app/node_modules

@@ -7,7 +7,6 @@ import { styles } from "./CheckinForm.styles";
 const TABS = [
   { id: "personal", label: "👤 Datos personales" },
   { id: "viaje", label: "✈️ Información del viaje" },
-  { id: "documentos", label: "📂 Documentos" },
 ];
 
 const reasonsTrip = [
@@ -65,7 +64,7 @@ export default function CheckinForm() {
       <div style={styles.container}>
         <h2 style={styles.title}>Registro de Huéspedes</h2>
 
-        {/* <button
+        <button
           onClick={cargarHuespedesHoy}
           style={{
             marginBottom: "1.5rem",
@@ -78,8 +77,8 @@ export default function CheckinForm() {
             cursor: "pointer",
           }}
         >
-          Ver huéspedes registrados hoy
-        </button> */}
+          Volver a consulta
+        </button>
 
         {reserva?.numeroReserva && (
           <h3 style={styles.subTitle}>
@@ -119,7 +118,7 @@ export default function CheckinForm() {
         {/* =============== FORMULARIO =============== */}
         {formList.map((formData, index) => (
           <GuestCard
-            key={formData._id ?? index} // ✅ usa _id; si no existe, cae al índice
+            key={formData._id ?? index}
             data={formData}
             index={index}
             onChange={handleChange}
@@ -127,31 +126,6 @@ export default function CheckinForm() {
             activeTab={activeTab}
           />
         ))}
-
-        {/* ================= MOTIVO DE VIAJE (SOLO VIAJE) ================= */}
-            {activeTab === "viaje" && (
-              <div style={{ marginTop: "2rem" }}>
-                <label style={{ color: "white", fontWeight: "bold" }}>
-                  Motivo del viaje / Trip reason
-                </label>
-
-                <div
-                  onClick={() => setShowReasonTripModal(true)}
-                  style={{
-                    marginTop: "0.5rem",
-                    background: "#1f2937",
-                    padding: "0.75rem",
-                    borderRadius: "0.5rem",
-                    cursor: "pointer",
-                    color: motivoDetallado ? "#10b981" : "#9ca3af",
-                    textAlign: "center",
-                  }}
-                >
-                  {motivoDetallado || "Seleccione una opción / Select one"}
-                </div>
-              </div>
-            )}
-
 
         {/* ✅ BOTÓN "AGREGAR HUÉSPED" SOLO EN DATOS PERSONALES */}
         {activeTab === "personal" && (
@@ -171,7 +145,29 @@ export default function CheckinForm() {
           </div>
         )}
 
+        {/* ================= MOTIVO DE VIAJE (SOLO VIAJE) ================= */}
+        {activeTab === "viaje" && (
+          <div style={{ marginTop: "2rem" }}>
+            <label style={{ color: "white", fontWeight: "bold" }}>
+              Motivo del viaje / Trip reason
+            </label>
 
+            <div
+              onClick={() => setShowReasonTripModal(true)}
+              style={{
+                marginTop: "0.5rem",
+                background: "#1f2937",
+                padding: "0.75rem",
+                borderRadius: "0.5rem",
+                cursor: "pointer",
+                color: motivoDetallado ? "#10b981" : "#9ca3af",
+                textAlign: "center",
+              }}
+            >
+              {motivoDetallado || "Seleccione una opción / Select one"}
+            </div>
+          </div>
+        )}
 
         {/* ================= SUBMIT FINAL ================= */}
         <div style={styles.actions}>

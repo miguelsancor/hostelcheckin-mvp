@@ -63,12 +63,14 @@ export function GuestCard({
   ) => onChange(index, e);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log("handleFile (GuestCard)", index, e.target.files?.[0]);
     onFile(index, e);
   };
 
   const esCedula = data.tipoDocumento === "Cédula";
   const esPasaporte = data.tipoDocumento === "Pasaporte";
+
+  // ✅ Titular = primer huésped
+  const esTitular = index === 0;
 
   return (
     <div style={styles.card}>
@@ -131,7 +133,6 @@ export function GuestCard({
               />
             </Field>
 
-            {/* ✅ MOVIDO AQUÍ (ANTES ESTABA EN DETALLE DE RESERVA) */}
             <Field label="Teléfono / Phone">
               <input
                 name="telefono"
@@ -141,7 +142,6 @@ export function GuestCard({
               />
             </Field>
 
-            {/* ✅ MOVIDO AQUÍ (ANTES ESTABA EN DETALLE DE RESERVA) */}
             <Field label="Email">
               <input
                 name="email"
@@ -150,14 +150,96 @@ export function GuestCard({
                 style={styles.input}
               />
             </Field>
-
-            
           </div>
 
-          
-          {/* ✅ Si quieres, también puedes mover fechas aquí.
-              Pero por ahora las dejamos donde estaban (antes en reserva), y como ya
-              no hay tab reserva, te recomiendo moverlas a "viaje" o "personal" en otro paso. */}
+          {/* ===================== SUBSECCIÓN: DOCUMENTOS (SOLO TITULAR) ===================== */}
+          {esTitular && (
+            <div
+              style={{
+                marginTop: "1.25rem",
+                paddingTop: "1.25rem",
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              <h3
+                style={{
+                  color: "white",
+                  fontSize: "1rem",
+                  marginBottom: "0.35rem",
+                  textAlign: "center",
+                }}
+              >
+                Documentos
+              </h3>
+
+              <p
+                style={{
+                  color: "#9ca3af",
+                  fontSize: "0.85rem",
+                  textAlign: "center",
+                  marginBottom: "1rem",
+                }}
+              >
+                Solo debes agregar el documento del titular de la reserva
+              </p>
+
+              <div style={styles.row}>
+                {esCedula && (
+                  <>
+                    <Field label="Foto cédula frente / ID front">
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <input
+                          type="file"
+                          name="archivoCedula"
+                          onChange={handleFile}
+                          style={styles.fileInput}
+                        />
+                        {data.archivoCedula && (
+                          <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
+                            {(data.archivoCedula as File).name}
+                          </span>
+                        )}
+                      </div>
+                    </Field>
+
+                    <Field label="Foto cédula atrás / ID back">
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <input
+                          type="file"
+                          name="archivoFirma"
+                          onChange={handleFile}
+                          style={styles.fileInput}
+                        />
+                        {data.archivoFirma && (
+                          <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
+                            {(data.archivoFirma as File).name}
+                          </span>
+                        )}
+                      </div>
+                    </Field>
+                  </>
+                )}
+
+                {esPasaporte && (
+                  <Field label="Foto pasaporte / Passport photo">
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <input
+                        type="file"
+                        name="archivoPasaporte"
+                        onChange={handleFile}
+                        style={styles.fileInput}
+                      />
+                      {data.archivoPasaporte && (
+                        <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
+                          {(data.archivoPasaporte as File).name}
+                        </span>
+                      )}
+                    </div>
+                  </Field>
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -184,9 +266,7 @@ export function GuestCard({
                 style={styles.input}
               />
             </Field>
-          </div>
 
-          <div style={styles.row}>
             <Field label="Dirección / Address">
               <input
                 name="direccion"
@@ -196,30 +276,8 @@ export function GuestCard({
                 style={styles.input}
               />
             </Field>
-
-            <Field label="Lugar procedencia / Origin city">
-              <input
-                name="lugarProcedencia"
-                value={data.lugarProcedencia || ""}
-                onChange={handleChange}
-                placeholder="Ciudad origen"
-                style={styles.input}
-              />
-            </Field>
-
-            <Field label="Lugar destino / Destination city">
-              <input
-                name="lugarDestino"
-                value={data.lugarDestino || ""}
-                onChange={handleChange}
-                placeholder="Ciudad destino"
-                style={styles.input}
-              />
-            </Field>
           </div>
 
-          {/* ✅ FECHAS (antes estaban en "reserva"). Como quitaste ese tab,
-              las dejamos aquí en "viaje" porque hacen más sentido con el viaje/estadia. */}
           <div style={styles.row}>
             <Field label="Ingreso / Check-in">
               <input
@@ -242,65 +300,6 @@ export function GuestCard({
             </Field>
           </div>
         </>
-      )}
-
-      {/* ===================== TAB: DOCUMENTOS ===================== */}
-      {activeTab === "documentos" && (
-        <div style={styles.row}>
-          {esCedula && (
-            <>
-              <Field label="Foto cédula frente / ID front">
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <input
-                    type="file"
-                    name="archivoCedula"
-                    onChange={handleFile}
-                    style={styles.fileInput}
-                  />
-                  {data.archivoCedula && (
-                    <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
-                      {(data.archivoCedula as File).name}
-                    </span>
-                  )}
-                </div>
-              </Field>
-
-              <Field label="Foto cédula atrás / ID back">
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <input
-                    type="file"
-                    name="archivoFirma"
-                    onChange={handleFile}
-                    style={styles.fileInput}
-                  />
-                  {data.archivoFirma && (
-                    <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
-                      {(data.archivoFirma as File).name}
-                    </span>
-                  )}
-                </div>
-              </Field>
-            </>
-          )}
-
-          {esPasaporte && (
-            <Field label="Foto pasaporte / Passport photo">
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <input
-                  type="file"
-                  name="archivoPasaporte"
-                  onChange={handleFile}
-                  style={styles.fileInput}
-                />
-                {data.archivoPasaporte && (
-                  <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
-                    {(data.archivoPasaporte as File).name}
-                  </span>
-                )}
-              </div>
-            </Field>
-          )}
-        </div>
       )}
     </div>
   );

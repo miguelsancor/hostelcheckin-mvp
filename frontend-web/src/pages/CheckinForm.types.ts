@@ -1,20 +1,40 @@
 export type Huesped = {
+  // ============================
+  // DATOS PERSONALES
+  // ============================
   nombre?: string;
   tipoDocumento?: string;
   numeroDocumento?: string;
   nacionalidad?: string;
+  fechaNacimiento?: string;
+
+  telefono?: string;
+  email?: string;
+
+  // ============================
+  // INFORMACIÓN DEL VIAJE
+  // ============================
   direccion?: string;
   lugarProcedencia?: string;
   lugarDestino?: string;
-  telefono?: string;
-  email?: string;
+  paisOrigen?: string;
+  paisDestino?: string;
+
   motivoViaje?: string;
+
   fechaIngreso?: string;
   fechaSalida?: string;
-  archivoAnverso?: File;
-  archivoReverso?: File;
-  archivoFirma?: File;
 
+  // ============================
+  // DOCUMENTOS
+  // ============================
+  archivoCedula?: File;
+  archivoFirma?: File;
+  archivoPasaporte?: File;
+
+  // ============================
+  // DATOS DE RESERVA (YA NO EN TAB)
+  // ============================
   referral?: string;
   status?: string;
   nights?: number;
@@ -25,6 +45,8 @@ export type Huesped = {
   b_smoking?: string;
   b_meal?: string;
   comment?: string;
+};
+
 
   // ============================
   // CAMPOS NUEVOS (AGREGADOS)

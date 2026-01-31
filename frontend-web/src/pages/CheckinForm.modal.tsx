@@ -62,7 +62,7 @@ export function ResultModal({
         name: `Reserva - ${guest.nombre}`,
       };
   
-      const res = await fetch("http://18.206.179.50:4000/mcp/create-passcode-all", {
+      const res = await fetch("http://localhost:4000/mcp/create-passcode-all", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

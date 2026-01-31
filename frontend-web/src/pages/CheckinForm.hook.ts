@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Huesped, Reserva, LockItem, HuespedBD } from "./CheckinForm.types";
 import { roomMapping } from "./roomMapping";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
 /* ======================= HELPERS ======================= */
 function getQueryParams() {
@@ -77,7 +77,7 @@ export function useCheckinForm() {
             direccion: p.direccion || "",
             lugarProcedencia: p.lugarProcedencia || "",
             lugarDestino: p.lugarDestino || "",
-            telefono: p.telefono || "",
+            telefono: p.phone  || "",
             email: p.email || "",
             motivoViaje: p.motivoViaje || "",
             fechaIngreso: p.fechaIngreso || "",
@@ -123,7 +123,7 @@ export function useCheckinForm() {
           direccion: "",
           lugarProcedencia: "",
           lugarDestino: "",
-          telefono: parsed.telefono || "",
+          telefono: parsed.phone  || "",
           email: parsed.email || "",
           motivoViaje: parsed.motivoViaje || "",
           fechaIngreso: parsed.fechaIngreso || "",

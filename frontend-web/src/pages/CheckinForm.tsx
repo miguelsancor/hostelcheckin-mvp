@@ -7,8 +7,7 @@ import { styles } from "./CheckinForm.styles";
 const TABS = [
   { id: "personal", label: "👤 Datos personales" },
   { id: "viaje", label: "✈️ Información del viaje" },
-  { id: "reserva", label: "🧾 Detalle de reserva" },
-  { id: "documentos", label: "📂 Documentos" }
+  { id: "documentos", label: "📂 Documentos" },
 ];
 
 const reasonsTrip = [
@@ -39,7 +38,7 @@ export default function CheckinForm() {
     handleChange,
     handleFileChange,
     handleAddGuest,
-    handleSubmit
+    handleSubmit,
   } = useCheckinForm();
 
   const [activeTab, setActiveTab] = useState("personal");
@@ -53,7 +52,7 @@ export default function CheckinForm() {
         show={showModal}
         message={modalMessage}
         guest={formList?.[0]}
-        reserva={reserva as any} 
+        reserva={reserva as any}
         onClose={() => setShowModal(false)}
       />
 
@@ -66,7 +65,7 @@ export default function CheckinForm() {
       <div style={styles.container}>
         <h2 style={styles.title}>Registro de Huéspedes</h2>
 
-        <button
+        {/* <button
           onClick={cargarHuespedesHoy}
           style={{
             marginBottom: "1.5rem",
@@ -80,7 +79,7 @@ export default function CheckinForm() {
           }}
         >
           Ver huéspedes registrados hoy
-        </button>
+        </button> */}
 
         {reserva?.numeroReserva && (
           <h3 style={styles.subTitle}>
@@ -117,12 +116,10 @@ export default function CheckinForm() {
           ))}
         </div>
 
-     
-         
         {/* =============== FORMULARIO =============== */}
         {formList.map((formData, index) => (
           <GuestCard
-            key={formData._id ?? index}   // ✅ usa _id; si no existe, cae al índice
+            key={formData._id ?? index} // ✅ usa _id; si no existe, cae al índice
             data={formData}
             index={index}
             onChange={handleChange}
@@ -130,42 +127,54 @@ export default function CheckinForm() {
             activeTab={activeTab}
           />
         ))}
-        {/* ================= MOTIVO DE VIAJE ================= */}
-        <div style={{ marginTop: "2rem" }}>
-          <label style={{ color: "white", fontWeight: "bold" }}>
-            Motivo del viaje / Trip reason
-          </label>
 
-          <div
-            onClick={() => setShowReasonTripModal(true)}
-            style={{
-              marginTop: "0.5rem",
-              background: "#1f2937",
-              padding: "0.75rem",
-              borderRadius: "0.5rem",
-              cursor: "pointer",
-              color: motivoDetallado ? "#10b981" : "#9ca3af",
-              textAlign: "center",
-            }}
-          >
-            {motivoDetallado || "Seleccione una opción / Select one"}
+        {/* ================= MOTIVO DE VIAJE (SOLO VIAJE) ================= */}
+            {activeTab === "viaje" && (
+              <div style={{ marginTop: "2rem" }}>
+                <label style={{ color: "white", fontWeight: "bold" }}>
+                  Motivo del viaje / Trip reason
+                </label>
+
+                <div
+                  onClick={() => setShowReasonTripModal(true)}
+                  style={{
+                    marginTop: "0.5rem",
+                    background: "#1f2937",
+                    padding: "0.75rem",
+                    borderRadius: "0.5rem",
+                    cursor: "pointer",
+                    color: motivoDetallado ? "#10b981" : "#9ca3af",
+                    textAlign: "center",
+                  }}
+                >
+                  {motivoDetallado || "Seleccione una opción / Select one"}
+                </div>
+              </div>
+            )}
+
+
+        {/* ✅ BOTÓN "AGREGAR HUÉSPED" SOLO EN DATOS PERSONALES */}
+        {activeTab === "personal" && (
+          <div style={{ marginTop: "1.25rem", textAlign: "center" }}>
+            <button
+              onClick={handleAddGuest}
+              style={{
+                ...styles.button,
+                backgroundColor: "#8b5cf6",
+                width: "auto",
+                padding: "0.85rem 1.5rem",
+              }}
+              disabled={loading}
+            >
+              Agregar Huésped / Add Guest
+            </button>
           </div>
-        </div>
+        )}
 
-        {/* ================= BOTONES ================= */}
+
+
+        {/* ================= SUBMIT FINAL ================= */}
         <div style={styles.actions}>
-          <button
-            onClick={handleAddGuest}
-            style={{
-              ...styles.button,
-              backgroundColor: "#8b5cf6",
-              marginRight: "1rem",
-            }}
-            disabled={loading}
-          >
-            Agregar Huésped / Add Guest
-          </button>
-
           <button
             onClick={() => handleSubmit(motivoDetallado)}
             style={styles.button}

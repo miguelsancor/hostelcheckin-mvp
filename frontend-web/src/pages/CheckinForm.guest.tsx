@@ -15,34 +15,15 @@ type GuestCardProps = {
   onFile: (index: number, e: React.ChangeEvent<HTMLInputElement>) => void;
 };
 
-export function GuestCard({
-  data,
-  index,
-  activeTab,
-  onChange,
-  onFile,
-}: GuestCardProps) {
-  const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >
-  ) => onChange(index, e);
-
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log("handleFile (GuestCard)", index, e.target.files?.[0]);
-    onFile(index, e);
-  };
-
-  const esCedula = data.tipoDocumento === "Cédula";
-  const esPasaporte = data.tipoDocumento === "Pasaporte";
-
-  const Field = ({
-    label,
-    children,
-  }: {
-    label: string;
-    children: React.ReactNode;
-  }) => (
+/* ✅ Field fuera del componente: NO se recrea en cada tecla */
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
     <div
       style={{
         width: "100%",
@@ -66,6 +47,28 @@ export function GuestCard({
       {children}
     </div>
   );
+}
+
+export function GuestCard({
+  data,
+  index,
+  activeTab,
+  onChange,
+  onFile,
+}: GuestCardProps) {
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
+  ) => onChange(index, e);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("handleFile (GuestCard)", index, e.target.files?.[0]);
+    onFile(index, e);
+  };
+
+  const esCedula = data.tipoDocumento === "Cédula";
+  const esPasaporte = data.tipoDocumento === "Pasaporte";
 
   return (
     <div style={styles.card}>
@@ -127,7 +130,34 @@ export function GuestCard({
                 style={styles.input}
               />
             </Field>
+
+            {/* ✅ MOVIDO AQUÍ (ANTES ESTABA EN DETALLE DE RESERVA) */}
+            <Field label="Teléfono / Phone">
+              <input
+                name="telefono"
+                value={data.telefono || ""}
+                onChange={handleChange}
+                style={styles.input}
+              />
+            </Field>
+
+            {/* ✅ MOVIDO AQUÍ (ANTES ESTABA EN DETALLE DE RESERVA) */}
+            <Field label="Email">
+              <input
+                name="email"
+                value={data.email || ""}
+                onChange={handleChange}
+                style={styles.input}
+              />
+            </Field>
+
+            
           </div>
+
+          
+          {/* ✅ Si quieres, también puedes mover fechas aquí.
+              Pero por ahora las dejamos donde estaban (antes en reserva), y como ya
+              no hay tab reserva, te recomiendo moverlas a "viaje" o "personal" en otro paso. */}
         </>
       )}
 
@@ -187,74 +217,9 @@ export function GuestCard({
               />
             </Field>
           </div>
-        </>
-      )}
 
-      {/* ===================== TAB: RESERVA ===================== */}
-      {activeTab === "reserva" && (
-        <>
-          <div style={styles.row}>
-            <Field label="Origen reserva / Booking source">
-              <input
-                name="referral"
-                value={data.referral || ""}
-                onChange={handleChange}
-                placeholder="Booking, Expedia, etc"
-                style={styles.input}
-              />
-            </Field>
-
-            <Field label="Estado / Status">
-              <input
-                name="status"
-                value={data.status || ""}
-                onChange={handleChange}
-                placeholder="Estado"
-                style={styles.input}
-              />
-            </Field>
-
-            <Field label="Noches / Nights">
-              <input
-                name="nights"
-                type="number"
-                value={data.nights ?? ""}
-                onChange={handleChange}
-                style={styles.input}
-              />
-            </Field>
-
-            <Field label="Huéspedes / Guests">
-              <input
-                name="guests"
-                type="number"
-                value={data.guests ?? ""}
-                onChange={handleChange}
-                style={styles.input}
-              />
-            </Field>
-          </div>
-
-          <div style={styles.row}>
-            <Field label="Teléfono / Phone">
-              <input
-                name="telefono"
-                value={data.telefono || ""}
-                onChange={handleChange}
-                style={styles.input}
-              />
-            </Field>
-
-            <Field label="Email">
-              <input
-                name="email"
-                value={data.email || ""}
-                onChange={handleChange}
-                style={styles.input}
-              />
-            </Field>
-          </div>
-
+          {/* ✅ FECHAS (antes estaban en "reserva"). Como quitaste ese tab,
+              las dejamos aquí en "viaje" porque hacen más sentido con el viaje/estadia. */}
           <div style={styles.row}>
             <Field label="Ingreso / Check-in">
               <input
@@ -281,65 +246,62 @@ export function GuestCard({
 
       {/* ===================== TAB: DOCUMENTOS ===================== */}
       {activeTab === "documentos" && (
-          <div style={styles.row}>
-
-            {esCedula && (
-              <>
-                <Field label="Foto cédula frente / ID front">
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <input
-                      type="file"
-                      name="archivoCedula"
-                      onChange={handleFile}
-                      style={styles.fileInput}
-                    />
-                    {data.archivoCedula && (
-                      <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
-                        {(data.archivoCedula as File).name}
-                      </span>
-                    )}
-                  </div>
-                </Field>
-
-                <Field label="Foto cédula atrás / ID back">
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <input
-                      type="file"
-                      name="archivoFirma"
-                      onChange={handleFile}
-                      style={styles.fileInput}
-                    />
-                    {data.archivoFirma && (
-                      <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
-                        {(data.archivoFirma as File).name}
-                      </span>
-                    )}
-                  </div>
-                </Field>
-              </>
-            )}
-
-            {esPasaporte && (
-              <Field label="Foto pasaporte / Passport photo">
+        <div style={styles.row}>
+          {esCedula && (
+            <>
+              <Field label="Foto cédula frente / ID front">
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   <input
                     type="file"
-                    name="archivoPasaporte"
+                    name="archivoCedula"
                     onChange={handleFile}
                     style={styles.fileInput}
                   />
-                  {data.archivoPasaporte && (
+                  {data.archivoCedula && (
                     <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
-                      {(data.archivoPasaporte as File).name}
+                      {(data.archivoCedula as File).name}
                     </span>
                   )}
                 </div>
               </Field>
-            )}
 
-          </div>
-        )}
+              <Field label="Foto cédula atrás / ID back">
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <input
+                    type="file"
+                    name="archivoFirma"
+                    onChange={handleFile}
+                    style={styles.fileInput}
+                  />
+                  {data.archivoFirma && (
+                    <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
+                      {(data.archivoFirma as File).name}
+                    </span>
+                  )}
+                </div>
+              </Field>
+            </>
+          )}
 
+          {esPasaporte && (
+            <Field label="Foto pasaporte / Passport photo">
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <input
+                  type="file"
+                  name="archivoPasaporte"
+                  onChange={handleFile}
+                  style={styles.fileInput}
+                />
+                {data.archivoPasaporte && (
+                  <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
+                    {(data.archivoPasaporte as File).name}
+                  </span>
+                )}
+              </div>
+            </Field>
+          )}
+        </div>
+      )}
     </div>
   );
 }

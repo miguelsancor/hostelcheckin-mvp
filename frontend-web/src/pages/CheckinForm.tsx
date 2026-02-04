@@ -37,6 +37,7 @@ export default function CheckinForm() {
     handleChange,
     handleFileChange,
     handleAddGuest,
+    removeGuestByIndex, // ✅ NUEVO
     handleSubmit,
   } = useCheckinForm();
 
@@ -44,13 +45,16 @@ export default function CheckinForm() {
   const [motivoDetallado, setMotivoDetallado] = useState("");
   const [showReasonTripModal, setShowReasonTripModal] = useState(false);
 
+  // ✅ Titular = primer huésped
+  const titular = formList?.[0];
+
   return (
     <>
       {/* ================= MODAL RESULTADOS ================= */}
       <ResultModal
         show={showModal}
         message={modalMessage}
-        guest={formList?.[0]}
+        guest={titular}
         reserva={reserva as any}
         onClose={() => setShowModal(false)}
       />
@@ -77,7 +81,7 @@ export default function CheckinForm() {
             cursor: "pointer",
           }}
         >
-          Volver a consulta
+          Ver huéspedes registrados hoy
         </button>
 
         {reserva?.numeroReserva && (
@@ -116,57 +120,72 @@ export default function CheckinForm() {
         </div>
 
         {/* =============== FORMULARIO =============== */}
-        {formList.map((formData, index) => (
-          <GuestCard
-            key={formData._id ?? index}
-            data={formData}
-            index={index}
-            onChange={handleChange}
-            onFile={handleFileChange}
-            activeTab={activeTab}
-          />
-        ))}
-
-        {/* ✅ BOTÓN "AGREGAR HUÉSPED" SOLO EN DATOS PERSONALES */}
         {activeTab === "personal" && (
-          <div style={{ marginTop: "1.25rem", textAlign: "center" }}>
-            <button
-              onClick={handleAddGuest}
-              style={{
-                ...styles.button,
-                backgroundColor: "#8b5cf6",
-                width: "auto",
-                padding: "0.85rem 1.5rem",
-              }}
-              disabled={loading}
-            >
-              Agregar Huésped / Add Guest
-            </button>
-          </div>
+          <>
+            {formList.map((formData, index) => (
+              <GuestCard
+                key={formData._id ?? index}
+                data={formData}
+                index={index}
+                onChange={handleChange}
+                onFile={handleFileChange}
+                activeTab={activeTab}
+                onRemove={removeGuestByIndex} // ✅ AQUÍ QUEDA VIVO EL BOTÓN
+              />
+            ))}
+
+            {/* ✅ BOTÓN "AGREGAR HUÉSPED" SOLO EN DATOS PERSONALES */}
+            <div style={{ marginTop: "1.25rem", textAlign: "center" }}>
+              <button
+                onClick={handleAddGuest}
+                style={{
+                  ...styles.button,
+                  backgroundColor: "#8b5cf6",
+                  width: "auto",
+                  padding: "0.85rem 1.5rem",
+                }}
+                disabled={loading}
+              >
+                Agregar Huésped / Add Guest
+              </button>
+            </div>
+          </>
         )}
 
-        {/* ================= MOTIVO DE VIAJE (SOLO VIAJE) ================= */}
-        {activeTab === "viaje" && (
-          <div style={{ marginTop: "2rem" }}>
-            <label style={{ color: "white", fontWeight: "bold" }}>
-              Motivo del viaje / Trip reason
-            </label>
+        {/* ✅ VIAJE: SOLO TITULAR */}
+        {activeTab === "viaje" && titular && (
+          <>
+            <GuestCard
+              key={titular._id ?? 0}
+              data={titular}
+              index={0}
+              onChange={handleChange}
+              onFile={handleFileChange}
+              activeTab={activeTab}
+            />
 
-            <div
-              onClick={() => setShowReasonTripModal(true)}
-              style={{
-                marginTop: "0.5rem",
-                background: "#1f2937",
-                padding: "0.75rem",
-                borderRadius: "0.5rem",
-                cursor: "pointer",
-                color: motivoDetallado ? "#10b981" : "#9ca3af",
-                textAlign: "center",
-              }}
-            >
-              {motivoDetallado || "Seleccione una opción / Select one"}
+            {/* ================= MOTIVO DE VIAJE ================= */}
+            <div style={{ marginTop: "2rem" }}>
+              <label style={{ color: "white", fontWeight: "bold" }}>
+                Motivo del viaje / Trip reason
+              </label>
+
+              <div
+                onClick={() => setShowReasonTripModal(true)}
+                style={{
+                  marginTop: "0.5rem",
+                  background: "#1f2937",
+                  padding: "0.75rem",
+                  borderRadius: "0.5rem",
+                  cursor: "pointer",
+                  color: motivoDetallado ? "#10b981" : "#9ca3af",
+                  textAlign: "center",
+                }}
+              >
+                {motivoDetallado || "Seleccione una opción / Select one"}
+              </div>
             </div>
-          </div>
+          </>
         )}
 
         {/* ================= SUBMIT FINAL ================= */}

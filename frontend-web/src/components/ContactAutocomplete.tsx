@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
 interface Props {
   value: string;
@@ -34,13 +34,15 @@ export default function ContactAutocomplete({
 
         if (res.ok) {
           const data = await res.json();
-          setSugerencias(data);
+          setSugerencias(Array.isArray(data) ? data : []);
           setShow(true);
         } else {
           setSugerencias([]);
+          setShow(false);
         }
       } catch {
         setSugerencias([]);
+        setShow(false);
       } finally {
         setLoading(false);
       }
@@ -75,51 +77,61 @@ export default function ContactAutocomplete({
         }}
       />
 
-      {/* LISTA DE SUGERENCIAS */}
+      {/* LISTA DE SUGERENCIAS (ARRIBA + 1 RENGLÓN) */}
       {show && sugerencias.length > 0 && (
         <ul
           style={{
             position: "absolute",
-            top: "50px",
+            left: 0,
+            right: 0,
+
+            // ✅ ARRIBA del input
+            bottom: "calc(100% + 8px)",
+            top: "auto",
+
             width: "100%",
             background: "white",
             borderRadius: "10px",
             border: "1px solid #ccc",
-            maxHeight: "220px",
-            overflowY: "auto",
+
+            // ✅ SOLO 1 RENGLÓN visible
+            maxHeight: "56px",
+            overflowY: "hidden",
+
             padding: 0,
             margin: 0,
             zIndex: 99999,
             boxShadow: "0 4px 10px rgba(0,0,0,0.15)",
           }}
         >
-          {sugerencias.map((s, index) => {
+          {sugerencias.slice(0, 1).map((s, index) => {
             const nombre =
-              s.nombre && s.nombre.trim().length > 0
-                ? s.nombre
-                : "[Sin nombre]";
+              s.nombre && s.nombre.trim().length > 0 ? s.nombre : "[Sin nombre]";
 
             const subtexto = s.email || s.telefono || "";
 
             return (
               <li
                 key={index}
-                onClick={() => seleccionar(s)}
+                onMouseDown={() => seleccionar(s)}
                 style={{
                   padding: "12px",
                   cursor: "pointer",
                   listStyle: "none",
-                  borderBottom: "1px solid #eee",
+                  borderBottom: "none",
                   color: "#111",
+                  backgroundColor: "white",
                 }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor = "#e5e7eb")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor = "white")
-                }
               >
-                <div style={{ fontWeight: "600", fontSize: "0.95rem" }}>
+                <div
+                  style={{
+                    fontWeight: "600",
+                    fontSize: "0.95rem",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
                   {nombre}
                 </div>
                 <div
@@ -127,6 +139,9 @@ export default function ContactAutocomplete({
                     fontSize: "0.85rem",
                     color: "#555",
                     marginTop: "3px",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
                   }}
                 >
                   {subtexto}

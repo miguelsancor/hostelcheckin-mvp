@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Huesped, Reserva, LockItem, HuespedBD } from "./CheckinForm.types";
 import { roomMapping } from "./roomMapping";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
 /* ======================= HELPERS ======================= */
 function getQueryParams() {
@@ -77,7 +77,7 @@ export function useCheckinForm() {
             direccion: p.direccion || "",
             lugarProcedencia: p.lugarProcedencia || "",
             lugarDestino: p.lugarDestino || "",
-            telefono: p.phone  || "",
+            telefono: p.phone || "",
             email: p.email || "",
             motivoViaje: p.motivoViaje || "",
             fechaIngreso: p.fechaIngreso || "",
@@ -123,7 +123,7 @@ export function useCheckinForm() {
           direccion: "",
           lugarProcedencia: "",
           lugarDestino: "",
-          telefono: parsed.phone  || "",
+          telefono: parsed.phone || "",
           email: parsed.email || "",
           motivoViaje: parsed.motivoViaje || "",
           fechaIngreso: parsed.fechaIngreso || "",
@@ -161,7 +161,6 @@ export function useCheckinForm() {
   }, []);
 
   /* ======================= HANDLERS ======================= */
-
   const handleChange = (index: number, e: any) => {
     setFormList((prev) => {
       const updated = [...prev];
@@ -182,8 +181,16 @@ export function useCheckinForm() {
     });
   };
 
-  const handleAddGuest = () =>
-    setFormList((prev) => [...prev, nuevoHuesped()]);
+  const handleAddGuest = () => setFormList((prev) => [...prev, nuevoHuesped()]);
+
+  // ✅ NUEVO: REMOVER HUÉSPED (NO BORRA TITULAR)
+  const removeGuestByIndex = (index: number) => {
+    setFormList((prev) => {
+      if (!Array.isArray(prev) || prev.length <= 1) return prev;
+      if (index <= 0) return prev; // nunca borres el titular
+      return prev.filter((_, i) => i !== index);
+    });
+  };
 
   /* ======================= HOY ======================= */
   const cargarHuespedesHoy = async () => {
@@ -206,25 +213,24 @@ export function useCheckinForm() {
       alert("Agrega al menos un huésped.");
       return;
     }
-  
+
     const listaConMotivo: Huesped[] = formList.map((h) => ({
       ...h,
       motivoViaje: motivoViaje || h.motivoViaje || "",
     }));
-  
+
     setLoading(true);
-  
+
     try {
       const titular = listaConMotivo[0];
-  
-      const checkinUrl =
-        `${window.location.protocol}//${window.location.host}/checkin?reserva=${reserva?.numeroReserva || ""}`;
-  
+
+      const checkinUrl = `${window.location.protocol}//${window.location.host}/checkin?reserva=${
+        reserva?.numeroReserva || ""
+      }`;
+
       const fd = new FormData();
-  
-      // ==========================================
-      // 🔥 1. Agregamos los datos en JSON
-      // ==========================================
+
+      // 1) JSON
       fd.append(
         "data",
         JSON.stringify({
@@ -240,48 +246,37 @@ export function useCheckinForm() {
           checkinUrl,
         })
       );
-  
-      // ==========================================
-      // 🔥 2. AGREGAR LOS ARCHIVOS REALES AL FORM DATA
-      // ==========================================
+
+      // 2) Archivos reales
       listaConMotivo.forEach((h, idx) => {
-        if (h.archivoCedula)
-          fd.append(`archivoCedula_${idx}`, h.archivoCedula);
-  
-        if (h.archivoFirma)
-          fd.append(`archivoFirma_${idx}`, h.archivoFirma);
-  
-        if (h.archivoPasaporte)
-          fd.append(`archivoPasaporte_${idx}`, h.archivoPasaporte);
+        if (h.archivoCedula) fd.append(`archivoCedula_${idx}`, h.archivoCedula);
+        if (h.archivoFirma) fd.append(`archivoFirma_${idx}`, h.archivoFirma);
+        if (h.archivoPasaporte) fd.append(`archivoPasaporte_${idx}`, h.archivoPasaporte);
       });
-  
-      // ==========================================
-      // 🔥 3. Enviar el FormData completo
-      // ==========================================
+
+      // 3) Enviar
       const res = await fetch(`${API_BASE}/api/checkin`, {
         method: "POST",
         body: fd,
       });
-  
+
       const json = await res.json();
-  
+
       if (!json.ok) {
         alert("Error guardando en la base de datos.");
         return;
       }
-  
+
       const numeroReserva = json.numeroReserva;
-  
+
       setReserva((prev) => ({
         ...(prev || {}),
         numeroReserva,
       }));
-  
+
       const msg = `✅ Huéspedes registrados\nReserva: ${numeroReserva}`;
-  
       setModalMessage(msg);
       setShowModal(true);
-  
     } catch (err) {
       console.error("Error en handleSubmit:", err);
       alert("Error de conexión.");
@@ -289,7 +284,6 @@ export function useCheckinForm() {
       setLoading(false);
     }
   };
-  
 
   /* ======================= RETORNO ======================= */
   return {
@@ -305,6 +299,7 @@ export function useCheckinForm() {
     handleChange,
     handleFileChange,
     handleAddGuest,
+    removeGuestByIndex, // ✅ NUEVO
     handleSubmit,
 
     cargarHuespedesHoy,

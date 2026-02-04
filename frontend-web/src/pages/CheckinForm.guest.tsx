@@ -13,6 +13,9 @@ type GuestCardProps = {
     >
   ) => void;
   onFile: (index: number, e: React.ChangeEvent<HTMLInputElement>) => void;
+
+  // ✅ para borrar huéspedes (solo desde el 2 en adelante)
+  onRemove?: (index: number) => void;
 };
 
 /* ✅ Field fuera del componente: NO se recrea en cada tecla */
@@ -49,12 +52,14 @@ function Field({
   );
 }
 
+// ✅ IMPORTANTE: export nombrado (para que funcione `import { GuestCard } ...`)
 export function GuestCard({
   data,
   index,
   activeTab,
   onChange,
   onFile,
+  onRemove,
 }: GuestCardProps) {
   const handleChange = (
     e: React.ChangeEvent<
@@ -71,6 +76,17 @@ export function GuestCard({
 
   // ✅ Titular = primer huésped
   const esTitular = index === 0;
+
+  const handleRemoveClick = () => {
+    // ✅ Si el padre no pasó onRemove, no queda silencioso
+    if (!onRemove) {
+      alert(
+        "No se pudo eliminar: la función onRemove no está conectada en el componente padre (CheckinForm)."
+      );
+      return;
+    }
+    onRemove(index);
+  };
 
   return (
     <div style={styles.card}>
@@ -151,6 +167,35 @@ export function GuestCard({
               />
             </Field>
           </div>
+
+          {/* ✅ BOTÓN ELIMINAR (solo desde el huésped 2 en adelante) */}
+          {!esTitular && (
+            <div style={{ textAlign: "right", marginTop: "0.75rem" }}>
+              <button
+                type="button"
+                onClick={handleRemoveClick}
+                disabled={!onRemove}
+                style={{
+                  background: "#dc2626",
+                  color: "white",
+                  border: "none",
+                  padding: "0.55rem 1rem",
+                  borderRadius: "0.45rem",
+                  cursor: !onRemove ? "not-allowed" : "pointer",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                  opacity: !onRemove ? 0.7 : 1,
+                }}
+                title={
+                  !onRemove
+                    ? "onRemove no está conectado desde CheckinForm"
+                    : "Eliminar este huésped"
+                }
+              >
+                Eliminar huésped
+              </button>
+            </div>
+          )}
 
           {/* ===================== SUBSECCIÓN: DOCUMENTOS (SOLO TITULAR) ===================== */}
           {esTitular && (
@@ -236,6 +281,21 @@ export function GuestCard({
                       )}
                     </div>
                   </Field>
+                )}
+
+                {!esCedula && !esPasaporte && (
+                  <div
+                    style={{
+                      width: "100%",
+                      color: "#9ca3af",
+                      fontSize: "0.85rem",
+                      textAlign: "center",
+                      padding: "0.75rem 0",
+                    }}
+                  >
+                    Selecciona el tipo de documento (Cédula o Pasaporte) para
+                    habilitar la carga.
+                  </div>
                 )}
               </div>
             </div>

@@ -15,8 +15,12 @@ export type Huesped = {
   // INFORMACIÓN DEL VIAJE
   // ============================
   direccion?: string;
+
+  // OJO: estos dos los vamos a dejar por compatibilidad,
+  // pero si ya no los usas en UI los puedes ignorar.
   lugarProcedencia?: string;
   lugarDestino?: string;
+
   paisOrigen?: string;
   paisDestino?: string;
 
@@ -45,15 +49,6 @@ export type Huesped = {
   b_smoking?: string;
   b_meal?: string;
   comment?: string;
-};
-
-
-  // ============================
-  // CAMPOS NUEVOS (AGREGADOS)
-  // ============================
-  fechaNacimiento?: string;
-  paisOrigen?: string;
-  paisDestino?: string;
 };
 
 export type Reserva = {

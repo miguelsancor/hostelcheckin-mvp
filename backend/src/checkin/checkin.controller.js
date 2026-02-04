@@ -39,7 +39,7 @@ async function postCheckinSimple(req, res) {
     const titular = huespedes[0];
 
     const numeroReserva = generarNumeroReserva();
-    const checkinUrl = `http://localhost:5173/checkin?reserva=${numeroReserva}`;
+    const checkinUrl = `http://18.206.179.50:5173/checkin?reserva=${numeroReserva}`;
 
     const fIng = toDateStr(
       titular?.fechaIngreso ?? fechaIngreso,

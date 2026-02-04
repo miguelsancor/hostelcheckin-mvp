@@ -81,7 +81,7 @@ export default function CheckinForm() {
             cursor: "pointer",
           }}
         >
-          Ver huéspedes registrados hoy
+          Volver a Consulta
         </button>
 
         {reserva?.numeroReserva && (

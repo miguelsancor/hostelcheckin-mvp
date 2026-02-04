@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Huesped, Reserva, LockItem, HuespedBD } from "./CheckinForm.types";
 import { roomMapping } from "./roomMapping";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
 
 /* ======================= HELPERS ======================= */
 function getQueryParams() {
@@ -15,6 +15,20 @@ function getQueryParams() {
 
 function normalizeName(name?: string | null) {
   return (name || "").trim().toUpperCase();
+}
+
+// ✅ Convierte "2026-02-04T00:00:00" -> "2026-02-04" (compatible con input type="date")
+function toDateInput(value?: string | null) {
+  if (!value) return "";
+  const s = String(value).trim();
+  // Si viene ISO con T, toma solo la fecha
+  if (s.includes("T")) return s.split("T")[0];
+  // Si ya viene "YYYY-MM-DD" lo dejamos
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // Intento final: parsear a Date
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
 }
 
 /* ======================= CREAR HUESPED VACÍO CON ID ======================= */
@@ -80,8 +94,9 @@ export function useCheckinForm() {
             telefono: p.phone || "",
             email: p.email || "",
             motivoViaje: p.motivoViaje || "",
-            fechaIngreso: p.fechaIngreso || "",
-            fechaSalida: p.fechaSalida || "",
+            // ✅ input type="date" requiere "YYYY-MM-DD"
+            fechaIngreso: toDateInput(p.checkin),
+            fechaSalida: toDateInput(p.checkout),
           };
 
           setReserva({
@@ -89,8 +104,8 @@ export function useCheckinForm() {
             nombre: p.nombre,
             email: p.email,
             telefono: p.telefono,
-            checkin: p.fechaIngreso,
-            checkout: p.fechaSalida,
+            checkin: toDateInput(p.checkin),
+            checkout: toDateInput(p.checkout),
             room_id: null,
             lockId: undefined,
           });
@@ -114,6 +129,10 @@ export function useCheckinForm() {
       try {
         const parsed = JSON.parse(data);
 
+        // ✅ Tus datos reales vienen como checkin/checkout
+        const checkin = toDateInput(parsed.checkin);
+        const checkout = toDateInput(parsed.checkout);
+
         const huesped: Huesped = {
           ...nuevoHuesped(),
           nombre: parsed.nombre || parsed.name || "",
@@ -126,8 +145,8 @@ export function useCheckinForm() {
           telefono: parsed.phone || "",
           email: parsed.email || "",
           motivoViaje: parsed.motivoViaje || "",
-          fechaIngreso: parsed.fechaIngreso || "",
-          fechaSalida: parsed.fechaSalida || "",
+          fechaIngreso: checkin,
+          fechaSalida: checkout,
         };
 
         setReserva({
@@ -135,8 +154,8 @@ export function useCheckinForm() {
           nombre: parsed.nombre || "",
           email: parsed.email || "",
           telefono: parsed.telefono || "",
-          checkin: parsed.fechaIngreso,
-          checkout: parsed.fechaSalida,
+          checkin: checkin,
+          checkout: checkout,
           room_id: null,
           lockId: undefined,
         });
@@ -299,7 +318,7 @@ export function useCheckinForm() {
     handleChange,
     handleFileChange,
     handleAddGuest,
-    removeGuestByIndex, // ✅ NUEVO
+    removeGuestByIndex,
     handleSubmit,
 
     cargarHuespedesHoy,

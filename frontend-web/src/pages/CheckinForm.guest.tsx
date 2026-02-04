@@ -77,17 +77,6 @@ export function GuestCard({
   // ✅ Titular = primer huésped
   const esTitular = index === 0;
 
-  const handleRemoveClick = () => {
-    // ✅ Si el padre no pasó onRemove, no queda silencioso
-    if (!onRemove) {
-      alert(
-        "No se pudo eliminar: la función onRemove no está conectada en el componente padre (CheckinForm)."
-      );
-      return;
-    }
-    onRemove(index);
-  };
-
   return (
     <div style={styles.card}>
       {/* ===================== TAB: DATOS PERSONALES ===================== */}
@@ -173,24 +162,17 @@ export function GuestCard({
             <div style={{ textAlign: "right", marginTop: "0.75rem" }}>
               <button
                 type="button"
-                onClick={handleRemoveClick}
-                disabled={!onRemove}
+                onClick={() => onRemove?.(index)}
                 style={{
                   background: "#dc2626",
                   color: "white",
                   border: "none",
                   padding: "0.55rem 1rem",
                   borderRadius: "0.45rem",
-                  cursor: !onRemove ? "not-allowed" : "pointer",
+                  cursor: "pointer",
                   fontSize: "0.85rem",
                   fontWeight: 700,
-                  opacity: !onRemove ? 0.7 : 1,
                 }}
-                title={
-                  !onRemove
-                    ? "onRemove no está conectado desde CheckinForm"
-                    : "Eliminar este huésped"
-                }
               >
                 Eliminar huésped
               </button>
@@ -307,25 +289,30 @@ export function GuestCard({
       {activeTab === "viaje" && (
         <>
           <div style={styles.row}>
-            <Field label="País origen / Country of origin">
-              <input
-                name="paisOrigen"
-                value={data.paisOrigen || ""}
-                onChange={handleChange}
-                placeholder="País origen"
-                style={styles.input}
-              />
-            </Field>
+            {/* ✅ SOLO EXTRANJEROS (PASAPORTE) */}
+            {esPasaporte && (
+              <>
+                <Field label="País origen / Country of origin">
+                  <input
+                    name="paisOrigen"
+                    value={data.paisOrigen || ""}
+                    onChange={handleChange}
+                    placeholder="País origen"
+                    style={styles.input}
+                  />
+                </Field>
 
-            <Field label="País destino / Destination country">
-              <input
-                name="paisDestino"
-                value={data.paisDestino || ""}
-                onChange={handleChange}
-                placeholder="País destino"
-                style={styles.input}
-              />
-            </Field>
+                <Field label="País destino / Destination country">
+                  <input
+                    name="paisDestino"
+                    value={data.paisDestino || ""}
+                    onChange={handleChange}
+                    placeholder="País destino"
+                    style={styles.input}
+                  />
+                </Field>
+              </>
+            )}
 
             <Field label="Dirección / Address">
               <input
@@ -359,6 +346,22 @@ export function GuestCard({
               />
             </Field>
           </div>
+
+          {/* ✅ Mensaje opcional cuando NO es pasaporte (para que el usuario entienda) */}
+          {!esPasaporte && (
+            <div
+              style={{
+                width: "100%",
+                color: "#9ca3af",
+                fontSize: "0.85rem",
+                textAlign: "center",
+                marginTop: "0.75rem",
+                padding: "0.25rem 0",
+              }}
+            >
+              País origen y País destino aplican solo para extranjeros (Pasaporte).
+            </div>
+          )}
         </>
       )}
     </div>

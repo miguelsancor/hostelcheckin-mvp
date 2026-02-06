@@ -14,11 +14,9 @@ type GuestCardProps = {
   ) => void;
   onFile: (index: number, e: React.ChangeEvent<HTMLInputElement>) => void;
 
-  // ✅ para borrar huéspedes (solo desde el 2 en adelante)
   onRemove?: (index: number) => void;
 };
 
-/* ✅ Field fuera del componente: NO se recrea en cada tecla */
 function Field({
   label,
   children,
@@ -52,7 +50,6 @@ function Field({
   );
 }
 
-// ✅ IMPORTANTE: export nombrado (para que funcione `import { GuestCard } ...`)
 export function GuestCard({
   data,
   index,
@@ -73,9 +70,17 @@ export function GuestCard({
 
   const esCedula = data.tipoDocumento === "Cédula";
   const esPasaporte = data.tipoDocumento === "Pasaporte";
-
-  // ✅ Titular = primer huésped
   const esTitular = index === 0;
+
+  // ✅ estilo “bloqueado” pero legible
+  const lockedInputStyle: React.CSSProperties = {
+    ...styles.input,
+    opacity: 0.9,
+    cursor: "not-allowed",
+    backgroundColor: "#0f172a",
+    color: "#e5e7eb",
+    border: "1px solid rgba(255,255,255,0.12)",
+  };
 
   return (
     <div style={styles.card}>
@@ -157,7 +162,6 @@ export function GuestCard({
             </Field>
           </div>
 
-          {/* ✅ BOTÓN ELIMINAR (solo desde el huésped 2 en adelante) */}
           {!esTitular && (
             <div style={{ textAlign: "right", marginTop: "0.75rem" }}>
               <button
@@ -179,7 +183,6 @@ export function GuestCard({
             </div>
           )}
 
-          {/* ===================== SUBSECCIÓN: DOCUMENTOS (SOLO TITULAR) ===================== */}
           {esTitular && (
             <div
               style={{
@@ -289,7 +292,6 @@ export function GuestCard({
       {activeTab === "viaje" && (
         <>
           <div style={styles.row}>
-            {/* ✅ SOLO EXTRANJEROS (PASAPORTE) */}
             {esPasaporte && (
               <>
                 <Field label="País origen / Country of origin">
@@ -332,7 +334,9 @@ export function GuestCard({
                 name="fechaIngreso"
                 value={data.fechaIngreso || ""}
                 onChange={handleChange}
-                style={styles.input}
+                style={lockedInputStyle}
+                disabled // ✅ BLOQUEADO (no editable)
+                readOnly
               />
             </Field>
 
@@ -342,12 +346,13 @@ export function GuestCard({
                 name="fechaSalida"
                 value={data.fechaSalida || ""}
                 onChange={handleChange}
-                style={styles.input}
+                style={lockedInputStyle}
+                disabled // ✅ BLOQUEADO (no editable)
+                readOnly
               />
             </Field>
           </div>
 
-          {/* ✅ Mensaje opcional cuando NO es pasaporte (para que el usuario entienda) */}
           {!esPasaporte && (
             <div
               style={{

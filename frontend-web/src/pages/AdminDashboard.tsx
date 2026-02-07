@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = "http://18.206.179.50:4000";
 const ADMIN_PASSWORD = "admin123";
 
 type Huesped = {

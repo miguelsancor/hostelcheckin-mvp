@@ -2,12 +2,23 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ContactAutocomplete from "../components/ContactAutocomplete";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
+
+type TipoBusqueda = "documento" | "codigo" | "contacto";
+
+// ✅ Convierte "2026-02-04T00:00:00" -> "2026-02-04"
+function toDateInput(value?: string | null) {
+  if (!value) return "";
+  const s = String(value).trim();
+  if (s.includes("T")) return s.split("T")[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
 
 export default function Login() {
-  const [tipoBusqueda, setTipoBusqueda] = useState<
-    "documento" | "codigo" | "contacto"
-  >("documento");
+  const [tipoBusqueda, setTipoBusqueda] = useState<TipoBusqueda>("documento");
 
   const [tipoDocumento, setTipoDocumento] = useState("Cédula");
   const [numeroDocumento, setNumeroDocumento] = useState("");
@@ -18,38 +29,115 @@ export default function Login() {
   const navigate = useNavigate();
 
   /* ===============================================
-      GENERAR Y GUARDAR LINK EN BD
+      GENERAR Y GUARDAR LINK EN BD (NO BLOQUEANTE)
+      (lo dejo igual pero ya NO depende de esto el flujo)
   =============================================== */
   const generarYGuardarLink = async (reserva: any) => {
     const numero = String(
-      reserva.numeroReserva ||
-      reserva.order_id ||
-      reserva.numero ||
-      ""
-    );
-  
+      reserva?.numeroReserva || reserva?.order_id || reserva?.numero || ""
+    ).trim();
     if (!numero) return;
-  
+
     const PUBLIC_BASE =
       import.meta.env.VITE_PUBLIC_BASE_URL ||
       `${window.location.protocol}//${window.location.host}`;
-  
-    // ✅ LINK LIMPIO Y EDITABLE POR RESERVA
+
+    // ⚠️ Compat, pero ya NO se usa como navegación principal
     const link = `${PUBLIC_BASE}/checkin?reserva=${encodeURIComponent(numero)}`;
-  
-    // ✅ Guardar también local para el hook
     localStorage.setItem("checkinUrlReal", link);
-  
-    await fetch(`${API_BASE}/admin/huesped/checkin-por-reserva`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        numeroReserva: numero,
-        checkinUrl: link,
-      }),
-    });
+
+    try {
+      await fetch(`${API_BASE}/admin/huesped/checkin-por-reserva`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ numeroReserva: numero, checkinUrl: link }),
+      });
+    } catch {
+      // silencioso
+    }
   };
-  
+
+  /* ===============================================
+      ✅ NUEVO: Crear sesión compartible (token) en backend
+      y navegar a /checkin?t=TOKEN
+  =============================================== */
+  const crearSesionYNavegar = async (reserva: any) => {
+    // 1) guardar como antes (por si el usuario vuelve al mismo navegador)
+    localStorage.setItem("usuario", JSON.stringify({ role: "guest-checkin" }));
+    localStorage.setItem("reserva", JSON.stringify(reserva));
+
+    // 2) construir "reservaObj" robusto (nobeds / sqlite)
+    const numeroReserva = String(
+      reserva?.numeroReserva || reserva?.order_id || reserva?.numero || ""
+    ).trim();
+
+    const checkin = toDateInput(reserva?.checkin);
+    const checkout = toDateInput(reserva?.checkout);
+
+    const reservaObj = {
+      numeroReserva: numeroReserva || "",
+      nombre: reserva?.nombre || reserva?.name || "",
+      email: reserva?.email || "",
+      telefono: reserva?.telefono || reserva?.phone || "",
+      checkin,
+      checkout,
+      room_id: reserva?.room_id ?? null,
+      lockId: reserva?.lockId,
+    };
+
+    // 3) formList inicial (sin Files)
+    const formList = [
+      {
+        nombre: reservaObj.nombre,
+        tipoDocumento: reserva?.tipoDocumento || "",
+        numeroDocumento: reserva?.numeroDocumento || "",
+        nacionalidad: reserva?.nacionalidad || "",
+        direccion: reserva?.direccion || "",
+        lugarProcedencia: reserva?.lugarProcedencia || "",
+        lugarDestino: reserva?.lugarDestino || "",
+        telefono: reservaObj.telefono,
+        email: reservaObj.email,
+        motivoViaje: reserva?.motivoViaje || "",
+        fechaIngreso: checkin,
+        fechaSalida: checkout,
+      },
+    ];
+
+    // 4) si NO hay numeroReserva, igual deja entrar al form (sin token)
+    if (!numeroReserva) {
+      navigate("/checkin", { replace: true });
+      return;
+    }
+
+    // 5) crear token en backend y redirigir a /checkin?t=...
+    try {
+      const resp = await fetch(`${API_BASE}/api/checkin/session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reserva: reservaObj, formList }),
+      });
+
+      const json = await resp.json();
+
+      if (json?.ok && json?.token) {
+        // ✅ Esta URL es la compartible (funciona en OTRO navegador)
+        navigate(`/checkin?t=${encodeURIComponent(String(json.token))}`, { replace: true });
+        return;
+      }
+    } catch {
+      // si falla, no rompemos
+    }
+
+    // 6) fallback: entra al checkin normal (funciona al menos en este navegador)
+    navigate("/checkin", { replace: true });
+  };
+
+  const crearFormatoEnBlanco = () => {
+    localStorage.setItem("usuario", JSON.stringify({ role: "guest-checkin" }));
+    localStorage.setItem("reserva", JSON.stringify({}));
+
+    navigate("/checkin", { replace: true });
+  };
 
   /* ===============================================
       BUSCAR RESERVA
@@ -58,34 +146,38 @@ export default function Login() {
     try {
       let reserva: any = null;
 
-      if (tipoBusqueda === "codigo" && codigoReserva) {
+      // 1) Por código de reserva (NoBeds)
+      if (tipoBusqueda === "codigo" && codigoReserva.trim()) {
         const res = await fetch(
-          `${API_BASE}/api/nobeds/reserva/${codigoReserva}`
+          `${API_BASE}/api/nobeds/reserva/${encodeURIComponent(codigoReserva.trim())}`
         );
         if (res.ok) {
           const data = await res.json();
-          if (data.ok && data.reserva) reserva = data.reserva;
+          if (data?.ok && data?.reserva) reserva = data.reserva;
         }
       }
 
-      if (tipoBusqueda === "documento" && numeroDocumento) {
+      // 2) Por documento (SQLite local)
+      if (tipoBusqueda === "documento" && numeroDocumento.trim()) {
         const res = await fetch(`${API_BASE}/api/checkin/buscar`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tipoDocumento, numeroDocumento }),
+          body: JSON.stringify({
+            tipoDocumento,
+            numeroDocumento: numeroDocumento.trim(),
+          }),
         });
         if (res.ok) reserva = await res.json();
       }
 
-      if (tipoBusqueda === "contacto" && valorContacto) {
+      // 3) Por contacto (email/teléfono)
+      if (tipoBusqueda === "contacto" && valorContacto.trim()) {
         const res = await fetch(
-          `${API_BASE}/api/checkin/buscar-combinado/${encodeURIComponent(
-            valorContacto
-          )}`
+          `${API_BASE}/api/checkin/buscar-combinado/${encodeURIComponent(valorContacto.trim())}`
         );
         if (res.ok) {
           const data = await res.json();
-          if (data.ok && data.data) reserva = data.data;
+          if (data?.ok && data?.data) reserva = data.data;
         }
       }
 
@@ -96,37 +188,14 @@ export default function Login() {
 
       setReservaEncontrada(reserva);
 
-      // ✅ Genera y guarda el link REAL en BD + localStorage
+      // No bloqueante
       await generarYGuardarLink(reserva);
 
-      // ✅ Continuar directo al check-in
-      continuarAlCheckin(reserva);
+      // ✅ CLAVE: ahora SIEMPRE crea token y navega con ?t=
+      await crearSesionYNavegar(reserva);
     } catch (err) {
       alert("Error de conexión");
     }
-  };
-
-  /* ===============================================
-      CONTINUAR AL FORMULARIO CHECKIN
-  =============================================== */
-  const continuarAlCheckin = (reserva: any) => {
-    localStorage.setItem(
-      "usuario",
-      JSON.stringify({ role: "guest-checkin" })
-    );
-    localStorage.setItem("reserva", JSON.stringify(reserva));
-
-    navigate("/checkin", { replace: true });
-  };
-
-  const crearFormatoEnBlanco = () => {
-    localStorage.setItem(
-      "usuario",
-      JSON.stringify({ role: "guest-checkin" })
-    );
-    localStorage.setItem("reserva", JSON.stringify({}));
-
-    navigate("/checkin", { replace: true });
   };
 
   return (
@@ -137,6 +206,7 @@ export default function Login() {
             src="https://kuyay.co/wp-content/uploads/2025/02/android-chrome-192x192-1-e1739471996937.png"
             width="100"
             height="100"
+            alt="Kuyay"
           />
         </h2>
 
@@ -210,6 +280,20 @@ export default function Login() {
             Reservar
           </button>
         </div>
+
+        {reservaEncontrada && (
+          <div style={{ marginTop: "1rem", fontSize: "0.85rem", opacity: 0.85 }}>
+            Reserva detectada:{" "}
+            <b>
+              {String(
+                reservaEncontrada?.numeroReserva ||
+                  reservaEncontrada?.order_id ||
+                  reservaEncontrada?.numero ||
+                  "-"
+              )}
+            </b>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -36,38 +36,38 @@ model Huesped {
 }
 
 model Passcode {
-  id              Int      @id @default(autoincrement())
+  id            Int      @id @default(autoincrement())
 
   // Relación con huésped
-  huespedId       Int
-  huesped         Huesped  @relation(fields: [huespedId], references: [id], onDelete: Cascade)
+  huespedId     Int
+  huesped       Huesped  @relation(fields: [huespedId], references: [id], onDelete: Cascade)
 
   // TTLock (Puerta)
-  lockId          Int
-  lockAlias       String?  // ej: "ALLYN", "Door 1 Ay", etc.
+  lockId        Int
+  lockAlias     String?  // ej: "ALLYN", "Door 1 Ay", etc.
 
   // El código real (a veces NO viene en la respuesta)
-  codigo          String?
+  codigo        String?
 
   // ID que devuelve TTLock para ese passcode
-  keyboardPwdId   Int?
+  keyboardPwdId Int?
 
   // Tipo de operación interna
-  tipo            String   // "ADD" | "GET" | "SYNC" etc.
+  tipo          String   // "ADD" | "GET" | "SYNC" etc.
 
-  // Vigencia (epoch en ms o s, lo que estés usando)
-  startDate BigInt
-  endDate   BigInt
+  // Vigencia (epoch)
+  startDate     BigInt
+  endDate       BigInt
 
   // Estado interno
-  estado          String   @default("ACTIVO")
+  estado        String   @default("ACTIVO")
 
   // Estado/resultado TTLock
-  ttlockOk        Boolean  @default(true)
-  ttlockMessage   String?  // ej: "YA EXISTE", "CREADO", "ERROR: ..."
+  ttlockOk      Boolean  @default(true)
+  ttlockMessage String?  // ej: "YA EXISTE", "CREADO", "ERROR: ..."
 
   // Auditoría
-  creadoEn        DateTime @default(now())
+  creadoEn      DateTime @default(now())
 
   @@index([huespedId])
   @@index([lockId])
@@ -75,4 +75,32 @@ model Passcode {
 
   // Evita duplicar el mismo registro por puerta + id de TTLock
   @@unique([lockId, keyboardPwdId])
+}
+
+/* ===========================================================
+   ✅ NUEVO: Sesión compartible persistida en SQLite
+   - crea token único para abrir /checkin?t=...
+   - guarda snapshot (reserva + formList sin archivos)
+   - TTL por expiracion
+   =========================================================== */
+model CheckinSession {
+  id           Int      @id @default(autoincrement())
+
+  // Para relacionar con la reserva
+  numeroReserva String  @unique
+
+  // Token compartible
+  token        String   @unique
+
+  // URL opcional si quieres guardarla
+  checkinUrl   String?
+
+  // Snapshot del borrador: { reserva, formList }
+  payload      Json?
+
+  creadoEn     DateTime @default(now())
+  expiracion   DateTime
+  usadoEn      DateTime?
+
+  updatedAt    DateTime @updatedAt
 }

@@ -1,0 +1,21 @@
+{
+  "2457340": { "room": "KALPA", "aliases": ["Door 1 Ay", "Door 2 Ay"] },
+  "2470380": { "room": "KUSI", "aliases": ["Door 1 Ay", "Door 2 Ay"] },
+  "2488950": { "room": "KANCHI", "aliases": ["Door 1 Ay", "Door 2 Ay"] },
+  "2465274": { "room": "ALLYN", "aliases": ["Door 1 Ay", "Door 2 Ay"] },
+
+  "2463146": { "room": "WASI CAB 1", "aliases": ["Door 1 Ay", "Door 2 Ay"] },
+  "2496888": { "room": "WASI CAB 2", "aliases": ["Door 1 Ay", "Door 2 Ay"] },
+  "2457300": { "room": "WASI", "aliases": ["Door 1 Ay", "Door 2 Ay"] },
+
+  "2457341": { "room": "SUYANA", "aliases": ["Door 1 Ay", "Door 2 Ay"] },
+
+  "2502145": { "room": "ALPA", "aliases": ["Door 1 Yc", "Door 2 Yc"] },
+  "2502147": { "room": "UNU", "aliases": ["Door 1 Yc", "Door 2 Yc"] },
+  "2502148": { "room": "SONQO", "aliases": ["Door 1 Yc", "Door 2 Yc"] },
+  "2502144": { "room": "INTI", "aliases": ["Door 1 Yc", "Door 2 Yc"] },
+  "2502149": { "room": "LLAMPU", "aliases": ["Door 1 Yc", "Door 2 Yc"] },
+  "2504850": { "room": "SAMI", "aliases": ["Door 1 Yc", "Door 2 Yc"] },
+  "2512558": { "room": "SAMI POD 1", "aliases": ["Door 1 Yc", "Door 2 Yc"] },
+  "2512557": { "room": "SAMI POD 2", "aliases": ["Door 1 Yc", "Door 2 Yc"] }
+}

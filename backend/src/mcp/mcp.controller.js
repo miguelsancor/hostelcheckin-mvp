@@ -4,6 +4,12 @@ const { TTLOCK_BASE, getAccessToken, ttPost } = require("./ttlock.service");
 // ✅ Prisma client (ajusta si tu export es distinto)
 const prisma = require("../utils/prismaClient");
 
+// ✅ Para generar PIN random si no viene code (único por registro)
+const crypto = require("crypto");
+
+// ✅ Mapeo room_id (Nobeds/Booking) -> aliases TTLock (Door 1..., Door 2...)
+const roomLocksMap = require("../../config/roomLocksMap.json");
+
 /* =======================================================================
    Enviar eKey
    ======================================================================= */
@@ -217,16 +223,28 @@ async function listKeys(_req, res) {
 }
 
 /* =======================================================================
-   Crear mismo passcode en todas las cerraduras + ✅ Guardar en BD
+   Crear PASSCODE por ROOM_ID (Nobeds/Booking) + ✅ Guardar en BD
+   ✅ Un solo PIN por registro (mismo PIN para las puertas del room)
    ======================================================================= */
 async function createPasscodeAll(req, res) {
   try {
-    const { code, startAt, endAt, name, numeroReserva, huespedId } = req.body || {};
+    const {
+      code,
+      startAt,
+      endAt,
+      name,
+      numeroReserva,
+      huespedId,
+      roomId,
+      room_id,
+      pinDigits,
+    } = req.body || {};
 
-    if (!startAt || !endAt || !code) {
+    // Mantengo validación original, pero ahora code puede ser opcional si generamos PIN
+    if (!startAt || !endAt) {
       return res.status(400).json({
         ok: false,
-        error: "code, startAt y endAt son obligatorios",
+        error: "startAt y endAt son obligatorios",
       });
     }
 
@@ -235,6 +253,15 @@ async function createPasscodeAll(req, res) {
       return res.status(400).json({
         ok: false,
         error: "Para guardar en BD debes enviar numeroReserva o huespedId",
+      });
+    }
+
+    // ✅ room_id requerido para mapear cerraduras
+    const rid = String(roomId ?? room_id ?? "").trim();
+    if (!rid) {
+      return res.status(400).json({
+        ok: false,
+        error: "roomId (o room_id) es obligatorio para mapear las cerraduras",
       });
     }
 
@@ -254,18 +281,52 @@ async function createPasscodeAll(req, res) {
       return res.status(404).json({
         ok: false,
         error: "Huésped no encontrado para asociar passcodes",
-        details: { huespedId: huespedId ?? null, numeroReserva: numeroReserva ?? null },
+        details: {
+          huespedId: huespedId ?? null,
+          numeroReserva: numeroReserva ?? null,
+          room_id: rid,
+        },
       });
+    }
+
+    // 2) Mapeo room_id -> aliases (Door 1 Ay / Door 2 Ay, etc.)
+    const map = roomLocksMap[rid];
+    if (!map || !Array.isArray(map.aliases) || map.aliases.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: `No existe mapeo para room_id=${rid} en roomLocksMap.json`,
+      });
+    }
+
+    const targetAliases = map.aliases
+      .map((a) => String(a || "").trim())
+      .filter(Boolean);
+
+    // 3) ✅ Generar un solo PIN por registro si no viene code
+    let pin = null;
+
+    if (code !== undefined && code !== null && String(code).trim() !== "") {
+      pin = String(code).trim();
+      if (!/^\d{6,9}$/.test(pin)) {
+        return res.status(400).json({
+          ok: false,
+          error: "El code debe ser 6–9 dígitos",
+        });
+      }
+    } else {
+      const d = Math.min(9, Math.max(6, Number(pinDigits || 6)));
+      pin = "";
+      for (let i = 0; i < d; i++) pin += String(crypto.randomInt(0, 10));
     }
 
     const accessToken = await getAccessToken();
 
-    // 2) Obtener cerraduras accesibles vía eKeys
+    // 4) Obtener cerraduras accesibles vía eKeys
     const keysResp = await ttPost("/v3/key/list", {
       clientId: process.env.TTLOCK_CLIENT_ID,
       accessToken,
       pageNo: 1,
-      pageSize: 100,
+      pageSize: 200,
       date: nowMs(),
     });
 
@@ -276,19 +337,35 @@ async function createPasscodeAll(req, res) {
       });
     }
 
+    // 5) Filtrar solo las cerraduras del ROOM por lockAlias
+    const targetLocks = keysResp.list.filter((k) =>
+      targetAliases.includes(String(k.lockAlias || "").trim())
+    );
+
+    if (!targetLocks.length) {
+      return res.status(404).json({
+        ok: false,
+        error: `No se encontraron locks TTLock para aliases=${JSON.stringify(
+          targetAliases
+        )}`,
+        hint:
+          "Revisa que lockAlias en TTLock sea EXACTAMENTE igual al Excel (Door 1 Ay, etc.)",
+      });
+    }
+
     const resultados = [];
 
-    // 3) Crear passcode en cada cerradura
-    for (const key of keysResp.list) {
+    // 6) Crear el MISMO PIN en las cerraduras del room (normalmente 1-2)
+    for (const key of targetLocks) {
       const r = await ttPost("/v3/keyboardPwd/add", {
         clientId: process.env.TTLOCK_CLIENT_ID,
         accessToken,
         lockId: key.lockId,
-        startDate: startAt,
-        endDate: endAt,
+        startDate: String(startAt),
+        endDate: String(endAt),
         keyboardPwdType: 2,
-        keyboardPwd: String(code),
-        keyboardPwdName: name || "MASTER",
+        keyboardPwd: String(pin),
+        keyboardPwdName: name || `RES-${huesped.numeroReserva || huesped.id}`,
         date: nowMs(),
       });
 
@@ -300,9 +377,7 @@ async function createPasscodeAll(req, res) {
       });
     }
 
-    // 4) ✅ Persistir en BD (uno por puerta)
-    // Nota: tu TTLock a veces no devuelve "codigo", por eso lo guardamos como null si quieres,
-    // o guardamos el "code" que tú mandas (master). Aquí lo guardo, porque es el que usas.
+    // 7) ✅ Persistir en BD (uno por puerta) - mismo PIN
     const startBig = BigInt(startAt);
     const endBig = BigInt(endAt);
 
@@ -312,21 +387,18 @@ async function createPasscodeAll(req, res) {
       return {
         huespedId: huesped.id,
         lockId: Number(x.lockId),
-        lockAlias: x.lockAlias,
-        codigo: String(code), // master que enviaste
+        lockAlias: x.lockAlias || map.room || null,
+        codigo: String(pin),
         keyboardPwdId: keyboardPwdId !== null ? Number(keyboardPwdId) : null,
         tipo: "ADD",
         startDate: startBig,
         endDate: endBig,
-
         estado: "ACTIVO",
         ttlockOk: !!x.ok,
         ttlockMessage: x.ok ? "CREADO" : "NO_CREADO",
       };
     });
 
-    // Estrategia: Upsert si tenemos keyboardPwdId, create si no.
-    // (Con @@unique([lockId, keyboardPwdId]) no duplicas cuando viene el ID.)
     let saved = 0;
 
     for (const row of toUpsert) {
@@ -353,7 +425,6 @@ async function createPasscodeAll(req, res) {
         });
         saved++;
       } else {
-        // Si TTLock no devolvió keyboardPwdId, guardamos un registro simple (puede repetirse si reintentas)
         await prisma.passcode.create({ data: row });
         saved++;
       }
@@ -361,6 +432,9 @@ async function createPasscodeAll(req, res) {
 
     return res.json({
       ok: true,
+      room_id: rid,
+      room: map.room || null,
+      pin,
       total: resultados.length,
       saved,
       huesped: {
@@ -371,13 +445,10 @@ async function createPasscodeAll(req, res) {
       resultados,
     });
   } catch (err) {
-    console.error(
-      "ERROR /create-passcode-all:",
-      err?.response?.data || err.message
-    );
+    console.error("ERROR /create-passcode-all:", err?.response?.data || err.message);
     return res.status(500).json({
       ok: false,
-      error: "Error creando passcode en todas las cerraduras",
+      error: "Error creando passcode por room_id",
       details: err?.response?.data || err.message,
     });
   }
@@ -434,7 +505,7 @@ async function listPasscodesAll(req, res) {
           passcodes: Array.isArray(r?.list) ? r.list : [],
           ok: parseInt(r?.errcode ?? 0, 10) === 0,
         });
-      } catch (err) {
+      } catch (_err) {
         resultados.push({
           lockId: key.lockId,
           lockAlias: key.lockAlias || null,
@@ -452,10 +523,7 @@ async function listPasscodesAll(req, res) {
       resultados,
     });
   } catch (err) {
-    console.error(
-      "ERROR /list-passcodes-all:",
-      err?.response?.data || err.message
-    );
+    console.error("ERROR /list-passcodes-all:", err?.response?.data || err.message);
 
     return res.status(500).json({
       ok: false,

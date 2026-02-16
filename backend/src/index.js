@@ -9,6 +9,9 @@ const nobedsRoutes = require("./nobeds/nobeds.routes");
 const mcpRoutes = require("./mcp/mcp.routes");
 const adminRoutes = require("./admin/admin.routes");
 
+// ✅ NUEVO: rutas TRA
+const traRoutes = require("./tra/tra.routes");
+
 const app = express();
 
 app.use(cors());
@@ -42,7 +45,6 @@ app.get("/uploads/:file", (req, res) => {
   res.sendFile(filepath);
 });
 
-
 console.log("📁 Carpeta de uploads sirviéndose desde:", uploadsPath);
 
 /* ============================================================
@@ -50,6 +52,7 @@ console.log("📁 Carpeta de uploads sirviéndose desde:", uploadsPath);
    ============================================================ */
 app.use("/api", checkinRoutes);        // /api/checkin, /api/checkin/...
 app.use("/api/nobeds", nobedsRoutes);  // /api/nobeds/reserva/:id, /reservas
+app.use("/api/tra", traRoutes);        // ✅ /api/tra/status/:reserva, /retry/:reserva
 app.use("/mcp", mcpRoutes);            // /mcp/create-key, etc.
 app.use("/admin", adminRoutes);        // /admin/huespedes, /stats, etc.
 
@@ -63,5 +66,5 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
    ============================================================ */
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
-  console.log(`🚀 Backend corriendo en http://18.206.179.50:${PORT}`);
+  console.log(`🚀 Backend corriendo en http://localhost:${PORT}`);
 });

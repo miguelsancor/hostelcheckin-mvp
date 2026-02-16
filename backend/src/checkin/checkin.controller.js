@@ -1,8 +1,15 @@
+// backend/src/checkin/checkin.controller.js
 const axios = require("axios");
 const prisma = require("../utils/prismaClient");
 const { generarNumeroReserva, toStr, toDateStr } = require("../utils/helpers");
 const { parseGuestsFromFormData } = require("../utils/guestparser");
 const { renameWithExtension } = require("../utils/upload");
+
+// ✅ TRA (crea registros + procesa en background)
+const {
+  createTraRegistrosFromGuests,
+  processTraForReserva,
+} = require("../tra/tra.service");
 
 /* =======================================================================
    ✅ SESIONES COMPARTIBLES (SQLite con TTL)
@@ -10,11 +17,28 @@ const { renameWithExtension } = require("../utils/upload");
 const SESSION_TTL_MS = 6 * 60 * 60 * 1000; // 6 horas
 
 function newToken() {
-  return (globalThis.crypto && globalThis.crypto.randomUUID && globalThis.crypto.randomUUID()) || require("crypto").randomUUID();
+  return (
+    (globalThis.crypto &&
+      globalThis.crypto.randomUUID &&
+      globalThis.crypto.randomUUID()) ||
+    require("crypto").randomUUID()
+  );
 }
 
 function expiryDate() {
   return new Date(Date.now() + SESSION_TTL_MS);
+}
+
+/**
+ * ✅ Helper: toma el primer valor NO vacío entre varias llaves posibles.
+ * Esto evita que "en el UI se ve lleno" pero el backend lo reciba en otra key.
+ */
+function pick(obj, keys) {
+  for (const k of keys) {
+    const v = obj?.[k];
+    if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+  }
+  return "";
 }
 
 async function createSession(req, res) {
@@ -23,7 +47,9 @@ async function createSession(req, res) {
     const numeroReserva = String(reserva?.numeroReserva || "").trim();
 
     if (!numeroReserva) {
-      return res.status(400).json({ ok: false, message: "Falta reserva.numeroReserva" });
+      return res
+        .status(400)
+        .json({ ok: false, message: "Falta reserva.numeroReserva" });
     }
 
     const token = newToken();
@@ -52,7 +78,11 @@ async function createSession(req, res) {
       },
     });
 
-    return res.json({ ok: true, token: row.token, shareUrl: `/checkin?t=${row.token}` });
+    return res.json({
+      ok: true,
+      token: row.token,
+      shareUrl: `/checkin?t=${row.token}`,
+    });
   } catch (e) {
     console.error("createSession error:", e);
     return res.status(500).json({ ok: false, message: "Error creando sesión" });
@@ -62,10 +92,12 @@ async function createSession(req, res) {
 async function getSession(req, res) {
   try {
     const token = String(req.params.token || "").trim();
-    if (!token) return res.status(400).json({ ok: false, message: "Falta token" });
+    if (!token)
+      return res.status(400).json({ ok: false, message: "Falta token" });
 
     const sess = await prisma.checkinSession.findUnique({ where: { token } });
-    if (!sess) return res.status(404).json({ ok: false, message: "Sesión no existe" });
+    if (!sess)
+      return res.status(404).json({ ok: false, message: "Sesión no existe" });
 
     // TTL
     if (sess.expiracion && new Date(sess.expiracion).getTime() < Date.now()) {
@@ -80,17 +112,21 @@ async function getSession(req, res) {
     return res.json({ ok: true, reserva, formList });
   } catch (e) {
     console.error("getSession error:", e);
-    return res.status(500).json({ ok: false, message: "Error obteniendo sesión" });
+    return res
+      .status(500)
+      .json({ ok: false, message: "Error obteniendo sesión" });
   }
 }
 
 async function saveSession(req, res) {
   try {
     const token = String(req.params.token || "").trim();
-    if (!token) return res.status(400).json({ ok: false, message: "Falta token" });
+    if (!token)
+      return res.status(400).json({ ok: false, message: "Falta token" });
 
     const sess = await prisma.checkinSession.findUnique({ where: { token } });
-    if (!sess) return res.status(404).json({ ok: false, message: "Sesión no existe" });
+    if (!sess)
+      return res.status(404).json({ ok: false, message: "Sesión no existe" });
 
     if (sess.expiracion && new Date(sess.expiracion).getTime() < Date.now()) {
       return res.status(404).json({ ok: false, message: "Sesión expiró" });
@@ -99,7 +135,9 @@ async function saveSession(req, res) {
     const { reserva, formList } = req.body || {};
     const snapshot = {
       reserva: reserva ?? (sess.snapshot?.reserva ?? null),
-      formList: Array.isArray(formList) ? formList : (sess.snapshot?.formList ?? []),
+      formList: Array.isArray(formList)
+        ? formList
+        : sess.snapshot?.formList ?? [],
     };
 
     await prisma.checkinSession.update({
@@ -113,7 +151,9 @@ async function saveSession(req, res) {
     return res.json({ ok: true });
   } catch (e) {
     console.error("saveSession error:", e);
-    return res.status(500).json({ ok: false, message: "Error guardando sesión" });
+    return res
+      .status(500)
+      .json({ ok: false, message: "Error guardando sesión" });
   }
 }
 
@@ -146,15 +186,19 @@ async function postCheckinSimple(req, res) {
 
     const checkinUrl = sessionToken
       ? `/checkin?t=${encodeURIComponent(String(sessionToken))}`
-      : `http://18.206.179.50:5173/checkin?reserva=${numeroReserva}`;
+      : `http://localhost:5173/checkin?reserva=${numeroReserva}`;
 
-    const fIng = toDateStr(titular?.fechaIngreso ?? fechaIngreso, new Date());
-    const fSal = toDateStr(titular?.fechaSalida ?? fechaSalida, new Date());
+    const fIng = toDateStr(
+      pick(titular, ["fechaIngreso", "check_in", "checkin"]) || fechaIngreso,
+      new Date()
+    );
+    const fSal = toDateStr(
+      pick(titular, ["fechaSalida", "check_out", "checkout"]) || fechaSalida,
+      new Date()
+    );
 
     const motivoFinal = toStr(
-      titular.motivoViaje ||
-        titular.motivoDetallado ||
-        titular.motivo ||
+      pick(titular, ["motivoViaje", "motivoDetallado", "motivo"]) ||
         motivoViajeGlobal ||
         motivoDetallado
     );
@@ -168,17 +212,59 @@ async function postCheckinSimple(req, res) {
       }
     }
 
+    /**
+     * ✅ IMPORTANTÍSIMO:
+     * Procedencia/Residencia/Destino vienen con nombres distintos según tu GuestCard/hook.
+     * Aquí los normalizamos para que queden guardados SIEMPRE en SQLite.
+     */
+    const lugarProcedencia = toStr(
+      pick(titular, [
+        "lugarProcedencia",
+        "lugar_procedencia",
+        "ciudadProcedencia",
+        "ciudad_procedencia",
+        "ciudadResidencia",
+        "ciudad_residencia",
+        "procedencia",
+        "residencia",
+      ])
+    );
+
+    const lugarDestino = toStr(
+      pick(titular, [
+        "lugarDestino",
+        "lugar_destino",
+        "ciudadDestino",
+        "ciudad_destino",
+        "destino",
+      ])
+    );
+
     /* ===================== BD ===================== */
     const payload = {
-      nombre: toStr(titular?.nombre),
-      tipoDocumento: toStr(titular?.tipoDocumento),
-      numeroDocumento: toStr(titular?.numeroDocumento),
-      nacionalidad: toStr(titular?.nacionalidad),
-      direccion: toStr(titular?.direccion),
-      lugarProcedencia: toStr(titular?.lugarProcedencia),
-      lugarDestino: toStr(titular?.lugarDestino),
-      telefono: toStr(titular?.telefono),
-      email: toStr(titular?.email),
+      nombre: toStr(pick(titular, ["nombre", "fullName", "name"])),
+      tipoDocumento: toStr(
+        pick(titular, [
+          "tipoDocumento",
+          "tipo_documento",
+          "tipoIdentificacion",
+          "tipo_identificacion",
+        ])
+      ),
+      numeroDocumento: toStr(
+        pick(titular, [
+          "numeroDocumento",
+          "numero_documento",
+          "numeroIdentificacion",
+          "numero_identificacion",
+        ])
+      ),
+      nacionalidad: toStr(pick(titular, ["nacionalidad", "nationality"])),
+      direccion: toStr(pick(titular, ["direccion", "address"])),
+      lugarProcedencia,
+      lugarDestino,
+      telefono: toStr(pick(titular, ["telefono", "phone"])),
+      email: toStr(pick(titular, ["email"])),
       motivoViaje: motivoFinal,
       fechaIngreso: fIng,
       fechaSalida: fSal,
@@ -193,6 +279,33 @@ async function postCheckinSimple(req, res) {
     };
 
     const huesped = await prisma.huesped.create({ data: payload });
+
+    // ✅ TRA: crea registros y dispara envío (NO bloquea el check-in)
+    try {
+      const ctxTra = {
+        fechaIngreso: payload.fechaIngreso,
+        fechaSalida: payload.fechaSalida,
+        motivoViaje: payload.motivoViaje,
+        numeroAcompanantes: Math.max(0, (huespedes?.length || 1) - 1),
+      };
+
+      await createTraRegistrosFromGuests({
+        huespedId: huesped.id,
+        numeroReserva,
+        guests: Array.isArray(huespedes) ? huespedes : [titular],
+        ctx: ctxTra,
+      });
+
+      // 🔥 en background
+      setImmediate(() => {
+        processTraForReserva(numeroReserva).catch((e) =>
+          console.error("TRA process error:", e)
+        );
+      });
+    } catch (e) {
+      console.error("TRA init error:", e);
+      // NO rompemos el check-in
+    }
 
     // si quieres, aquí puedes marcar "usadoEn" cuando se finaliza
     if (sessionToken) {
@@ -227,30 +340,74 @@ async function postCheckinMultiple(req, res) {
     const parsedData = req.body?.data ? JSON.parse(req.body.data) : {};
 
     if (!guests.length && parsedData.huespedes) guests = parsedData.huespedes;
-    if (!guests.length) return res.status(400).json({ ok: false, error: "No llegaron huéspedes" });
+    if (!guests.length)
+      return res.status(400).json({ ok: false, error: "No llegaron huéspedes" });
 
     const titular = guests[0];
     const numeroReserva = generarNumeroReserva();
 
-    const fIng = toDateStr(titular?.fechaIngreso, new Date());
-    const fSal = toDateStr(titular?.fechaSalida, new Date());
+    const fIng = toDateStr(
+      pick(titular, ["fechaIngreso", "check_in", "checkin"]),
+      new Date()
+    );
+    const fSal = toDateStr(
+      pick(titular, ["fechaSalida", "check_out", "checkout"]),
+      new Date()
+    );
 
     const motivoFinal = toStr(
-      (titular && (titular.motivoViaje || titular.motivoDetallado || titular.motivo)) ||
+      pick(titular, ["motivoViaje", "motivoDetallado", "motivo"]) ||
         parsedData.motivoViaje ||
         parsedData.motivoDetallado
     );
 
+    const lugarProcedencia = toStr(
+      pick(titular, [
+        "lugarProcedencia",
+        "lugar_procedencia",
+        "ciudadProcedencia",
+        "ciudad_procedencia",
+        "ciudadResidencia",
+        "ciudad_residencia",
+        "procedencia",
+        "residencia",
+      ])
+    );
+
+    const lugarDestino = toStr(
+      pick(titular, [
+        "lugarDestino",
+        "lugar_destino",
+        "ciudadDestino",
+        "ciudad_destino",
+        "destino",
+      ])
+    );
+
     const payload = {
-      nombre: toStr(titular?.nombre),
-      tipoDocumento: toStr(titular?.tipoDocumento),
-      numeroDocumento: toStr(titular?.numeroDocumento),
-      nacionalidad: toStr(titular?.nacionalidad),
-      direccion: toStr(titular?.direccion),
-      lugarProcedencia: toStr(titular?.lugarProcedencia),
-      lugarDestino: toStr(titular?.lugarDestino),
-      telefono: toStr(titular?.telefono),
-      email: toStr(titular?.email),
+      nombre: toStr(pick(titular, ["nombre", "fullName", "name"])),
+      tipoDocumento: toStr(
+        pick(titular, [
+          "tipoDocumento",
+          "tipo_documento",
+          "tipoIdentificacion",
+          "tipo_identificacion",
+        ])
+      ),
+      numeroDocumento: toStr(
+        pick(titular, [
+          "numeroDocumento",
+          "numero_documento",
+          "numeroIdentificacion",
+          "numero_identificacion",
+        ])
+      ),
+      nacionalidad: toStr(pick(titular, ["nacionalidad", "nationality"])),
+      direccion: toStr(pick(titular, ["direccion", "address"])),
+      lugarProcedencia,
+      lugarDestino,
+      telefono: toStr(pick(titular, ["telefono", "phone"])),
+      email: toStr(pick(titular, ["email"])),
       motivoViaje: motivoFinal,
       fechaIngreso: fIng,
       fechaSalida: fSal,
@@ -260,7 +417,33 @@ async function postCheckinMultiple(req, res) {
       codigoTTLock: toStr(parsedData.codigoTTLock),
     };
 
-    await prisma.huesped.create({ data: payload });
+    const huesped = await prisma.huesped.create({ data: payload });
+
+    // ✅ TRA: crea registros y dispara envío (NO bloquea guardar-multiple)
+    try {
+      const ctxTra = {
+        fechaIngreso: payload.fechaIngreso,
+        fechaSalida: payload.fechaSalida,
+        motivoViaje: payload.motivoViaje,
+        numeroAcompanantes: Math.max(0, (guests?.length || 1) - 1),
+      };
+
+      await createTraRegistrosFromGuests({
+        huespedId: huesped.id,
+        numeroReserva,
+        guests: Array.isArray(guests) ? guests : [titular],
+        ctx: ctxTra,
+      });
+
+      setImmediate(() => {
+        processTraForReserva(numeroReserva).catch((e) =>
+          console.error("TRA process error (multiple):", e)
+        );
+      });
+    } catch (e) {
+      console.error("TRA init error (multiple):", e);
+    }
+
     res.json({ ok: true, numeroReserva, total: 1 });
   } catch (e) {
     console.error("error guardar-multiple:", e);
@@ -278,9 +461,13 @@ async function buscarReserva(req, res) {
     let huesped;
 
     if (codigoReserva) {
-      huesped = await prisma.huesped.findUnique({ where: { numeroReserva: codigoReserva } });
+      huesped = await prisma.huesped.findUnique({
+        where: { numeroReserva: codigoReserva },
+      });
     } else if (tipoDocumento && numeroDocumento) {
-      huesped = await prisma.huesped.findFirst({ where: { tipoDocumento, numeroDocumento } });
+      huesped = await prisma.huesped.findFirst({
+        where: { tipoDocumento, numeroDocumento },
+      });
     } else {
       return res.status(400).json({ ok: false, error: "Parámetros insuficientes" });
     }
@@ -298,8 +485,10 @@ async function buscarReserva(req, res) {
    ======================================================================= */
 async function huespedesHoy(_req, res) {
   try {
-    const inicio = new Date(); inicio.setHours(0, 0, 0, 0);
-    const fin = new Date(); fin.setHours(23, 59, 59, 999);
+    const inicio = new Date();
+    inicio.setHours(0, 0, 0, 0);
+    const fin = new Date();
+    fin.setHours(23, 59, 59, 999);
 
     const lista = await prisma.huesped.findMany({
       where: { creadoEn: { gte: inicio, lte: fin } },
@@ -345,9 +534,10 @@ async function contactos(req, res) {
 
       if (Array.isArray(nbRes.data)) {
         nobeds = nbRes.data
-          .filter((r) =>
-            (r.email && r.email.toLowerCase().includes(query)) ||
-            (r.phone && String(r.phone).toLowerCase().includes(query))
+          .filter(
+            (r) =>
+              (r.email && r.email.toLowerCase().includes(query)) ||
+              (r.phone && String(r.phone).toLowerCase().includes(query))
           )
           .map((r) => ({
             origen: "nobeds",
@@ -416,7 +606,11 @@ async function getByNumeroReserva(req, res) {
     });
 
     if (!huesped) {
-      return res.status(404).json({ ok: false, error: "Reserva no encontrada en base de datos", buscado: valor });
+      return res.status(404).json({
+        ok: false,
+        error: "Reserva no encontrada en base de datos",
+        buscado: valor,
+      });
     }
 
     return res.json({ ok: true, data: huesped });

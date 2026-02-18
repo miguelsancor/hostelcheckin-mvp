@@ -170,11 +170,13 @@ export function GuestCard({
       </div>
 
       {/* =========================================================
-          ✅ CAMPOS DE VIAJE MOVIDOS AQUÍ (SOLO TITULAR)
-          - Lugar Procedencia (solo pasaporte)
-          - Lugar Destino (solo pasaporte)
+          ✅ CAMPOS DE VIAJE + CIUDADES (SOLO TITULAR)
+          - Ciudad residencia (siempre)
+          - Ciudad procedencia (siempre)
+          - Ciudad destino (✅ AHORA SIEMPRE, incluso con Cédula)
+          - Lugar procedencia/destino (solo pasaporte) se mantiene
           - Motivo viaje
-          - Dirección (no obligatorio)
+          - Dirección (opcional)
       ========================================================= */}
       {esTitular && (
         <>
@@ -186,13 +188,45 @@ export function GuestCard({
             }}
           >
             <div style={styles.row}>
-              {/* ✅ SOLO EXTRANJEROS (PASAPORTE) */}
+              {/* ✅ CIUDADES (PARA TRA) - siempre visibles en titular */}
+              <Field label="Ciudad residencia / Residence city">
+                <input
+                  name="ciudadResidencia"
+                  value={(data as any).ciudadResidencia || ""}
+                  onChange={handleChange}
+                  placeholder="Ciudad de residencia"
+                  style={styles.input}
+                />
+              </Field>
+
+              <Field label="Ciudad procedencia / Origin city">
+                <input
+                  name="ciudadProcedencia"
+                  value={(data as any).ciudadProcedencia || ""}
+                  onChange={handleChange}
+                  placeholder="Ciudad de procedencia"
+                  style={styles.input}
+                />
+              </Field>
+
+              {/* ✅ FIX: Ciudad destino visible también para Cédula */}
+              <Field label="Ciudad destino / Destination city">
+                <input
+                  name="ciudadDestino"
+                  value={(data as any).ciudadDestino || ""}
+                  onChange={handleChange}
+                  placeholder="Ciudad de destino"
+                  style={styles.input}
+                />
+              </Field>
+
+              {/* ✅ SOLO EXTRANJEROS (PASAPORTE) - se mantiene tal cual */}
               {esPasaporte && (
                 <>
                   <Field label="Lugar procedencia / Origin place">
                     <input
                       name="lugarProcedencia"
-                      value={data.lugarProcedencia || ""}
+                      value={(data as any).lugarProcedencia || ""}
                       onChange={handleChange}
                       placeholder="Lugar procedencia"
                       style={styles.input}
@@ -202,7 +236,7 @@ export function GuestCard({
                   <Field label="Lugar destino / Destination place">
                     <input
                       name="lugarDestino"
-                      value={data.lugarDestino || ""}
+                      value={(data as any).lugarDestino || ""}
                       onChange={handleChange}
                       placeholder="Lugar destino"
                       style={styles.input}
@@ -322,9 +356,9 @@ export function GuestCard({
                         onChange={handleFile}
                         style={styles.fileInput}
                       />
-                      {data.archivoCedula && (
+                      {(data as any).archivoCedula && (
                         <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
-                          {(data.archivoCedula as File).name}
+                          {((data as any).archivoCedula as File).name}
                         </span>
                       )}
                     </div>
@@ -338,9 +372,9 @@ export function GuestCard({
                         onChange={handleFile}
                         style={styles.fileInput}
                       />
-                      {data.archivoFirma && (
+                      {(data as any).archivoFirma && (
                         <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
-                          {(data.archivoFirma as File).name}
+                          {((data as any).archivoFirma as File).name}
                         </span>
                       )}
                     </div>
@@ -357,9 +391,9 @@ export function GuestCard({
                       onChange={handleFile}
                       style={styles.fileInput}
                     />
-                    {data.archivoPasaporte && (
+                    {(data as any).archivoPasaporte && (
                       <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
-                        {(data.archivoPasaporte as File).name}
+                        {((data as any).archivoPasaporte as File).name}
                       </span>
                     )}
                   </div>

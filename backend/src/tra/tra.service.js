@@ -19,7 +19,6 @@ function env(name) {
   return String(process.env[name] || "").trim();
 }
 
-// ✅ fallback: tú tienes TRA_RNT_ESTABLECIMIENTO
 function getRnt() {
   return env("TRA_RNT_ESTABLECIMIENTO") || env("TRA_RNT");
 }
@@ -28,24 +27,12 @@ function getNombreEstablecimiento() {
   return env("TRA_NOMBRE_ESTABLECIMIENTO") || env("TRA_NOMBRE");
 }
 
-// ✅ defaults de ciudades (si el front NO manda)
-function getCiudadResidenciaDefault() {
-  return env("TRA_CIUDAD_RESIDENCIA");
-}
-function getCiudadProcedenciaDefault() {
-  return env("TRA_CIUDAD_PROCEDENCIA");
-}
-function getCiudadDestinoDefault() {
-  return env("TRA_CIUDAD_DESTINO");
-}
-
 function assertTraEnv() {
   const baseUrl = env("TRA_BASE_URL");
   const token = env("TRA_TOKEN");
   const rnt = getRnt();
   const nombre = getNombreEstablecimiento();
 
-  // ✅ obligatorios por lo que TRA te está pidiendo (y tu UI no manda)
   const numeroHabitacion = env("TRA_NUMERO_HABITACION");
   const tipoAcomodacion = env("TRA_TIPO_ACOMODACION");
   const costo = env("TRA_COSTO");
@@ -97,26 +84,40 @@ function splitNombreCompleto(fullName) {
 }
 
 /**
- * ✅ CLAVE:
- * TRA está pidiendo "cuidad_residencia" y "cuidad_procedencia"
- * (sí: "cuidad", mal escrito). Debemos mandar EXACTAMENTE esas llaves.
+ * ✅ IMPORTANTÍSIMO:
+ * TRA (tu endpoint) está validando campos con typo: "cuidad_*"
+ * Entonces mandamos:
+ * - cuidad_residencia/procedencia/destino  ✅ (lo que TRA exige)
+ * - ciudad_residencia/procedencia/destino ✅ (por compatibilidad)
  */
 function buildPrimaryPayloadTRA(guest, ctx) {
   const now = new Date();
 
   const tipoDoc = toStr(
-    pick(guest, ["tipoDocumento", "tipo_documento", "tipo_identificacion", "tipoIdentificacion"])
+    pick(guest, [
+      "tipoDocumento",
+      "tipo_documento",
+      "tipo_identificacion",
+      "tipoIdentificacion",
+    ])
   );
 
   const numDoc = toStr(
-    pick(guest, ["numeroDocumento", "numero_documento", "numero_identificacion", "numeroIdentificacion"])
+    pick(guest, [
+      "numeroDocumento",
+      "numero_documento",
+      "numero_identificacion",
+      "numeroIdentificacion",
+    ])
   );
 
-  // ✅ TRA exige check_in / check_out
+  // ✅ check_in / check_out
   const rawIn =
-    pick(guest, ["fechaIngreso", "check_in", "checkin", "fecha_ingreso"]) || ctx.fechaIngreso;
+    pick(guest, ["fechaIngreso", "check_in", "checkin", "fecha_ingreso"]) ||
+    ctx.fechaIngreso;
   const rawOut =
-    pick(guest, ["fechaSalida", "check_out", "checkout", "fecha_salida"]) || ctx.fechaSalida;
+    pick(guest, ["fechaSalida", "check_out", "checkout", "fecha_salida"]) ||
+    ctx.fechaSalida;
 
   const check_in = toDateStr(rawIn, now);
   const check_out = toDateStr(rawOut, now);
@@ -124,71 +125,39 @@ function buildPrimaryPayloadTRA(guest, ctx) {
   const nombreCompleto = pick(guest, ["nombre", "fullName", "nombres", "name"]);
   const { nombres, apellidos } = splitNombreCompleto(nombreCompleto);
 
-  // ✅ ciudades desde guest (si existen)
-  const ciudadProcedenciaFromGuest = toStr(
-    pick(guest, [
-      "ciudadProcedencia",
-      "ciudad_procedencia",
-      "lugarProcedencia",
-      "lugar_procedencia",
-      "procedencia",
-    ])
-  );
-
-  const ciudadDestinoFromGuest = toStr(
-    pick(guest, [
-      "ciudadDestino",
-      "ciudad_destino",
-      "lugarDestino",
-      "lugar_destino",
-      "destino",
-    ])
-  );
-
-  const ciudadResidenciaFromGuest = toStr(
-    pick(guest, [
-      "ciudadResidencia",
-      "ciudad_residencia",
-      "residencia",
-      "direccionCiudad",
-      "ciudad",
-    ])
-  );
-
-  const ciudadResidenciaDefault = getCiudadResidenciaDefault();
-  const ciudadProcedenciaDefault = getCiudadProcedenciaDefault();
-  const ciudadDestinoDefault = getCiudadDestinoDefault();
-
-  // ✅ fallback seguro (evita vacío)
-  const ciudadResidencia =
-    ciudadResidenciaFromGuest ||
-    ciudadResidenciaDefault ||
-    ciudadProcedenciaFromGuest ||
-    ciudadDestinoFromGuest ||
-    ciudadDestinoDefault ||
-    "NA";
-
-  const ciudadProcedencia =
-    ciudadProcedenciaFromGuest ||
-    ciudadProcedenciaDefault ||
-    ciudadResidencia ||
-    "NA";
-
-  const ciudadDestino =
-    ciudadDestinoFromGuest ||
-    ciudadDestinoDefault ||
-    "NA";
-
   const motivo =
-    toStr(pick(guest, ["motivoViaje", "motivo", "motivoDetallado", "motivo_detallado"])) ||
+    toStr(
+      pick(guest, ["motivoViaje", "motivo", "motivoDetallado", "motivo_detallado"])
+    ) ||
     toStr(ctx.motivoViaje) ||
     "Other";
 
   const numeroAcompanantes = Math.max(0, Number(ctx.numeroAcompanantes || 0));
 
-  // ✅ TRA no acepta vacío
   const safeTipoDoc = tipoDoc || "CC";
   const safeNumDoc = numDoc || "0";
+
+  // ==========================
+  // ✅ CIUDADES: FORM > ENV > fallback
+  // ==========================
+  const ciudadResidencia =
+    toStr(pick(guest, ["ciudadResidencia", "ciudad_residencia"])) ||
+    env("TRA_CIUDAD_RESIDENCIA") ||
+    env("TRA_CIUDAD_RESIDENCIA_DEFAULT") ||
+    "NA";
+
+  const ciudadProcedencia =
+    toStr(pick(guest, ["ciudadProcedencia", "ciudad_procedencia"])) ||
+    env("TRA_CIUDAD_PROCEDENCIA") ||
+    env("TRA_CIUDAD_PROCEDENCIA_DEFAULT") ||
+    ciudadResidencia ||
+    "NA";
+
+  const ciudadDestino =
+    toStr(pick(guest, ["ciudadDestino", "ciudad_destino"])) ||
+    env("TRA_CIUDAD_DESTINO") ||
+    env("TRA_CIUDAD_DESTINO_DEFAULT") ||
+    "NA";
 
   return {
     // establecimiento
@@ -201,10 +170,15 @@ function buildPrimaryPayloadTRA(guest, ctx) {
     nombres: toStr(nombres) || "NA",
     apellidos: toStr(apellidos) || "NA",
 
-    // ✅ OJO: TRA pide "cuidad_*" (mal escrito)
+    // ✅ LO QUE TRA TE ESTÁ PIDIENDO (con typo)
     cuidad_residencia: ciudadResidencia,
     cuidad_procedencia: ciudadProcedencia,
     cuidad_destino: ciudadDestino,
+
+    // ✅ Compatibilidad (por si cambia o hay otro validador)
+    ciudad_residencia: ciudadResidencia,
+    ciudad_procedencia: ciudadProcedencia,
+    ciudad_destino: ciudadDestino,
 
     // alojamiento (env)
     numero_habitacion: env("TRA_NUMERO_HABITACION"),
@@ -215,7 +189,7 @@ function buildPrimaryPayloadTRA(guest, ctx) {
     motivo,
     numero_acompanantes: String(numeroAcompanantes),
 
-    // fechas (nombres exactos)
+    // fechas
     check_in,
     check_out,
   };
@@ -310,7 +284,6 @@ async function processTraForReserva(numeroReserva) {
     const ctx = primary.requestPayload?.ctx || {};
     const primaryGuest = primary.requestPayload?.guest || {};
 
-    // ✅ número de acompañantes = total invitados - 1
     if (typeof ctx.numeroAcompanantes === "undefined") {
       const totalGuests = regs.filter((r) => r.role === "PRIMARY" || r.role === "SECONDARY").length;
       ctx.numeroAcompanantes = Math.max(0, totalGuests - 1);

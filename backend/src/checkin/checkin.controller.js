@@ -186,7 +186,7 @@ async function postCheckinSimple(req, res) {
 
     const checkinUrl = sessionToken
       ? `/checkin?t=${encodeURIComponent(String(sessionToken))}`
-      : `http://localhost:5173/checkin?reserva=${numeroReserva}`;
+      : `http://18.206.179.50:5173/checkin?reserva=${numeroReserva}`;
 
     const fIng = toDateStr(
       pick(titular, ["fechaIngreso", "check_in", "checkin"]) || fechaIngreso,

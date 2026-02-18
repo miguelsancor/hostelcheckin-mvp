@@ -5,6 +5,9 @@ const { generarNumeroReserva, toStr, toDateStr } = require("../utils/helpers");
 const { parseGuestsFromFormData } = require("../utils/guestparser");
 const { renameWithExtension } = require("../utils/upload");
 
+// ✅ EMAIL (NO bloquea check-in)
+const { sendCheckinEmail } = require("../utils/mailer");
+
 // ✅ TRA (crea registros + procesa en background)
 const {
   createTraRegistrosFromGuests,
@@ -280,6 +283,27 @@ async function postCheckinSimple(req, res) {
 
     const huesped = await prisma.huesped.create({ data: payload });
 
+    // ✅ EMAIL: enviar correo (NO bloquea el check-in)
+    try {
+      const reservaMail = {
+        numeroReserva,
+        checkinUrl,
+        room_id: parsed?.room_id ?? parsed?.roomId ?? parsed?.roomID ?? null,
+      };
+
+      // pasamos al mailer lo más parecido a lo que ve el front (huespedes)
+      setImmediate(() => {
+        sendCheckinEmail({
+          reserva: reservaMail,
+          formList: Array.isArray(huespedes) ? huespedes : [titular],
+        })
+          .then((r) => console.log("MAIL result:", r))
+          .catch((e) => console.log("MAIL error (no bloquea):", e?.message || e));
+      });
+    } catch (e) {
+      console.log("MAIL init error (no bloquea):", e?.message || e);
+    }
+
     // ✅ TRA: crea registros y dispara envío (NO bloquea el check-in)
     try {
       const ctxTra = {
@@ -418,6 +442,28 @@ async function postCheckinMultiple(req, res) {
     };
 
     const huesped = await prisma.huesped.create({ data: payload });
+
+    // ✅ EMAIL: enviar correo (NO bloquea guardar-multiple)
+    try {
+      const reservaMail = {
+        numeroReserva,
+        checkinUrl: payload.checkinUrl,
+        room_id: parsedData?.room_id ?? parsedData?.roomId ?? parsedData?.roomID ?? null,
+      };
+
+      setImmediate(() => {
+        sendCheckinEmail({
+          reserva: reservaMail,
+          formList: Array.isArray(guests) ? guests : [titular],
+        })
+          .then((r) => console.log("MAIL result (multiple):", r))
+          .catch((e) =>
+            console.log("MAIL error (multiple, no bloquea):", e?.message || e)
+          );
+      });
+    } catch (e) {
+      console.log("MAIL init error (multiple, no bloquea):", e?.message || e);
+    }
 
     // ✅ TRA: crea registros y dispara envío (NO bloquea guardar-multiple)
     try {

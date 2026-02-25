@@ -1,3 +1,4 @@
+// backend/src/mcp/mcp.controller.js
 const { nowMs } = require("../utils/helpers");
 const { TTLOCK_BASE, getAccessToken, ttPost } = require("./ttlock.service");
 
@@ -9,6 +10,26 @@ const crypto = require("crypto");
 
 // ✅ Mapeo room_id (Nobeds/Booking) -> aliases TTLock (Door 1..., Door 2...)
 const roomLocksMap = require("../../config/roomLocksMap.json");
+
+/* =======================================================================
+   Helpers internos (quirúrgicos, sin tocar otros módulos)
+   ======================================================================= */
+
+// ✅ Normaliza timestamps: si vienen en segundos (10-11 dígitos) -> ms
+function normalizeTs(v) {
+  const n = Number(String(v).trim());
+  if (!Number.isFinite(n)) return null;
+  if (n > 0 && n < 100000000000) return n * 1000; // segundos -> ms
+  return n; // ms
+}
+
+// ✅ Genera PIN numérico de N dígitos (por default 4, como operación hotel)
+function genPin(digits = 4) {
+  const d = Math.min(9, Math.max(4, Number(digits || 4)));
+  let pin = "";
+  for (let i = 0; i < d; i++) pin += String(crypto.randomInt(0, 10));
+  return pin;
+}
 
 /* =======================================================================
    Enviar eKey
@@ -70,52 +91,70 @@ async function createKey(req, res) {
 
 /* =======================================================================
    Crear PASSCODE
+   ✅ FIX REAL:
+   - NO usar keyboardPwd/get (no instala en cerradura)
+   - Usar keyboardPwd/add + addType:2 (gateway)
+   - PIN 4 dígitos (operación hotel)
    ======================================================================= */
 async function createPasscode(req, res) {
   try {
-    const { lockId, endAt, startAt, code, name } = req.body || {};
+    const { lockId, endAt, startAt, code, name, pinDigits } = req.body || {};
     if (!lockId || !endAt) {
       return res
         .status(400)
         .json({ ok: false, error: "lockId y endAt son requeridos" });
     }
 
+    const sAt = normalizeTs(startAt ?? nowMs());
+    const eAt = normalizeTs(endAt);
+
+    if (!sAt || !eAt) {
+      return res.status(400).json({
+        ok: false,
+        error: "startAt/endAt inválidos (deben ser timestamps numéricos)",
+      });
+    }
+    if (eAt <= sAt) {
+      return res.status(400).json({
+        ok: false,
+        error: "endAt debe ser mayor que startAt",
+      });
+    }
+
     const accessToken = await getAccessToken();
-    const base = {
+
+    // ✅ PIN: si viene code lo uso, si no genero (default 4)
+    let pin = null;
+    if (code !== undefined && code !== null && String(code).trim() !== "") {
+      pin = String(code).trim();
+      if (!/^\d{4,9}$/.test(pin)) {
+        return res
+          .status(400)
+          .json({ ok: false, error: "El code debe ser 4–9 dígitos" });
+      }
+    } else {
+      // default 4 dígitos (operación hotel)
+      pin = genPin(pinDigits || 4);
+    }
+
+    // ✅ TTLock exige startDate/endDate en ms y para gateway directo usar addType:2
+    const r = await ttPost("/v3/keyboardPwd/add", {
       clientId: process.env.TTLOCK_CLIENT_ID,
       accessToken,
       lockId,
-      startDate: startAt || nowMs(),
-      endDate: endAt,
+      keyboardPwd: pin,
+      keyboardPwdName: name || "AutoCheckin",
+      startDate: sAt,
+      endDate: eAt,
+      addType: 2, // ✅ vía gateway (si no, TTLock asume bluetooth/SDK)
       date: nowMs(),
-    };
-
-    let r;
-
-    if (code !== undefined && code !== null && String(code).trim() !== "") {
-      const pwd = String(code).trim();
-      if (!/^\d{6,9}$/.test(pwd)) {
-        return res
-          .status(400)
-          .json({ ok: false, error: "El code debe ser 6–9 dígitos" });
-      }
-      r = await ttPost("/v3/keyboardPwd/add", {
-        ...base,
-        keyboardPwdType: 2,
-        keyboardPwd: pwd,
-        keyboardPwdName: name || "AutoCheckin",
-      });
-    } else {
-      r = await ttPost("/v3/keyboardPwd/get", {
-        ...base,
-        keyboardPwdType: 3,
-      });
-    }
+    });
 
     if (parseInt(r?.errcode ?? 0, 10) !== 0) {
       return res.status(400).json({ ok: false, error: r });
     }
-    res.json({ ok: true, provider: "ttlock", result: r });
+
+    return res.json({ ok: true, provider: "ttlock", pin, result: r });
   } catch (e) {
     console.error("mcp/create-passcode error:", e?.response?.data || e.message);
     res
@@ -225,6 +264,7 @@ async function listKeys(_req, res) {
 /* =======================================================================
    Crear PASSCODE por ROOM_ID (Nobeds/Booking) + ✅ Guardar en BD
    ✅ Un solo PIN por registro (mismo PIN para las puertas del room)
+   ✅ FIX: 4 dígitos por default + addType:2 gateway
    ======================================================================= */
 async function createPasscodeAll(req, res) {
   try {
@@ -240,7 +280,6 @@ async function createPasscodeAll(req, res) {
       pinDigits,
     } = req.body || {};
 
-    // Mantengo validación original, pero ahora code puede ser opcional si generamos PIN
     if (!startAt || !endAt) {
       return res.status(400).json({
         ok: false,
@@ -248,7 +287,6 @@ async function createPasscodeAll(req, res) {
       });
     }
 
-    // ✅ Para guardar en BD necesitamos huésped
     if (!numeroReserva && !huespedId) {
       return res.status(400).json({
         ok: false,
@@ -256,12 +294,28 @@ async function createPasscodeAll(req, res) {
       });
     }
 
-    // ✅ room_id requerido para mapear cerraduras
     const rid = String(roomId ?? room_id ?? "").trim();
     if (!rid) {
       return res.status(400).json({
         ok: false,
         error: "roomId (o room_id) es obligatorio para mapear las cerraduras",
+      });
+    }
+
+    // ✅ Normaliza fechas
+    const sAt = normalizeTs(startAt);
+    const eAt = normalizeTs(endAt);
+
+    if (!sAt || !eAt) {
+      return res.status(400).json({
+        ok: false,
+        error: "startAt/endAt inválidos (deben ser timestamps numéricos)",
+      });
+    }
+    if (eAt <= sAt) {
+      return res.status(400).json({
+        ok: false,
+        error: "endAt debe ser mayor que startAt",
       });
     }
 
@@ -289,7 +343,7 @@ async function createPasscodeAll(req, res) {
       });
     }
 
-    // 2) Mapeo room_id -> aliases (Door 1 Ay / Door 2 Ay, etc.)
+    // 2) Mapeo room_id -> aliases
     const map = roomLocksMap[rid];
     if (!map || !Array.isArray(map.aliases) || map.aliases.length === 0) {
       return res.status(404).json({
@@ -302,26 +356,24 @@ async function createPasscodeAll(req, res) {
       .map((a) => String(a || "").trim())
       .filter(Boolean);
 
-    // 3) ✅ Generar un solo PIN por registro si no viene code
+    // 3) ✅ PIN (default 4 dígitos)
     let pin = null;
 
     if (code !== undefined && code !== null && String(code).trim() !== "") {
       pin = String(code).trim();
-      if (!/^\d{6,9}$/.test(pin)) {
+      if (!/^\d{4,9}$/.test(pin)) {
         return res.status(400).json({
           ok: false,
-          error: "El code debe ser 6–9 dígitos",
+          error: "El code debe ser 4–9 dígitos",
         });
       }
     } else {
-      const d = Math.min(9, Math.max(6, Number(pinDigits || 6)));
-      pin = "";
-      for (let i = 0; i < d; i++) pin += String(crypto.randomInt(0, 10));
+      pin = genPin(pinDigits || 4);
     }
 
     const accessToken = await getAccessToken();
 
-    // 4) Obtener cerraduras accesibles vía eKeys
+    // 4) Obtener cerraduras accesibles
     const keysResp = await ttPost("/v3/key/list", {
       clientId: process.env.TTLOCK_CLIENT_ID,
       accessToken,
@@ -337,7 +389,7 @@ async function createPasscodeAll(req, res) {
       });
     }
 
-    // 5) Filtrar solo las cerraduras del ROOM por lockAlias
+    // 5) Filtrar cerraduras del ROOM por lockAlias
     const targetLocks = keysResp.list.filter((k) =>
       targetAliases.includes(String(k.lockAlias || "").trim())
     );
@@ -355,17 +407,17 @@ async function createPasscodeAll(req, res) {
 
     const resultados = [];
 
-    // 6) Crear el MISMO PIN en las cerraduras del room (normalmente 1-2)
+    // 6) Crear el MISMO PIN en las cerraduras del room
     for (const key of targetLocks) {
       const r = await ttPost("/v3/keyboardPwd/add", {
         clientId: process.env.TTLOCK_CLIENT_ID,
         accessToken,
         lockId: key.lockId,
-        startDate: String(startAt),
-        endDate: String(endAt),
-        keyboardPwdType: 2,
         keyboardPwd: String(pin),
         keyboardPwdName: name || `RES-${huesped.numeroReserva || huesped.id}`,
+        startDate: sAt,
+        endDate: eAt,
+        addType: 2, // ✅ gateway
         date: nowMs(),
       });
 
@@ -377,9 +429,9 @@ async function createPasscodeAll(req, res) {
       });
     }
 
-    // 7) ✅ Persistir en BD (uno por puerta) - mismo PIN
-    const startBig = BigInt(startAt);
-    const endBig = BigInt(endAt);
+    // 7) ✅ Persistir en BD
+    const startBig = BigInt(String(sAt));
+    const endBig = BigInt(String(eAt));
 
     const toUpsert = resultados.map((x) => {
       const keyboardPwdId = x?.result?.keyboardPwdId ?? null;
@@ -445,7 +497,10 @@ async function createPasscodeAll(req, res) {
       resultados,
     });
   } catch (err) {
-    console.error("ERROR /create-passcode-all:", err?.response?.data || err.message);
+    console.error(
+      "ERROR /create-passcode-all:",
+      err?.response?.data || err.message
+    );
     return res.status(500).json({
       ok: false,
       error: "Error creando passcode por room_id",
@@ -523,7 +578,10 @@ async function listPasscodesAll(req, res) {
       resultados,
     });
   } catch (err) {
-    console.error("ERROR /list-passcodes-all:", err?.response?.data || err.message);
+    console.error(
+      "ERROR /list-passcodes-all:",
+      err?.response?.data || err.message
+    );
 
     return res.status(500).json({
       ok: false,

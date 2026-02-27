@@ -390,9 +390,12 @@ async function createPasscodeAll(req, res) {
     }
 
     // 5) Filtrar cerraduras del ROOM por lockAlias
-    const targetLocks = keysResp.list.filter((k) =>
-      targetAliases.includes(String(k.lockAlias || "").trim())
-    );
+    const targetLocks = keysResp.list.filter((k) => {
+      const alias = String(k.lockAlias || "").trim().toLowerCase();
+      return targetAliases.some(
+        (a) => alias === String(a).trim().toLowerCase()
+      );
+    });
 
     if (!targetLocks.length) {
       return res.status(404).json({

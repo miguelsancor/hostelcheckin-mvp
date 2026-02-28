@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
 const API_BASE = "http://18.206.179.50:4000";
@@ -24,7 +24,7 @@ type Huesped = {
   checkinUrl?: string | null;
   codigoTTLock?: string | null;
 
-  // 🔥 campos de archivos que vienen de Prisma
+  // archivos
   archivoPasaporte?: string | null;
   archivoCedula?: string | null;
   archivoFirma?: string | null;
@@ -62,19 +62,48 @@ export default function AdminDashboard() {
   const [detalle, setDetalle] = useState<Huesped | null>(null);
   const [vista, setVista] = useState<"tabla" | "galeria">("tabla");
 
+  // 🔥 NUEVO: alcance de datos (Hoy vs Todos)
+  const [scope, setScope] = useState<"hoy" | "todos">("todos");
+
   // 🔍 imagen a hacer zoom
   const [imagenZoom, setImagenZoom] = useState<string | null>(null);
 
   const cargarHuespedes = async () => {
-    const res = await fetch(`${API_BASE}/api/checkin/hoy`);
-    const json = await res.json();
-    setHuespedes(json.huespedes || []);
+    try {
+      const url =
+        scope === "hoy"
+          ? `${API_BASE}/api/checkin/hoy`
+          : `${API_BASE}/admin/huespedes`;
+
+      const res = await fetch(url);
+      const json = await res.json();
+
+      // Tolerante a varios formatos:
+      // - { huespedes: [...] }
+      // - { data: [...] }
+      // - [...] (array directo)
+      const lista: Huesped[] =
+        (json && Array.isArray(json.huespedes) && json.huespedes) ||
+        (json && Array.isArray(json.data) && json.data) ||
+        (Array.isArray(json) ? json : []);
+
+      setHuespedes(lista);
+    } catch (e) {
+      console.error(e);
+      alert("Error cargando huéspedes. Revisa el endpoint del backend.");
+      setHuespedes([]);
+    }
   };
 
   const cargarMetrics = async () => {
-    const res = await fetch(`${API_BASE}/admin/metrics`);
-    const json = await res.json();
-    setMetrics(json);
+    try {
+      const res = await fetch(`${API_BASE}/admin/metrics`);
+      const json = await res.json();
+      setMetrics(json);
+    } catch (e) {
+      console.error(e);
+      setMetrics(null);
+    }
   };
 
   useEffect(() => {
@@ -82,18 +111,24 @@ export default function AdminDashboard() {
       cargarHuespedes();
       cargarMetrics();
     }
-  }, [autenticado]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autenticado, scope]);
 
-  const filtrados = huespedes.filter((h) => {
-    const texto = `
-      ${h.nombre}
-      ${h.numeroDocumento}
-      ${h.telefono}
-      ${h.email}
-      ${h.numeroReserva}
-    `.toLowerCase();
-    return texto.includes(filtro.toLowerCase());
-  });
+  const filtrados = useMemo(() => {
+    const f = filtro.toLowerCase().trim();
+    if (!f) return huespedes;
+
+    return huespedes.filter((h) => {
+      const texto = `
+        ${h.nombre}
+        ${h.numeroDocumento}
+        ${h.telefono}
+        ${h.email}
+        ${h.numeroReserva}
+      `.toLowerCase();
+      return texto.includes(f);
+    });
+  }, [huespedes, filtro]);
 
   const eliminar = async (id: number) => {
     if (!confirm("¿Eliminar huésped?")) return;
@@ -200,6 +235,15 @@ export default function AdminDashboard() {
             {vista === "tabla" ? "📸 Galería" : "📋 Tabla"}
           </button>
 
+          {/* 🔥 NUEVO: HOY / TODOS */}
+          <button
+            onClick={() => setScope(scope === "hoy" ? "todos" : "hoy")}
+            style={btnScope}
+            title="Cambiar alcance de datos"
+          >
+            {scope === "hoy" ? "📅 Mostrando: HOY" : "🗂️ Mostrando: TODOS"}
+          </button>
+
           <input
             placeholder="Buscar..."
             value={filtro}
@@ -233,12 +277,12 @@ export default function AdminDashboard() {
 
               return (
                 <div key={h.id} style={galeriaCard}>
-                  {/* Imagen / inicial */}
                   {thumbUrl ? (
                     <img
                       src={thumbUrl}
                       style={imagenGaleria}
                       onClick={() => setImagenZoom(thumbUrl)}
+                      alt="Documento"
                     />
                   ) : (
                     <div style={imagenPlaceholder}>{inicial}</div>
@@ -302,43 +346,48 @@ export default function AdminDashboard() {
             <table style={tabla}>
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>Nombre</th>
-                  <th>Documento</th>
-                  <th>Teléfono</th>
-                  <th>Email</th>
-                  <th>Ingreso</th>
-                  <th>Salida</th>
-                  <th>Reserva</th>
-                  <th>Checkin</th>
-                  <th>TTLock</th>
-                  <th>Acción</th>
+                  <th style={th}>ID</th>
+                  <th style={th}>Nombre</th>
+                  <th style={th}>Documento</th>
+                  <th style={th}>Teléfono</th>
+                  <th style={th}>Email</th>
+                  <th style={th}>Ingreso</th>
+                  <th style={th}>Salida</th>
+                  <th style={th}>Reserva</th>
+                  <th style={th}>Checkin</th>
+                  <th style={th}>TTLock</th>
+                  <th style={th}>Acción</th>
                 </tr>
               </thead>
               <tbody>
-                {filtrados.map((h) => (
-                  <tr key={h.id}>
-                    <td>{h.id}</td>
-                    <td>{h.nombre}</td>
-                    <td>
+                {filtrados.map((h, idx) => (
+                  <tr key={h.id} style={idx % 2 === 0 ? trEven : trOdd}>
+                    <td style={td}>{h.id}</td>
+                    <td style={td}>{h.nombre}</td>
+                    <td style={td}>
                       {h.tipoDocumento} - {h.numeroDocumento}
                     </td>
-                    <td>{h.telefono}</td>
-                    <td>{h.email}</td>
-                    <td>{h.fechaIngreso}</td>
-                    <td>{h.fechaSalida}</td>
-                    <td>{h.numeroReserva}</td>
-                    <td>
+                    <td style={td}>{h.telefono}</td>
+                    <td style={td}>{h.email}</td>
+                    <td style={td}>{h.fechaIngreso}</td>
+                    <td style={td}>{h.fechaSalida}</td>
+                    <td style={td}>{h.numeroReserva}</td>
+                    <td style={td}>
                       {h.checkinUrl ? (
-                        <a href={h.checkinUrl} target="_blank" rel="noreferrer">
+                        <a
+                          href={h.checkinUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={link}
+                        >
                           abrir
                         </a>
                       ) : (
                         "-"
                       )}
                     </td>
-                    <td>{h.codigoTTLock ?? "-"}</td>
-                    <td style={{ display: "flex", gap: "0.5rem" }}>
+                    <td style={td}>{h.codigoTTLock ?? "-"}</td>
+                    <td style={{ ...td, display: "flex", gap: "0.5rem" }}>
                       <button style={btnEye} onClick={() => setDetalle(h)}>
                         👁
                       </button>
@@ -348,6 +397,14 @@ export default function AdminDashboard() {
                     </td>
                   </tr>
                 ))}
+
+                {filtrados.length === 0 && (
+                  <tr>
+                    <td style={{ ...td, padding: "1rem" }} colSpan={11}>
+                      No hay registros para mostrar (scope: {scope}).
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -366,8 +423,7 @@ export default function AdminDashboard() {
               <b>Nombre:</b> {detalle.nombre}
             </p>
             <p>
-              <b>Documento:</b> {detalle.tipoDocumento}{" "}
-              {detalle.numeroDocumento}
+              <b>Documento:</b> {detalle.tipoDocumento} {detalle.numeroDocumento}
             </p>
             <p>
               <b>Nacionalidad:</b> {detalle.nacionalidad}
@@ -406,15 +462,17 @@ export default function AdminDashboard() {
               <b>Código TTLock:</b> {detalle.codigoTTLock ?? "-"}
             </p>
 
-            {/* Miniaturas dentro del detalle (también clicables para zoom) */}
             <div style={imagenesDetalleGrid}>
               {detalle.archivoPasaporte && (
                 <img
                   src={`${API_BASE}/uploads/${detalle.archivoPasaporte}`}
                   style={imagenDetalle}
                   onClick={() =>
-                    setImagenZoom(`${API_BASE}/uploads/${detalle.archivoPasaporte}`)
+                    setImagenZoom(
+                      `${API_BASE}/uploads/${detalle.archivoPasaporte}`
+                    )
                   }
+                  alt="Pasaporte"
                 />
               )}
               {detalle.archivoCedula && (
@@ -424,6 +482,7 @@ export default function AdminDashboard() {
                   onClick={() =>
                     setImagenZoom(`${API_BASE}/uploads/${detalle.archivoCedula}`)
                   }
+                  alt="Cédula"
                 />
               )}
               {detalle.archivoFirma && (
@@ -433,6 +492,7 @@ export default function AdminDashboard() {
                   onClick={() =>
                     setImagenZoom(`${API_BASE}/uploads/${detalle.archivoFirma}`)
                   }
+                  alt="Firma"
                 />
               )}
             </div>
@@ -449,7 +509,7 @@ export default function AdminDashboard() {
       ========================= */}
       {imagenZoom && (
         <div style={zoomOverlay} onClick={() => setImagenZoom(null)}>
-          <img src={imagenZoom} style={zoomImage} />
+          <img src={imagenZoom} style={zoomImage} alt="Zoom" />
         </div>
       )}
     </div>
@@ -480,6 +540,8 @@ const btnLogin: React.CSSProperties = {
   border: "none",
   padding: "0.6rem",
   width: "100%",
+  borderRadius: "0.5rem",
+  cursor: "pointer",
 };
 
 const container: React.CSSProperties = {
@@ -518,6 +580,7 @@ const metricsGrid: React.CSSProperties = {
   display: "grid",
   gap: "1rem",
   gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+  marginBottom: "1rem",
 };
 const metricCard: React.CSSProperties = {
   background: "#0f172a",
@@ -528,17 +591,52 @@ const metricCard: React.CSSProperties = {
 
 const tablaWrapper: React.CSSProperties = {
   overflowX: "auto",
-  width: "100vw",
+  width: "100%",
   paddingBottom: "12px",
+  border: "1px solid #1f2937",
+  borderRadius: "0.8rem",
 };
 
-const tabla: React.CSSProperties = { width: "100%" };
+const tabla: React.CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+  minWidth: "1100px",
+};
+
+const th: React.CSSProperties = {
+  textAlign: "left",
+  padding: "0.75rem",
+  background: "#0f172a",
+  borderBottom: "1px solid #1f2937",
+  position: "sticky",
+  top: 0,
+  zIndex: 2,
+  whiteSpace: "nowrap",
+};
+
+const td: React.CSSProperties = {
+  padding: "0.7rem",
+  borderBottom: "1px solid #111827",
+  color: "#fff",
+  whiteSpace: "nowrap",
+  fontSize: "0.95rem",
+};
+
+const trEven: React.CSSProperties = { background: "#030712" };
+const trOdd: React.CSSProperties = { background: "#000000" };
+
+const link: React.CSSProperties = {
+  color: "#60a5fa",
+  textDecoration: "underline",
+};
 
 const btnDelete: React.CSSProperties = {
-  background: "red",
+  background: "#dc2626",
   color: "white",
   border: "none",
   padding: "0.3rem 0.6rem",
+  borderRadius: "0.4rem",
+  cursor: "pointer",
 };
 
 const btnEye: React.CSSProperties = {
@@ -546,6 +644,8 @@ const btnEye: React.CSSProperties = {
   color: "white",
   border: "none",
   padding: "0.3rem 0.6rem",
+  borderRadius: "0.4rem",
+  cursor: "pointer",
 };
 
 const btnExcel: React.CSSProperties = {
@@ -553,6 +653,8 @@ const btnExcel: React.CSSProperties = {
   color: "white",
   border: "none",
   padding: "0.5rem 1rem",
+  borderRadius: "0.6rem",
+  cursor: "pointer",
 };
 
 const btnLogout: React.CSSProperties = {
@@ -560,6 +662,8 @@ const btnLogout: React.CSSProperties = {
   color: "white",
   border: "none",
   padding: "0.5rem 1rem",
+  borderRadius: "0.6rem",
+  cursor: "pointer",
 };
 
 const btnToggle: React.CSSProperties = {
@@ -567,6 +671,17 @@ const btnToggle: React.CSSProperties = {
   color: "white",
   border: "none",
   padding: "0.5rem 1rem",
+  borderRadius: "0.6rem",
+  cursor: "pointer",
+};
+
+const btnScope: React.CSSProperties = {
+  background: "#0b1220",
+  color: "white",
+  border: "1px solid #1f2937",
+  padding: "0.5rem 1rem",
+  borderRadius: "0.6rem",
+  cursor: "pointer",
 };
 
 const galeriaGrid: React.CSSProperties = {
@@ -644,6 +759,8 @@ const btnClose: React.CSSProperties = {
   width: "100%",
   border: "none",
   padding: "0.6rem",
+  borderRadius: "0.6rem",
+  cursor: "pointer",
 };
 
 const imagenesDetalleGrid: React.CSSProperties = {

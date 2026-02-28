@@ -1,155 +1,85 @@
+/* src/App.css */
+
+/* Mantén lo básico, pero evita el "float + width" que rompe pantallas internas */
 #root {
+  width: 100%;
   max-width: 1280px;
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  padding: 0;
+  text-align: left;
 }
 
+/* Fondo global: quitamos la chica y ponemos fondo corporativo local */
+body {
+  background-image: url('/hotel-bg.svg');
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+
+/* Logo demo Vite (si lo usas) */
 .logo {
   height: 6em;
   padding: 1.5em;
   will-change: filter;
   transition: filter 300ms;
 }
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
+.logo:hover { filter: drop-shadow(0 0 2em #646cffaa); }
+.logo.react:hover { filter: drop-shadow(0 0 2em #61dafbaa); }
 
 @keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
-}
-
-
-
+/* Botón disabled (tu parche) */
 .btn-disabled {
-  opacity: 1; /* Mantenemos visibilidad */
+  opacity: 1;
   cursor: not-allowed;
-  background-color: #2c2c2c; /* fondo más claro que el fondo general */
-  color: white !important; /* Forzamos blanco sobre Bootstrap */
+  background-color: #2c2c2c;
+  color: white !important;
   border: 2px dashed #999;
-  filter: brightness(1.2); /* ayuda en modo oscuro */
+  filter: brightness(1.2);
 }
 
-/* 2025 App stiles Carlos Guayazan */
-/* Cometar Ctr + K y luego Ctr + U */
-
-
-.select-search-type {
-  color:#2c2c2c;
-}
+/* Tus estilos custom */
+.select-search-type { color:#2c2c2c; }
 .select-search-type select {
   display: inline-block;
   width: 100%;
   margin-top: 10px;
 }
-.select-search-type>label, .select-search-type>.select-reserv-document, .select-search-type>.input-reserv-document {
+.select-search-type>label,
+.select-search-type>.select-reserv-document,
+.select-search-type>.input-reserv-document {
   display: inline-block;
   width: 100%;
   font-size: 1.2rem;
-  border: 2px solid #3b82f6; /* azul */
+  border: 2px solid #3b82f6;
   text-align: left;
   margin-bottom: 10px;
 }
 
+/* Botón genérico (si lo usas en otras pantallas) */
 .btn {
-  background-color: #ffffff; /* gris oscuro elegante */
+  background-color: #ffffff;
   color: white;
   padding: 0.75rem 1.5rem;
   border-radius: 0.5rem;
   font-weight: bold;
   font-size: 1rem;
-  border: 2px solid #3b82f6; /* azul */
+  border: 2px solid #3b82f6;
   transition: all 0.3s ease;
   text-align: center;
   display: inline-block;
 }
-
 .btn:hover {
-  background-color: #3b82f6; /* azul */
+  background-color: #3b82f6;
   color: white;
 }
-body {
-  background-image: url('https://kuyay.co/wp-content/uploads/2025/02/7JvU_riOsCsCD9LNgJFjZ-1-1-e1753401722985-2048x979.jpg');
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-position: center;
-}
-#root {
-  float: left;
-  width: 40%;
-  margin-left: 30%;
-  margin-right: 30%;
-}
 
-
-/* Extra small devices (phones, 600px and down) */
+/* Responsivo: root ocupa toda la pantalla, sin floats */
 @media only screen and (max-width: 600px) {
-  #root {
-  float: left;
-  width: 98%;
-  margin-left: 1%;
-  margin-right: 1%;
-}
-}
-
-/* Small devices (portrait tablets and large phones, 600px and up) */
-@media only screen and (min-width: 600px) {
- #root {
-  float: left;
-  width: 98%;
-  margin-left: 1%;
-  margin-right: 1%;
-}
-}
-
-/* Medium devices (landscape tablets, 768px and up) */
-@media only screen and (min-width: 768px) {
-#root {
-  float: left;
-  width: 80%;
-  margin-left: 10%;
-  margin-right: 10%;
-}
-}
-
-/* Large devices (laptops/desktops, 992px and up) */
-@media only screen and (min-width: 992px) {
-  #root {
-  float: left;
-  width: 60%;
-  margin-left: 20%;
-  margin-right: 20%;
-}
-}
-
-/* Extra large devices (large laptops and desktops, 1200px and up) */
-@media only screen and (min-width: 1200px) {
-  #root {
-  float: left;
-  width: 40%;
-  margin-left: 30%;
-  margin-right: 30%;
-}
+  #root { padding: 0; }
 }

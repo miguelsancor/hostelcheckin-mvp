@@ -1,10 +1,10 @@
-import { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ContactAutocomplete from "../components/ContactAutocomplete";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://18.206.179.50:4000";
 
-type TipoBusqueda = "documento" | "codigo" | "contacto";
+type TipoBusqueda = "codigo" | "documento" | "contacto";
 
 // ✅ Convierte "2026-02-04T00:00:00" -> "2026-02-04"
 function toDateInput(value?: string | null) {
@@ -17,20 +17,62 @@ function toDateInput(value?: string | null) {
   return d.toISOString().slice(0, 10);
 }
 
+// Normaliza un teléfono: quita espacios, guiones, paréntesis
+function normalizePhone(raw: string) {
+  const s = String(raw || "").trim();
+  const digits = s.replace(/[^\d]/g, "");
+  return digits;
+}
+
+// Genera candidatos para búsqueda: tolera +57, 57, sin prefijo
+function phoneCandidates(input: string) {
+  const d = normalizePhone(input);
+  if (!d) return [];
+
+  const c: string[] = [];
+  c.push(d);
+
+  if (d.startsWith("57") && d.length >= 12) {
+    const tail = d.slice(2);
+    c.push(tail);
+    c.push(`+${d}`);
+  } else if (d.length === 10) {
+    c.push(`57${d}`);
+    c.push(`+57${d}`);
+  }
+
+  return Array.from(new Set(c)).filter(Boolean);
+}
+
+// Normaliza email (trim + lower)
+function normalizeEmail(raw: string) {
+  return String(raw || "").trim().toLowerCase();
+}
+
 export default function Login() {
-  const [tipoBusqueda, setTipoBusqueda] = useState<TipoBusqueda>("documento");
+  // ✅ CAMBIO 1: por defecto Email / Teléfono
+  const [tipoBusqueda, setTipoBusqueda] = useState<TipoBusqueda>("contacto");
 
   const [tipoDocumento, setTipoDocumento] = useState("Cédula");
   const [numeroDocumento, setNumeroDocumento] = useState("");
   const [codigoReserva, setCodigoReserva] = useState("");
   const [valorContacto, setValorContacto] = useState("");
 
+  const [loading, setLoading] = useState(false);
   const [reservaEncontrada, setReservaEncontrada] = useState<any>(null);
   const navigate = useNavigate();
 
+  const tabs = useMemo(
+    () => [
+      { key: "codigo" as const, label: "Número de reserva" },
+      { key: "documento" as const, label: "Documento" },
+      { key: "contacto" as const, label: "Email / Teléfono" },
+    ],
+    []
+  );
+
   /* ===============================================
       GENERAR Y GUARDAR LINK EN BD (NO BLOQUEANTE)
-      (lo dejo igual pero ya NO depende de esto el flujo)
   =============================================== */
   const generarYGuardarLink = async (reserva: any) => {
     const numero = String(
@@ -42,7 +84,6 @@ export default function Login() {
       import.meta.env.VITE_PUBLIC_BASE_URL ||
       `${window.location.protocol}//${window.location.host}`;
 
-    // ⚠️ Compat, pero ya NO se usa como navegación principal
     const link = `${PUBLIC_BASE}/checkin?reserva=${encodeURIComponent(numero)}`;
     localStorage.setItem("checkinUrlReal", link);
 
@@ -58,15 +99,12 @@ export default function Login() {
   };
 
   /* ===============================================
-      ✅ NUEVO: Crear sesión compartible (token) en backend
-      y navegar a /checkin?t=TOKEN
+      ✅ Crear sesión compartible (token) y navegar /checkin?t=
   =============================================== */
   const crearSesionYNavegar = async (reserva: any) => {
-    // 1) guardar como antes (por si el usuario vuelve al mismo navegador)
     localStorage.setItem("usuario", JSON.stringify({ role: "guest-checkin" }));
     localStorage.setItem("reserva", JSON.stringify(reserva));
 
-    // 2) construir "reservaObj" robusto (nobeds / sqlite)
     const numeroReserva = String(
       reserva?.numeroReserva || reserva?.order_id || reserva?.numero || ""
     ).trim();
@@ -85,7 +123,6 @@ export default function Login() {
       lockId: reserva?.lockId,
     };
 
-    // 3) formList inicial (sin Files)
     const formList = [
       {
         nombre: reservaObj.nombre,
@@ -103,13 +140,11 @@ export default function Login() {
       },
     ];
 
-    // 4) si NO hay numeroReserva, igual deja entrar al form (sin token)
     if (!numeroReserva) {
       navigate("/checkin", { replace: true });
       return;
     }
 
-    // 5) crear token en backend y redirigir a /checkin?t=...
     try {
       const resp = await fetch(`${API_BASE}/api/checkin/session`, {
         method: "POST",
@@ -120,36 +155,43 @@ export default function Login() {
       const json = await resp.json();
 
       if (json?.ok && json?.token) {
-        // ✅ Esta URL es la compartible (funciona en OTRO navegador)
-        navigate(`/checkin?t=${encodeURIComponent(String(json.token))}`, { replace: true });
+        navigate(`/checkin?t=${encodeURIComponent(String(json.token))}`, {
+          replace: true,
+        });
         return;
       }
     } catch {
-      // si falla, no rompemos
+      // no rompemos
     }
 
-    // 6) fallback: entra al checkin normal (funciona al menos en este navegador)
     navigate("/checkin", { replace: true });
   };
 
   const crearFormatoEnBlanco = () => {
     localStorage.setItem("usuario", JSON.stringify({ role: "guest-checkin" }));
     localStorage.setItem("reserva", JSON.stringify({}));
-
     navigate("/checkin", { replace: true });
   };
 
   /* ===============================================
-      BUSCAR RESERVA
+      ✅ BUSCAR RESERVA (sin tocar backend)
   =============================================== */
   const buscarReserva = async () => {
     try {
+      setLoading(true);
+      setReservaEncontrada(null);
+
       let reserva: any = null;
 
-      // 1) Por código de reserva (NoBeds)
-      if (tipoBusqueda === "codigo" && codigoReserva.trim()) {
+      // 1) Número de reserva (NoBeds)
+      if (tipoBusqueda === "codigo") {
+        const code = codigoReserva.trim();
+        if (!code) {
+          alert("Ingresa el número de reserva");
+          return;
+        }
         const res = await fetch(
-          `${API_BASE}/api/nobeds/reserva/${encodeURIComponent(codigoReserva.trim())}`
+          `${API_BASE}/api/nobeds/reserva/${encodeURIComponent(code)}`
         );
         if (res.ok) {
           const data = await res.json();
@@ -157,27 +199,82 @@ export default function Login() {
         }
       }
 
-      // 2) Por documento (SQLite local)
-      if (tipoBusqueda === "documento" && numeroDocumento.trim()) {
+      // 2) Documento (SQLite local)
+      if (tipoBusqueda === "documento") {
+        const doc = numeroDocumento.trim();
+        if (!doc) {
+          alert("Ingresa el número de documento");
+          return;
+        }
         const res = await fetch(`${API_BASE}/api/checkin/buscar`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             tipoDocumento,
-            numeroDocumento: numeroDocumento.trim(),
+            numeroDocumento: doc,
           }),
         });
         if (res.ok) reserva = await res.json();
       }
 
-      // 3) Por contacto (email/teléfono)
-      if (tipoBusqueda === "contacto" && valorContacto.trim()) {
-        const res = await fetch(
-          `${API_BASE}/api/checkin/buscar-combinado/${encodeURIComponent(valorContacto.trim())}`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.ok && data?.data) reserva = data.data;
+      // 3) Contacto (email/teléfono) - tolerante
+      if (tipoBusqueda === "contacto") {
+        const raw = valorContacto.trim();
+        if (!raw) {
+          alert("Ingresa email o teléfono");
+          return;
+        }
+
+        const isEmail = raw.includes("@");
+        const candidates = isEmail
+          ? [normalizeEmail(raw), raw.trim(), raw]
+          : phoneCandidates(raw).concat([raw.trim(), raw]);
+
+        for (const v of Array.from(new Set(candidates)).filter(Boolean)) {
+          const res = await fetch(
+            `${API_BASE}/api/checkin/buscar-combinado/${encodeURIComponent(v)}`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.ok && data?.data) {
+              reserva = data.data;
+              break;
+            }
+          }
+        }
+
+        // fallback: autocomplete contactos
+        if (!reserva) {
+          const q = isEmail ? normalizeEmail(raw) : normalizePhone(raw);
+          const res = await fetch(
+            `${API_BASE}/api/checkin/contactos?query=${encodeURIComponent(q)}`
+          );
+          if (res.ok) {
+            const list = await res.json();
+            if (Array.isArray(list) && list.length > 0) {
+              const best = list[0];
+              const nr = String(best?.numeroReserva || "").trim();
+              if (nr) {
+                const nb = await fetch(
+                  `${API_BASE}/api/nobeds/reserva/${encodeURIComponent(nr)}`
+                );
+                if (nb.ok) {
+                  const data = await nb.json();
+                  if (data?.ok && data?.reserva) reserva = data.reserva;
+                }
+
+                if (!reserva) {
+                  const local = await fetch(
+                    `${API_BASE}/api/checkin/por-reserva/${encodeURIComponent(nr)}`
+                  );
+                  if (local.ok) {
+                    const data = await local.json();
+                    if (data?.ok && data?.data) reserva = data.data;
+                  }
+                }
+              }
+            }
+          }
         }
       }
 
@@ -188,101 +285,158 @@ export default function Login() {
 
       setReservaEncontrada(reserva);
 
-      // No bloqueante
       await generarYGuardarLink(reserva);
-
-      // ✅ CLAVE: ahora SIEMPRE crea token y navega con ?t=
       await crearSesionYNavegar(reserva);
-    } catch (err) {
+    } catch {
       alert("Error de conexión");
+    } finally {
+      setLoading(false);
     }
   };
 
+  const activeTabStyle = (active: boolean): React.CSSProperties => ({
+    flex: 1,
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: active ? "rgba(59,130,246,0.22)" : "rgba(255,255,255,0.06)",
+    color: "#fff",
+    fontWeight: 800,
+    cursor: "pointer",
+  });
+
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h2 style={styles.title}>
+    <div style={ui.page}>
+      <div style={ui.card}>
+        <div style={ui.header}>
           <img
             src="https://kuyay.co/wp-content/uploads/2025/02/android-chrome-192x192-1-e1739471996937.png"
-            width="100"
-            height="100"
+            width="44"
+            height="44"
             alt="Kuyay"
+            style={{ borderRadius: 12 }}
           />
-        </h2>
+          <div style={{ textAlign: "left" }}>
+            <div style={{ fontWeight: 800, lineHeight: 1.1 }}>Kuyay Hostel</div>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>Auto Check-in</div>
+          </div>
+        </div>
 
-        <div style={styles.inputGroup}>
-          <label>
-            Buscar por:
-            <select
-              value={tipoBusqueda}
-              onChange={(e) => setTipoBusqueda(e.target.value as any)}
-              style={styles.select}
+        <h2 style={ui.title}>Auto Check-in</h2>
+        <p style={ui.subtitle}>
+          Ingresa tu <b>número de reserva</b>, <b>documento</b> o <b>contacto</b>{" "}
+          del titular para comenzar.
+        </p>
+
+        {/* Tabs */}
+        <div style={ui.tabs}>
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              style={activeTabStyle(tipoBusqueda === t.key)}
+              onClick={() => setTipoBusqueda(t.key)}
             >
-              <option value="documento">ID / Documento</option>
-              <option value="codigo">Número de Reserva</option>
-              <option value="contacto">Email / Teléfono</option>
-            </select>
-          </label>
+              {t.label}
+            </button>
+          ))}
+        </div>
 
-          {tipoBusqueda === "documento" && (
+        {/* Inputs por tab */}
+        <div
+          style={{
+            marginTop: 14,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          {tipoBusqueda === "codigo" && (
             <>
-              <select
-                value={tipoDocumento}
-                onChange={(e) => setTipoDocumento(e.target.value)}
-                style={styles.select}
-              >
-                <option value="Cédula">Cédula</option>
-                <option value="Pasaporte">Pasaporte</option>
-              </select>
-
               <input
                 type="text"
-                placeholder="Número de Documento"
-                value={numeroDocumento}
-                onChange={(e) => setNumeroDocumento(e.target.value)}
-                style={styles.input}
+                placeholder="Número de reserva (Ej: 837462 o NB-10293)"
+                value={codigoReserva}
+                onChange={(e) => setCodigoReserva(e.target.value)}
+                style={ui.input}
               />
+              <div style={ui.hint}>
+                Ejemplo: <b>837462</b> o <b>NB-10293</b>
+              </div>
             </>
           )}
 
-          {tipoBusqueda === "codigo" && (
-            <input
-              type="text"
-              placeholder="Código de Reserva"
-              value={codigoReserva}
-              onChange={(e) => setCodigoReserva(e.target.value)}
-              style={styles.input}
-            />
+          {tipoBusqueda === "documento" && (
+            <>
+              <div style={{ display: "flex", gap: 10 }}>
+                <select
+                  value={tipoDocumento}
+                  onChange={(e) => setTipoDocumento(e.target.value)}
+                  style={ui.select}
+                >
+                  <option value="Cédula">Cédula</option>
+                  <option value="Pasaporte">Pasaporte</option>
+                </select>
+
+                <input
+                  type="text"
+                  placeholder="Número de documento"
+                  value={numeroDocumento}
+                  onChange={(e) => setNumeroDocumento(e.target.value)}
+                  style={{ ...ui.input, flex: 1 }}
+                />
+              </div>
+              <div style={ui.hint}>
+                Tip: no importa si escribes con puntos/espacios, el sistema intenta
+                tolerarlo.
+              </div>
+            </>
           )}
 
           {tipoBusqueda === "contacto" && (
-            <ContactAutocomplete
-              value={valorContacto}
-              onChange={setValorContacto}
-              onSelectSuggestion={() => {}}
-            />
+            <>
+              <ContactAutocomplete
+                value={valorContacto}
+                onChange={setValorContacto}
+                onSelectSuggestion={() => {}}
+              />
+              <div style={ui.hint}>
+                Teléfono: puedes escribir <b>sin +57</b> (ej: 3001234567). Email: se
+                limpia automáticamente.
+              </div>
+            </>
           )}
         </div>
 
-        <div style={styles.buttonGroup}>
-          <button style={styles.button} onClick={buscarReserva}>
-            Consultar Reserva
+        {/* Botones */}
+        <div
+          style={{
+            marginTop: 16,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <button style={ui.primaryBtn} onClick={buscarReserva} disabled={loading}>
+            {loading ? "Buscando..." : "Iniciar check-in"}
           </button>
 
-          <button
-            style={{
-              ...styles.button,
-              backgroundColor: "#3b82f6",
-              marginTop: "0.75rem",
-            }}
-            onClick={crearFormatoEnBlanco}
-          >
+          <button style={ui.secondaryBtn} onClick={crearFormatoEnBlanco} disabled={loading}>
             Reservar
           </button>
         </div>
 
+        {/* ✅ CAMBIO 2: QUITAMOS BLOQUE DE PASOS (stepsBox) */}
+
+        <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>
+          ¿Necesitas ayuda?{" "}
+          <a href="#" style={{ color: "#93c5fd" }}>
+            Contactar recepción
+          </a>
+        </div>
+
         {reservaEncontrada && (
-          <div style={{ marginTop: "1rem", fontSize: "0.85rem", opacity: 0.85 }}>
+          <div style={{ marginTop: 12, fontSize: 12, opacity: 0.85 }}>
             Reserva detectada:{" "}
             <b>
               {String(
@@ -299,52 +453,92 @@ export default function Login() {
   );
 }
 
-/* ======================= ESTILOS ======================= */
-const styles: { [key: string]: React.CSSProperties } = {
-  container: {
-    height: "100vh",
+/* ======================= UI STYLES (solo Login) ======================= */
+const ui: { [key: string]: React.CSSProperties } = {
+  page: {
+    minHeight: "100vh",
+    width: "100%",
     display: "flex",
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
+    padding: "24px 14px",
   },
   card: {
-    backgroundColor: "#1f2937",
-    padding: "2rem",
-    borderRadius: "1rem",
     width: "100%",
-    maxWidth: "400px",
+    maxWidth: 460,
+    borderRadius: 18,
+    padding: "18px 18px 16px",
     color: "#fff",
-    boxShadow: "0 0 20px rgba(0,0,0,0.4)",
+    background: "rgba(17, 24, 39, 0.70)",
+    border: "1px solid rgba(255,255,255,0.10)",
+    boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
+    backdropFilter: "blur(10px)",
   },
-  title: { marginBottom: "1.5rem", textAlign: "center", fontSize: "1.6rem" },
-  inputGroup: { display: "flex", flexDirection: "column", gap: "1rem" },
+  header: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
+  },
+  title: {
+    margin: "6px 0 6px",
+    fontSize: 28,
+    letterSpacing: 0.2,
+  },
+  subtitle: {
+    margin: 0,
+    opacity: 0.9,
+    fontSize: 13,
+    lineHeight: 1.4,
+  },
+  tabs: {
+    marginTop: 14,
+    display: "flex",
+    gap: 8,
+  },
   input: {
-    padding: "0.75rem",
-    borderRadius: "0.5rem",
-    border: "1px solid #4b5563",
-    backgroundColor: "#fff",
-    color: "#333",
+    width: "100%",
+    padding: "12px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.92)",
+    color: "#111827",
+    outline: "none",
+    fontSize: 14,
   },
   select: {
-    padding: "0.75rem",
-    borderRadius: "0.5rem",
-    border: "1px solid #4b5563",
-    backgroundColor: "#fff",
-    color: "#333",
+    width: 160,
+    padding: "12px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.92)",
+    color: "#111827",
+    outline: "none",
+    fontSize: 14,
   },
-  buttonGroup: {
-    marginTop: "1.5rem",
-    display: "flex",
-    flexDirection: "column",
+  hint: {
+    marginTop: -4,
+    fontSize: 12,
+    opacity: 0.85,
   },
-  button: {
+  primaryBtn: {
     width: "100%",
-    padding: "0.75rem",
+    padding: "12px 14px",
+    borderRadius: 12,
     border: "none",
-    borderRadius: "0.5rem",
-    backgroundColor: "#f25c93",
+    backgroundColor: "#2563eb",
     color: "#fff",
-    fontWeight: "bold",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  secondaryBtn: {
+    width: "100%",
+    padding: "12px 14px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    color: "#fff",
+    fontWeight: 800,
     cursor: "pointer",
   },
 };

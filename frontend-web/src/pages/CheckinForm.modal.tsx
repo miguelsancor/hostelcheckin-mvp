@@ -8,10 +8,6 @@ import {
 } from "./CheckinForm.styles";
 import type { HuespedBD } from "./CheckinForm.types";
 
-/* =========================================================
-   MODAL RESULTADO + CREACIÓN PASSCODE (POR ROOM_ID)
-   + ✅ SEMÁFORO TRA
-   ========================================================= */
 type ResultModalProps = {
   show: boolean;
   message: string;
@@ -32,7 +28,6 @@ export function ResultModal({
   const [loading, setLoading] = useState(false);
   const [ttlockResult, setTtlockResult] = useState<any>(null);
 
-  // ✅ TRA semaphore
   const [traLoading, setTraLoading] = useState(false);
   const [traStatus, setTraStatus] = useState<TraStatus | null>(null);
   const [traDetails, setTraDetails] = useState<any>(null);
@@ -81,7 +76,6 @@ export function ResultModal({
         alert(j?.message || j?.error || "No se pudo reintentar TRA");
         return;
       }
-      // volvemos a consultar
       await fetchTraStatus();
     } catch (e: any) {
       alert(e?.message || "Error reintentando TRA");
@@ -90,20 +84,15 @@ export function ResultModal({
     }
   }
 
-  // ✅ Polling automático cuando el modal abre y hay numeroReserva
   useEffect(() => {
     if (!show) return;
     if (!numeroReserva) return;
 
-    // primera consulta inmediata
     fetchTraStatus();
 
-    // polling corto (hasta 30s)
     const startedAt = Date.now();
     const t = setInterval(() => {
-      // si ya está OK, paramos
       if (traStatus === "OK") return;
-
       const elapsed = Date.now() - startedAt;
       if (elapsed > 30000) {
         clearInterval(t);
@@ -113,83 +102,24 @@ export function ResultModal({
     }, 2000);
 
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, numeroReserva]);
 
   if (!show) return null;
 
-  // ✅ UI semáforo (sin depender de librerías)
-  const semaforo = (() => {
-    if (!numeroReserva) return null;
-
-    let label = "TRA: (sin estado)";
-    let dot = "⚪";
-    if (traLoading && !traStatus) {
-      label = "TRA: consultando...";
-      dot = "🟡";
-    } else if (traStatus === "PENDING") {
-      label = "TRA: pendiente";
-      dot = "🟡";
-    } else if (traStatus === "OK") {
-      label = "TRA: enviado";
-      dot = "🟢";
-    } else if (traStatus === "ERROR") {
-      label = "TRA: error";
-      dot = "🔴";
-    }
-
-    return (
-      <div
-        style={{
-          marginTop: 10,
-          marginBottom: 10,
-          padding: "10px 12px",
-          borderRadius: 12,
-          border: "1px solid rgba(255,255,255,0.12)",
-          background: "rgba(0,0,0,0.25)",
-        }}
-      >
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <div style={{ fontSize: 18 }}>{dot}</div>
-          <div style={{ fontWeight: 700 }}>{label}</div>
-          <div style={{ marginLeft: "auto", opacity: 0.8, fontSize: 12 }}>
-            {numeroReserva}
-          </div>
-        </div>
-
-        {/* detalles / error */}
-        {traStatus === "ERROR" && (
-          <div style={{ marginTop: 8, opacity: 0.9, fontSize: 12 }}>
-            <div><b>Detalle:</b> {traDetails?.lastError || traDetails?.primaryError || "Revisa logs del backend"}</div>
-            <button
-              style={{ ...btnSecondary, marginTop: 10 }}
-              disabled={traLoading}
-              onClick={retryTra}
-            >
-              {traLoading ? "Reintentando..." : "Reintentar TRA"}
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  })();
-
-  // ✅ FUNCIÓN REAL QUE CREA EL CÓDIGO SOLO PARA LAS PUERTAS DEL ROOM (NO GLOBAL)
   async function crearCodigoPorHabitacion() {
     if (!guest?.fechaIngreso || !guest?.fechaSalida || !guest?.nombre) {
-      alert("Huésped sin fechas completas (fechaIngreso/fechaSalida)");
+      alert("Huésped sin fechas completas");
       return;
     }
 
     if (!numeroReserva) {
-      alert("No hay numeroReserva (reserva del backend no llegó).");
+      alert("No hay numeroReserva.");
       return;
     }
 
     const rid = reserva?.room_id ?? reserva?.roomId ?? reserva?.roomID;
     if (!rid) {
-      console.log("reserva recibida:", reserva);
-      alert("No llegó room_id en la reserva. Revisa checkin-por-reserva (Network).");
+      alert("No llegó room_id.");
       return;
     }
 
@@ -216,88 +146,112 @@ export function ResultModal({
       const data = await res.json();
 
       if (!res.ok || data?.ok === false) {
-        console.error("Error TTLock/BD:", data);
-        alert(data?.error || "Error creando códigos en TTLock/BD");
+        alert(data?.error || "Error creando códigos");
         return;
       }
 
       setTtlockResult({ ...data, payload });
-    } catch (err) {
-      console.error(err);
-      alert("Error creando código en TTLock");
+    } catch {
+      alert("Error creando código");
     } finally {
       setLoading(false);
     }
   }
 
+  const pin = ttlockResult?.pin ?? ttlockResult?.code;
+  const roomName = ttlockResult?.room ?? reserva?.room ?? "Tu habitación";
+
   return (
     <div style={modalOverlay}>
-      <div style={{ ...modalBox, maxWidth: "680px" }}>
-        <pre style={modalPre}>{message}</pre>
+      <div style={{ ...modalBox, maxWidth: "520px", textAlign: "center" }}>
 
-        {/* ✅ SEMÁFORO TRA */}
-        {semaforo}
+        {!ttlockResult && (
+          <>
+            <pre style={modalPre}>{message}</pre>
 
-        {/* ✅ BOTÓN REAL DE CREACIÓN (POR HABITACIÓN) */}
-        {guest && (
-          <button
-            style={btnPrimary}
-            disabled={loading}
-            onClick={crearCodigoPorHabitacion}
-          >
-            {loading ? "Creando códigos..." : "Crear Código para la Habitación"}
-          </button>
+            {numeroReserva && (
+              <div style={{
+                marginBottom: 15,
+                padding: 10,
+                borderRadius: 12,
+                background: "rgba(0,0,0,0.25)"
+              }}>
+                <b>TRA:</b> {traStatus === "OK" ? "🟢 Enviado" :
+                             traStatus === "PENDING" ? "🟡 Pendiente" :
+                             traStatus === "ERROR" ? "🔴 Error" :
+                             "Consultando..."}
+              </div>
+            )}
+
+            {guest && (
+              <button
+                style={btnPrimary}
+                disabled={loading}
+                onClick={crearCodigoPorHabitacion}
+              >
+                {loading ? "Creando código..." : "Crear Código para la Habitación"}
+              </button>
+            )}
+          </>
         )}
 
-        {/* ✅ RESULTADO VISUAL COMPLETO */}
+        {/* 🎯 NUEVA PANTALLA LIMPIA FINAL */}
         {ttlockResult && (
-          <pre style={modalPre}>
-{`✅ CÓDIGO: ${ttlockResult.pin ?? ttlockResult.code}
-👤 HUÉSPED: ${guest?.nombre}
-📅 DESDE: ${guest?.fechaIngreso}
-📅 HASTA: ${guest?.fechaSalida}
-🏷️ ROOM_ID: ${ttlockResult.room_id ?? "(sin room_id)"}
-🏠 ROOM: ${ttlockResult.room ?? "(sin nombre)"}
+          <>
+            <h2 style={{ marginBottom: 10 }}>🎉 Check-in completado</h2>
 
-🔐 RESULTADOS POR PUERTA:
-${(ttlockResult.resultados || [])
-  .map((r: any) => {
-    const id =
-      r.result?.keyboardPwdId ??
-      r.result?.keyboardPwd?.keyboardPwdId ??
-      "N/A";
+            <p style={{ opacity: 0.8 }}>
+              Tu clave digital es:
+            </p>
 
-    const status =
-      id !== "N/A"
-        ? "✅ REGISTRADO"
-        : (r.ok ? "✅ OK" : "⚠ REVISAR");
+            <div style={{
+              fontSize: "3.5rem",
+              fontWeight: 800,
+              letterSpacing: 6,
+              background: "#2563eb",
+              padding: "20px 0",
+              borderRadius: 16,
+              marginBottom: 20
+            }}>
+              {pin}
+            </div>
 
-    return `Puerta ${r.lockAlias ?? r.lockId}: ${status} | ID: ${id}`;
-  })
-  .join("\n")}
+            <div style={{ marginBottom: 20, fontSize: "1.1rem" }}>
+              📍 Habitación: <strong>{roomName}</strong>
+            </div>
 
-`}
-          </pre>
+            <div style={{
+              textAlign: "left",
+              fontSize: "0.9rem",
+              opacity: 0.85,
+              marginBottom: 20
+            }}>
+              <ul>
+                <li>⏰ Check-out: 11:00 AM</li>
+                <li>🔒 No compartas tu código</li>
+                <li>🚪 Cierra la puerta completamente al salir</li>
+              </ul>
+            </div>
+          </>
         )}
 
         <button onClick={onClose} style={btnPrimary}>
-          Cerrar / Close
+          Cerrar
         </button>
 
         <button
           onClick={() => (window.location.href = "/")}
           style={btnSecondary}
         >
-          Volver / Back
+          Volver al inicio
         </button>
       </div>
     </div>
   );
 }
 
-/* =========================================================
-   MODAL HUÉSPEDES HOY (LIMPIO + VOLVER AL LOGIN)
-   ========================================================= */
+/* ========================================================= */
+
 type GuestsTodayModalProps = {
   show: boolean;
   huespedes: HuespedBD[];
@@ -309,22 +263,16 @@ export function GuestsTodayModal({ show, onClose }: GuestsTodayModalProps) {
 
   return (
     <div style={modalOverlay}>
-      <div
-        style={{
-          ...modalBox,
-          maxWidth: "480px",
-          textAlign: "center",
-        }}
-      >
+      <div style={{ ...modalBox, maxWidth: "480px", textAlign: "center" }}>
         <button onClick={onClose} style={btnPrimary}>
-          Cerrar / Close
+          Cerrar
         </button>
 
         <button
           onClick={() => (window.location.href = "/")}
           style={btnSecondary}
         >
-          Volver / Back
+          Volver
         </button>
       </div>
     </div>

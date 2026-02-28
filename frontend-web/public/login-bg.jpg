@@ -1,0 +1,64 @@
+/* ===============================
+   App.css (global)
+   =============================== */
+
+:root {
+  --login-bg: url("/login-bg.jpg");
+}
+
+/* Importante: no limites el root */
+#root {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  text-align: initial;
+}
+
+/* Fondo global (sirve para Login; en otras páginas no molesta) */
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-image: var(--login-bg);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+
+/* Overlay elegante oscuro encima del fondo */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+      circle at 20% 20%,
+      rgba(0, 0, 0, 0.35) 0%,
+      rgba(0, 0, 0, 0.70) 60%,
+      rgba(0, 0, 0, 0.82) 100%
+    );
+  z-index: -1;
+}
+
+/* Por si algún browser pone fondo blanco */
+html {
+  background: #0b1220;
+}
+
+/* Si aún usas .btn en otras vistas, lo dejo neutro */
+.btn {
+  border-radius: 0.5rem;
+  font-weight: bold;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+/* Mantén tu clase existente */
+.btn-disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  background-color: #2c2c2c;
+  color: white !important;
+  border: 2px dashed #999;
+  filter: brightness(1.2);
+}

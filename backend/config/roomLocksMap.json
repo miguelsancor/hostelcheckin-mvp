@@ -17,5 +17,6 @@
   "2502149": { "room": "LLAMPU", "aliases": ["Door 1 Yc", "Door 2 Yc"] },
   "2504850": { "room": "SAMI", "aliases": ["Door 1 Yc", "Door 2 Yc"] },
   "2512558": { "room": "SAMI POD 1", "aliases": ["Door 1 Yc", "Door 2 Yc"] },
-  "2512557": { "room": "SAMI POD 2", "aliases": ["Door 1 Yc", "Door 2 Yc"] }
+  "2512557": { "room": "SAMI POD 2", "aliases": ["Door 1 Yc", "Door 2 Yc"] },
+  "2512556": { "room": "?", "aliases": ["Door 1 Yc", "Door 2 Yc"] }
 }

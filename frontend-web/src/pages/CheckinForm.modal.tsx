@@ -364,7 +364,7 @@ export function ResultModal({
                 marginBottom: 20,
               }}
             >
-              {pin}
+              {pin}#
             </div>
 
             <div style={{ marginBottom: 20, fontSize: "1.1rem" }}>

@@ -26,9 +26,6 @@ export function ResultModal({
   reserva,
   onClose,
 }: ResultModalProps) {
-  /* =========================
-     ✅ HOOKS (SIEMPRE ARRIBA, SIN RETURNS ANTES)
-  ========================= */
   const [loading, setLoading] = useState(false);
   const [ttlockResult, setTtlockResult] = useState<any>(null);
   const [ttlockStatus, setTtlockStatus] = useState<TTLockStatus>("IDLE");
@@ -38,10 +35,10 @@ export function ResultModal({
   const [traStatus, setTraStatus] = useState<TraStatus | null>(null);
   const [traDetails, setTraDetails] = useState<any>(null);
 
-  // Evita doble disparo de TTLock en una misma apertura
   const ttlockTriggeredRef = useRef(false);
 
-  const apiBase = "http://18.206.179.50:4000";
+  // ✅ Base correcta detrás de Nginx
+  const apiBase = "/api";
 
   const numeroReserva = useMemo(() => {
     const nr =
@@ -52,17 +49,18 @@ export function ResultModal({
     return String(nr || "").trim();
   }, [reserva]);
 
-  /* =========================
-     ✅ FUNCIONES
-  ========================= */
   async function fetchTraStatus() {
     if (!numeroReserva) return;
+
     try {
       setTraLoading(true);
+
       const r = await fetch(
-        `${apiBase}/api/tra/status/${encodeURIComponent(numeroReserva)}`
+        `${apiBase}/tra/status/${encodeURIComponent(numeroReserva)}`
       );
+
       const j = await r.json();
+
       if (r.ok && j?.ok) {
         setTraStatus(j.status as TraStatus);
         setTraDetails(j.details || null);
@@ -82,17 +80,22 @@ export function ResultModal({
 
   async function retryTra() {
     if (!numeroReserva) return;
+
     try {
       setTraLoading(true);
+
       const r = await fetch(
-        `${apiBase}/api/tra/retry/${encodeURIComponent(numeroReserva)}`,
+        `${apiBase}/tra/retry/${encodeURIComponent(numeroReserva)}`,
         { method: "POST" }
       );
+
       const j = await r.json();
+
       if (!r.ok || j?.ok === false) {
         alert(j?.message || j?.error || "No se pudo reintentar TRA");
         return;
       }
+
       await fetchTraStatus();
     } catch (e: any) {
       alert(e?.message || "Error reintentando TRA");
@@ -102,7 +105,6 @@ export function ResultModal({
   }
 
   async function crearCodigoPorHabitacion() {
-    // Validaciones
     if (!guest?.fechaIngreso || !guest?.fechaSalida || !guest?.nombre) {
       setTtlockStatus("ERROR");
       setTtlockError("Huésped sin fechas completas");
@@ -127,8 +129,8 @@ export function ResultModal({
       setTtlockStatus("CREATING");
       setTtlockError(null);
 
-      const startAt = new Date(guest.fechaIngreso + "T14:00:00").getTime();
-      const endAt = new Date(guest.fechaSalida + "T12:00:00").getTime();
+      const startAt = new Date(`${guest.fechaIngreso}T14:00:00`).getTime();
+      const endAt = new Date(`${guest.fechaSalida}T12:00:00`).getTime();
 
       const payload: any = {
         numeroReserva,
@@ -138,7 +140,7 @@ export function ResultModal({
         name: `Reserva - ${guest.nombre}`,
       };
 
-      const res = await fetch("http://18.206.179.50:4000/mcp/create-passcode-all", {
+      const res = await fetch(`${apiBase}/mcp/create-passcode-all`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -163,11 +165,6 @@ export function ResultModal({
     }
   }
 
-  /* =========================
-     ✅ EFECTOS (NUNCA CONDICIONALES)
-  ========================= */
-
-  // Reset cada vez que se abre/cierra
   useEffect(() => {
     if (!show) return;
 
@@ -181,7 +178,6 @@ export function ResultModal({
     setTraDetails(null);
   }, [show]);
 
-  // Poll TRA al abrir
   useEffect(() => {
     if (!show) return;
     if (!numeroReserva) return;
@@ -189,8 +185,8 @@ export function ResultModal({
     fetchTraStatus();
 
     const startedAt = Date.now();
+
     const t = setInterval(() => {
-      // si ya OK, deja de insistir
       if (traStatus === "OK") return;
 
       const elapsed = Date.now() - startedAt;
@@ -203,11 +199,9 @@ export function ResultModal({
     }, 2000);
 
     return () => clearInterval(t);
-    // IMPORTANTE: no metas fetchTraStatus en deps, está bien así.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, numeroReserva]);
 
-  // AUTO TTLock cuando TRA OK
   useEffect(() => {
     if (!show) return;
     if (ttlockResult) return;
@@ -221,9 +215,6 @@ export function ResultModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, traStatus, guest, reserva, ttlockResult]);
 
-  /* =========================
-     ✅ RENDER HELPERS
-  ========================= */
   function renderTraLine() {
     if (!numeroReserva) return null;
 
@@ -330,9 +321,6 @@ export function ResultModal({
   const pin = ttlockResult?.pin ?? ttlockResult?.code;
   const roomName = ttlockResult?.room ?? reserva?.room ?? "Tu habitación";
 
-  /* =========================
-     ✅ AHORA SÍ: RETURN CONDICIONAL (DESPUÉS DE HOOKS)
-  ========================= */
   if (!show) return null;
 
   return (
@@ -343,7 +331,6 @@ export function ResultModal({
             <pre style={modalPre}>{message}</pre>
             {renderTraLine()}
             {renderTTLockLine()}
-            {/* ❌ Ya no existe el botón de crear código */}
           </>
         )}
 
@@ -402,8 +389,6 @@ export function ResultModal({
     </div>
   );
 }
-
-/* ========================================================= */
 
 type GuestsTodayModalProps = {
   show: boolean;

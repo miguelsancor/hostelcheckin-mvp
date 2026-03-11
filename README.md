@@ -47,7 +47,7 @@ npx prisma studio
 node index.js
 ```
 
-> 📍 El backend estará disponible en: `http://cheking.kuyay.co:4000`
+> 📍 El backend estará disponible en: `http:///api`
 
 ---
 
@@ -59,7 +59,7 @@ npm install
 npm run dev
 ```
 
-> 🌍 El frontend estará disponible en: `http://cheking.kuyay.co:5173`
+> 🌍 El frontend estará disponible en: `http:///api:5173`
 
 ---
 

@@ -1,5 +1,5 @@
 // frontend-web/src/services/mcpClient.ts
-const API_BASE = import.meta.env.VITE_API_BASE || "http://cheking.kuyay.co:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http:///api";
 
 export type CreateKeyParams = {
   lockId: number;

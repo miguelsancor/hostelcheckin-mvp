@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Huesped, Reserva, LockItem, HuespedBD } from "./CheckinForm.types";
 import { roomMapping } from "./roomMapping";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://cheking.kuyay.co:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http:///api";
 
 /* ======================= HELPERS ======================= */
 function getQueryParams() {

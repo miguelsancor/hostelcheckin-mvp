@@ -66,5 +66,5 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
    ============================================================ */
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
-  console.log(`🚀 Backend corriendo en http://cheking.kuyay.co:${PORT}`);
+  console.log(`🚀 Backend corriendo en http:///api:${PORT}`);
 });

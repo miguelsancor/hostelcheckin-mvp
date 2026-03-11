@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
-const API_BASE = "http://cheking.kuyay.co:4000";
+const API_BASE = "/api";
 const ADMIN_PASSWORD = "admin123";
 
 type Huesped = {
@@ -24,16 +24,12 @@ type Huesped = {
   checkinUrl?: string | null;
   codigoTTLock?: string | null;
 
-  // archivos
   archivoPasaporte?: string | null;
   archivoCedula?: string | null;
   archivoFirma?: string | null;
 };
 
 export default function AdminDashboard() {
-  /* =========================
-     LOGIN
-  ========================= */
   const [autenticado, setAutenticado] = useState<boolean>(
     localStorage.getItem("admin_auth") === "true"
   );
@@ -53,35 +49,24 @@ export default function AdminDashboard() {
     setAutenticado(false);
   };
 
-  /* =========================
-     DATOS
-  ========================= */
   const [huespedes, setHuespedes] = useState<Huesped[]>([]);
   const [filtro, setFiltro] = useState("");
   const [metrics, setMetrics] = useState<any>(null);
   const [detalle, setDetalle] = useState<Huesped | null>(null);
   const [vista, setVista] = useState<"tabla" | "galeria">("tabla");
-
-  // 🔥 NUEVO: alcance de datos (Hoy vs Todos)
   const [scope, setScope] = useState<"hoy" | "todos">("todos");
-
-  // 🔍 imagen a hacer zoom
   const [imagenZoom, setImagenZoom] = useState<string | null>(null);
 
   const cargarHuespedes = async () => {
     try {
       const url =
         scope === "hoy"
-          ? `${API_BASE}/api/checkin/hoy`
+          ? `${API_BASE}/checkin/hoy`
           : `${API_BASE}/admin/huespedes`;
 
       const res = await fetch(url);
       const json = await res.json();
 
-      // Tolerante a varios formatos:
-      // - { huespedes: [...] }
-      // - { data: [...] }
-      // - [...] (array directo)
       const lista: Huesped[] =
         (json && Array.isArray(json.huespedes) && json.huespedes) ||
         (json && Array.isArray(json.data) && json.data) ||
@@ -166,9 +151,6 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, `huespedes_${Date.now()}.xlsx`);
   };
 
-  /* =========================
-     LOGIN UI
-  ========================= */
   if (!autenticado) {
     return (
       <div style={loginContainer}>
@@ -189,9 +171,6 @@ export default function AdminDashboard() {
     );
   }
 
-  /* =========================
-     DASHBOARD
-  ========================= */
   return (
     <div style={container}>
       <div style={card}>
@@ -235,7 +214,6 @@ export default function AdminDashboard() {
             {vista === "tabla" ? "📸 Galería" : "📋 Tabla"}
           </button>
 
-          {/* 🔥 NUEVO: HOY / TODOS */}
           <button
             onClick={() => setScope(scope === "hoy" ? "todos" : "hoy")}
             style={btnScope}
@@ -252,9 +230,6 @@ export default function AdminDashboard() {
           />
         </div>
 
-        {/* =========================
-            VISTA GALERÍA
-        ========================= */}
         {vista === "galeria" && (
           <div style={galeriaGrid}>
             {filtrados.map((h) => {
@@ -338,9 +313,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* =========================
-            TABLA NORMAL
-        ========================= */}
         {vista === "tabla" && (
           <div style={tablaWrapper}>
             <table style={tabla}>
@@ -411,9 +383,6 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* =========================
-          MODAL DETALLE TEXTO + INFO
-      ========================= */}
       {detalle && (
         <div style={modal}>
           <div style={modalBox}>
@@ -504,9 +473,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* =========================
-          OVERLAY DE ZOOM IMAGEN
-      ========================= */}
       {imagenZoom && (
         <div style={zoomOverlay} onClick={() => setImagenZoom(null)}>
           <img src={imagenZoom} style={zoomImage} alt="Zoom" />
@@ -515,8 +481,6 @@ export default function AdminDashboard() {
     </div>
   );
 }
-
-/* ================= ESTILOS ================= */
 
 const loginContainer: React.CSSProperties = {
   background: "#000",

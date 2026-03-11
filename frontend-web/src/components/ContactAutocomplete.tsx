@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://cheking.kuyay.co:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http:///api";
 
 interface Props {
   value: string;

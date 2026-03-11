@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ContactAutocomplete from "../components/ContactAutocomplete";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://cheking.kuyay.co:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http:///api";
 
 type TipoBusqueda = "codigo" | "documento" | "contacto";
 

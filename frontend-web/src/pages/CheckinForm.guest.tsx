@@ -15,6 +15,9 @@ type GuestCardProps = {
   onRemove?: (index: number) => void;
 };
 
+const isMobile =
+  typeof window !== "undefined" ? window.innerWidth <= 768 : false;
+
 function Field({
   label,
   children,
@@ -26,24 +29,26 @@ function Field({
     <div
       style={{
         width: "100%",
-        marginBottom: "0.8rem",
+        marginBottom: "0.9rem",
         display: "grid",
-        gridTemplateColumns: "220px 1fr",
-        alignItems: "center",
-        gap: "0.75rem",
+        gridTemplateColumns: isMobile ? "1fr" : "220px 1fr",
+        alignItems: isMobile ? "stretch" : "center",
+        gap: isMobile ? "0.45rem" : "0.75rem",
+        boxSizing: "border-box",
       }}
     >
       <label
         style={{
           color: "#9ca3af",
-          fontSize: "0.8rem",
-          textAlign: "right",
-          whiteSpace: "nowrap",
+          fontSize: "0.82rem",
+          textAlign: isMobile ? "left" : "right",
+          whiteSpace: isMobile ? "normal" : "nowrap",
+          lineHeight: 1.35,
         }}
       >
         {label}
       </label>
-      {children}
+      <div style={{ width: "100%", minWidth: 0 }}>{children}</div>
     </div>
   );
 }
@@ -93,7 +98,6 @@ export function GuestCard({
 
   return (
     <div style={styles.card}>
-      {/* ===================== DATOS PERSONALES (ÚNICA SECCIÓN) ===================== */}
       <div style={styles.row}>
         <Field label="Nombre / Name">
           <input
@@ -169,15 +173,6 @@ export function GuestCard({
         </Field>
       </div>
 
-      {/* =========================================================
-          ✅ CAMPOS DE VIAJE + CIUDADES (SOLO TITULAR)
-          - Ciudad residencia (siempre)
-          - Ciudad procedencia (siempre)
-          - Ciudad destino (✅ AHORA SIEMPRE, incluso con Cédula)
-          - Lugar procedencia/destino (solo pasaporte) se mantiene
-          - Motivo viaje
-          - Dirección (opcional)
-      ========================================================= */}
       {esTitular && (
         <>
           <div
@@ -188,7 +183,6 @@ export function GuestCard({
             }}
           >
             <div style={styles.row}>
-              {/* ✅ CIUDADES (PARA TRA) - siempre visibles en titular */}
               <Field label="Ciudad residencia / Residence city">
                 <input
                   name="ciudadResidencia"
@@ -209,7 +203,6 @@ export function GuestCard({
                 />
               </Field>
 
-              {/* ✅ FIX: Ciudad destino visible también para Cédula */}
               <Field label="Ciudad destino / Destination city">
                 <input
                   name="ciudadDestino"
@@ -220,7 +213,6 @@ export function GuestCard({
                 />
               </Field>
 
-              {/* ✅ SOLO EXTRANJEROS (PASAPORTE) - se mantiene tal cual */}
               {esPasaporte && (
                 <>
                   <Field label="Lugar procedencia / Origin place">
@@ -272,7 +264,6 @@ export function GuestCard({
               </Field>
             </div>
 
-            {/* ✅ FECHAS BLOQUEADAS (NO EDITABLES) */}
             <div style={styles.row}>
               <Field label="Ingreso / Check-in">
                 <input
@@ -307,6 +298,7 @@ export function GuestCard({
                   fontSize: "0.85rem",
                   textAlign: "center",
                   marginTop: "0.25rem",
+                  lineHeight: 1.4,
                 }}
               >
                 Lugar de procedencia y destino aplican solo para extranjeros
@@ -315,7 +307,6 @@ export function GuestCard({
             )}
           </div>
 
-          {/* ===================== DOCUMENTOS (SOLO TITULAR) ===================== */}
           <div
             style={{
               marginTop: "1.25rem",
@@ -340,6 +331,7 @@ export function GuestCard({
                 fontSize: "0.85rem",
                 textAlign: "center",
                 marginBottom: "1rem",
+                lineHeight: 1.4,
               }}
             >
               Solo debes agregar el documento del titular de la reserva
@@ -349,7 +341,14 @@ export function GuestCard({
               {esCedula && (
                 <>
                   <Field label="Foto cédula frente / ID front">
-                    <div style={{ display: "flex", flexDirection: "column" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        width: "100%",
+                        minWidth: 0,
+                      }}
+                    >
                       <input
                         type="file"
                         name="archivoCedula"
@@ -357,7 +356,14 @@ export function GuestCard({
                         style={styles.fileInput}
                       />
                       {(data as any).archivoCedula && (
-                        <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
+                        <span
+                          style={{
+                            color: "#10b981",
+                            fontSize: "0.8rem",
+                            marginTop: "0.35rem",
+                            wordBreak: "break-word",
+                          }}
+                        >
                           {((data as any).archivoCedula as File).name}
                         </span>
                       )}
@@ -365,7 +371,14 @@ export function GuestCard({
                   </Field>
 
                   <Field label="Foto cédula atrás / ID back">
-                    <div style={{ display: "flex", flexDirection: "column" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        width: "100%",
+                        minWidth: 0,
+                      }}
+                    >
                       <input
                         type="file"
                         name="archivoFirma"
@@ -373,7 +386,14 @@ export function GuestCard({
                         style={styles.fileInput}
                       />
                       {(data as any).archivoFirma && (
-                        <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
+                        <span
+                          style={{
+                            color: "#10b981",
+                            fontSize: "0.8rem",
+                            marginTop: "0.35rem",
+                            wordBreak: "break-word",
+                          }}
+                        >
                           {((data as any).archivoFirma as File).name}
                         </span>
                       )}
@@ -384,7 +404,14 @@ export function GuestCard({
 
               {esPasaporte && (
                 <Field label="Foto pasaporte / Passport photo">
-                  <div style={{ display: "flex", flexDirection: "column" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      width: "100%",
+                      minWidth: 0,
+                    }}
+                  >
                     <input
                       type="file"
                       name="archivoPasaporte"
@@ -392,7 +419,14 @@ export function GuestCard({
                       style={styles.fileInput}
                     />
                     {(data as any).archivoPasaporte && (
-                      <span style={{ color: "#10b981", fontSize: "0.8rem" }}>
+                      <span
+                        style={{
+                          color: "#10b981",
+                          fontSize: "0.8rem",
+                          marginTop: "0.35rem",
+                          wordBreak: "break-word",
+                        }}
+                      >
                         {((data as any).archivoPasaporte as File).name}
                       </span>
                     )}
@@ -408,6 +442,7 @@ export function GuestCard({
                     fontSize: "0.85rem",
                     textAlign: "center",
                     padding: "0.75rem 0",
+                    lineHeight: 1.4,
                   }}
                 >
                   Selecciona el tipo de documento (Cédula o Pasaporte) para
@@ -419,9 +454,13 @@ export function GuestCard({
         </>
       )}
 
-      {/* ✅ BOTÓN ELIMINAR (solo desde el huésped 2 en adelante) */}
       {!esTitular && (
-        <div style={{ textAlign: "right", marginTop: "0.75rem" }}>
+        <div
+          style={{
+            textAlign: isMobile ? "center" : "right",
+            marginTop: "0.75rem",
+          }}
+        >
           <button
             type="button"
             onClick={() => onRemove?.(index)}
@@ -429,11 +468,12 @@ export function GuestCard({
               background: "#dc2626",
               color: "white",
               border: "none",
-              padding: "0.55rem 1rem",
+              padding: "0.7rem 1rem",
               borderRadius: "0.45rem",
               cursor: "pointer",
               fontSize: "0.85rem",
               fontWeight: 700,
+              width: isMobile ? "100%" : "auto",
             }}
           >
             Eliminar huésped

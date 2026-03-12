@@ -382,11 +382,12 @@ export default function AdminDashboard() {
                       👁
                     </button>
 
-                    {!!h.codigoTTLock && (
-                      <button style={btnTtlock} onClick={() => abrirModalExtension(h)}>
-                        ⏰
-                      </button>
-                    )}
+                    <button
+                      style={btnTtlock}
+                      onClick={() => abrirModalExtension(h)}
+                    >
+                      ⏰
+                    </button>
 
                     <button style={btnDelete} onClick={() => eliminar(h.id)}>
                       ❌
@@ -443,17 +444,25 @@ export default function AdminDashboard() {
                         "-"
                       )}
                     </td>
-                    <td style={td}>{h.codigoTTLock ?? "-"}</td>
-                    <td style={{ ...td, display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <td style={td}>Oculto</td>
+                    <td
+                      style={{
+                        ...td,
+                        display: "flex",
+                        gap: "0.5rem",
+                        flexWrap: "wrap",
+                      }}
+                    >
                       <button style={btnEye} onClick={() => setDetalle(h)}>
                         👁
                       </button>
 
-                      {!!h.codigoTTLock && (
-                        <button style={btnTtlock} onClick={() => abrirModalExtension(h)}>
-                          ⏰
-                        </button>
-                      )}
+                      <button
+                        style={btnTtlock}
+                        onClick={() => abrirModalExtension(h)}
+                      >
+                        ⏰
+                      </button>
 
                       <button style={btnDelete} onClick={() => eliminar(h.id)}>
                         ❌
@@ -484,7 +493,8 @@ export default function AdminDashboard() {
               <b>Nombre:</b> {detalle.nombre}
             </p>
             <p>
-              <b>Documento:</b> {detalle.tipoDocumento} {detalle.numeroDocumento}
+              <b>Documento:</b> {detalle.tipoDocumento}{" "}
+              {detalle.numeroDocumento}
             </p>
             <p>
               <b>Nacionalidad:</b> {detalle.nacionalidad}
@@ -520,7 +530,7 @@ export default function AdminDashboard() {
               <b>Checkin URL:</b> {detalle.checkinUrl ?? "-"}
             </p>
             <p>
-              <b>Código TTLock:</b> {detalle.codigoTTLock ?? "-"}
+              <b>Código TTLock:</b> Oculto por seguridad
             </p>
 
             <div style={imagenesDetalleGrid}>
@@ -541,7 +551,9 @@ export default function AdminDashboard() {
                   src={`${API_BASE}/uploads/${detalle.archivoCedula}`}
                   style={imagenDetalle}
                   onClick={() =>
-                    setImagenZoom(`${API_BASE}/uploads/${detalle.archivoCedula}`)
+                    setImagenZoom(
+                      `${API_BASE}/uploads/${detalle.archivoCedula}`
+                    )
                   }
                   alt="Cédula"
                 />
@@ -551,7 +563,9 @@ export default function AdminDashboard() {
                   src={`${API_BASE}/uploads/${detalle.archivoFirma}`}
                   style={imagenDetalle}
                   onClick={() =>
-                    setImagenZoom(`${API_BASE}/uploads/${detalle.archivoFirma}`)
+                    setImagenZoom(
+                      `${API_BASE}/uploads/${detalle.archivoFirma}`
+                    )
                   }
                   alt="Firma"
                 />
@@ -565,7 +579,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ✅ NUEVO: modal para extender TTLock */}
       {editTtlock && (
         <div style={modal}>
           <div style={modalBox}>
@@ -578,7 +591,7 @@ export default function AdminDashboard() {
               <b>Reserva:</b> {editTtlock.numeroReserva}
             </p>
             <p>
-              <b>Código actual:</b> {editTtlock.codigoTTLock ?? "-"}
+              <b>Código TTLock:</b> Oculto por seguridad
             </p>
             <p>
               <b>Salida actual:</b> {editTtlock.fechaSalida ?? "-"}

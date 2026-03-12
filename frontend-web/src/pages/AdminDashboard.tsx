@@ -57,14 +57,17 @@ export default function AdminDashboard() {
   const [scope, setScope] = useState<"hoy" | "todos">("todos");
   const [imagenZoom, setImagenZoom] = useState<string | null>(null);
 
+  const normalizarFecha = (value?: string | null) => {
+    if (!value) return "";
+    const s = String(value).trim();
+    if (!s) return "";
+    if (s.includes("T")) return s.split("T")[0];
+    return s.slice(0, 10);
+  };
+
   const cargarHuespedes = async () => {
     try {
-      const url =
-        scope === "hoy"
-          ? `${API_BASE}/checkin/hoy`
-          : `${API_BASE}/admin/huespedes`;
-
-      const res = await fetch(url);
+      const res = await fetch(`${API_BASE}/admin/huespedes`);
       const json = await res.json();
 
       const lista: Huesped[] =
@@ -75,7 +78,7 @@ export default function AdminDashboard() {
       setHuespedes(lista);
     } catch (e) {
       console.error(e);
-      alert("Error cargando huéspedes. Revisa el endpoint del backend.");
+      alert("Error cargando huéspedes.");
       setHuespedes([]);
     }
   };
@@ -97,13 +100,25 @@ export default function AdminDashboard() {
       cargarMetrics();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autenticado, scope]);
+  }, [autenticado]);
 
   const filtrados = useMemo(() => {
-    const f = filtro.toLowerCase().trim();
-    if (!f) return huespedes;
+    const hoy = new Date();
+    const yyyy = hoy.getFullYear();
+    const mm = String(hoy.getMonth() + 1).padStart(2, "0");
+    const dd = String(hoy.getDate()).padStart(2, "0");
+    const hoyStr = `${yyyy}-${mm}-${dd}`;
 
-    return huespedes.filter((h) => {
+    let base = huespedes;
+
+    if (scope === "hoy") {
+      base = base.filter((h) => normalizarFecha(h.fechaIngreso) === hoyStr);
+    }
+
+    const f = filtro.toLowerCase().trim();
+    if (!f) return base;
+
+    return base.filter((h) => {
       const texto = `
         ${h.nombre}
         ${h.numeroDocumento}
@@ -111,9 +126,10 @@ export default function AdminDashboard() {
         ${h.email}
         ${h.numeroReserva}
       `.toLowerCase();
+
       return texto.includes(f);
     });
-  }, [huespedes, filtro]);
+  }, [huespedes, filtro, scope]);
 
   const eliminar = async (id: number) => {
     if (!confirm("¿Eliminar huésped?")) return;
@@ -489,6 +505,7 @@ const loginContainer: React.CSSProperties = {
   justifyContent: "center",
   alignItems: "center",
 };
+
 const loginBox: React.CSSProperties = {
   background: "#020617",
   padding: "2rem",
@@ -497,6 +514,7 @@ const loginBox: React.CSSProperties = {
   color: "white",
   width: "300px",
 };
+
 const btnLogin: React.CSSProperties = {
   marginTop: "1rem",
   background: "#2563eb",
@@ -546,6 +564,7 @@ const metricsGrid: React.CSSProperties = {
   gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
   marginBottom: "1rem",
 };
+
 const metricCard: React.CSSProperties = {
   background: "#0f172a",
   padding: "1rem",

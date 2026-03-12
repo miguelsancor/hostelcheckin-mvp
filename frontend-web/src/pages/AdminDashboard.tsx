@@ -57,6 +57,11 @@ export default function AdminDashboard() {
   const [scope, setScope] = useState<"hoy" | "todos">("todos");
   const [imagenZoom, setImagenZoom] = useState<string | null>(null);
 
+  // ✅ NUEVO: estados para extensión TTLock
+  const [editTtlock, setEditTtlock] = useState<Huesped | null>(null);
+  const [newTtlockEnd, setNewTtlockEnd] = useState("");
+  const [savingTtlock, setSavingTtlock] = useState(false);
+
   const normalizarFecha = (value?: string | null) => {
     if (!value) return "";
     const s = String(value).trim();
@@ -165,6 +170,62 @@ export default function AdminDashboard() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Huespedes");
     XLSX.writeFile(wb, `huespedes_${Date.now()}.xlsx`);
+  };
+
+  // ✅ NUEVO: abrir modal TTLock
+  const abrirModalExtension = (h: Huesped) => {
+    setEditTtlock(h);
+
+    const baseDate =
+      normalizarFecha(h.fechaSalida || "") ||
+      normalizarFecha(h.fechaIngreso || "");
+    const defaultValue = baseDate ? `${baseDate}T12:00` : "";
+
+    setNewTtlockEnd(defaultValue);
+  };
+
+  // ✅ NUEVO: guardar extensión TTLock
+  const guardarExtensionTtlock = async () => {
+    if (!editTtlock) return;
+
+    if (!newTtlockEnd || !newTtlockEnd.trim()) {
+      alert("Debes seleccionar una nueva fecha/hora.");
+      return;
+    }
+
+    try {
+      setSavingTtlock(true);
+
+      const res = await fetch(
+        `${API_BASE}/mcp/passcode/extend/${editTtlock.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            newEndDate: newTtlockEnd,
+          }),
+        }
+      );
+
+      const json = await res.json();
+
+      if (!res.ok || !json?.ok) {
+        alert(json?.error || "No se pudo extender el código TTLock.");
+        return;
+      }
+
+      alert("Código TTLock extendido correctamente.");
+      setEditTtlock(null);
+      setNewTtlockEnd("");
+      await cargarHuespedes();
+    } catch (e) {
+      console.error(e);
+      alert("Error actualizando TTLock.");
+    } finally {
+      setSavingTtlock(false);
+    }
   };
 
   if (!autenticado) {
@@ -314,11 +375,19 @@ export default function AdminDashboard() {
                       display: "flex",
                       gap: "0.5rem",
                       marginTop: "1rem",
+                      flexWrap: "wrap",
                     }}
                   >
                     <button style={btnEye} onClick={() => setDetalle(h)}>
                       👁
                     </button>
+
+                    {!!h.codigoTTLock && (
+                      <button style={btnTtlock} onClick={() => abrirModalExtension(h)}>
+                        ⏰
+                      </button>
+                    )}
+
                     <button style={btnDelete} onClick={() => eliminar(h.id)}>
                       ❌
                     </button>
@@ -375,10 +444,17 @@ export default function AdminDashboard() {
                       )}
                     </td>
                     <td style={td}>{h.codigoTTLock ?? "-"}</td>
-                    <td style={{ ...td, display: "flex", gap: "0.5rem" }}>
+                    <td style={{ ...td, display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                       <button style={btnEye} onClick={() => setDetalle(h)}>
                         👁
                       </button>
+
+                      {!!h.codigoTTLock && (
+                        <button style={btnTtlock} onClick={() => abrirModalExtension(h)}>
+                          ⏰
+                        </button>
+                      )}
+
                       <button style={btnDelete} onClick={() => eliminar(h.id)}>
                         ❌
                       </button>
@@ -485,6 +561,68 @@ export default function AdminDashboard() {
             <button onClick={() => setDetalle(null)} style={btnClose}>
               Cerrar
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ NUEVO: modal para extender TTLock */}
+      {editTtlock && (
+        <div style={modal}>
+          <div style={modalBox}>
+            <h3>Extender código TTLock</h3>
+
+            <p>
+              <b>Huésped:</b> {editTtlock.nombre}
+            </p>
+            <p>
+              <b>Reserva:</b> {editTtlock.numeroReserva}
+            </p>
+            <p>
+              <b>Código actual:</b> {editTtlock.codigoTTLock ?? "-"}
+            </p>
+            <p>
+              <b>Salida actual:</b> {editTtlock.fechaSalida ?? "-"}
+            </p>
+
+            <div style={{ marginTop: "1rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem" }}>
+                Nueva fecha / hora fin
+              </label>
+              <input
+                type="datetime-local"
+                value={newTtlockEnd}
+                onChange={(e) => setNewTtlockEnd(e.target.value)}
+                style={input}
+              />
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "0.75rem",
+                marginTop: "1rem",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                onClick={() => {
+                  setEditTtlock(null);
+                  setNewTtlockEnd("");
+                }}
+                style={btnToggle}
+                disabled={savingTtlock}
+              >
+                Cancelar
+              </button>
+
+              <button
+                onClick={guardarExtensionTtlock}
+                style={btnTtlock}
+                disabled={savingTtlock}
+              >
+                {savingTtlock ? "Guardando..." : "Guardar extensión"}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -624,6 +762,15 @@ const btnDelete: React.CSSProperties = {
 
 const btnEye: React.CSSProperties = {
   background: "#2563eb",
+  color: "white",
+  border: "none",
+  padding: "0.3rem 0.6rem",
+  borderRadius: "0.4rem",
+  cursor: "pointer",
+};
+
+const btnTtlock: React.CSSProperties = {
+  background: "#f59e0b",
   color: "white",
   border: "none",
   padding: "0.3rem 0.6rem",

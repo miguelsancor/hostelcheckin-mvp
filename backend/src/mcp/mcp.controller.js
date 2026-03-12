@@ -640,6 +640,181 @@ async function deletePasscode(req, res) {
 }
 
 /* =======================================================================
+   Extender PASSCODE(s) activos por huésped
+   ✅ No rompe lo existente
+   ✅ Toma todos los passcodes ACTIVO del huésped
+   ✅ Actualiza TTLock y luego la BD
+   ======================================================================= */
+async function extendPasscodeByGuest(req, res) {
+  try {
+    const huespedId = Number(req.params?.huespedId || req.body?.huespedId);
+    const { newEndDate } = req.body || {};
+
+    if (!huespedId || !newEndDate) {
+      return res.status(400).json({
+        ok: false,
+        error: "huespedId y newEndDate son requeridos",
+      });
+    }
+
+    const newEndAt = new Date(String(newEndDate)).getTime();
+
+    if (!Number.isFinite(newEndAt)) {
+      return res.status(400).json({
+        ok: false,
+        error: "newEndDate inválido",
+      });
+    }
+
+    const huesped = await prisma.huesped.findUnique({
+      where: { id: huespedId },
+    });
+
+    if (!huesped) {
+      return res.status(404).json({
+        ok: false,
+        error: "Huésped no encontrado",
+      });
+    }
+
+    const passcodes = await prisma.passcode.findMany({
+      where: {
+        huespedId,
+        estado: "ACTIVO",
+      },
+      orderBy: {
+        id: "desc",
+      },
+    });
+
+    if (!passcodes.length) {
+      return res.status(404).json({
+        ok: false,
+        error: "No se encontraron passcodes activos para este huésped",
+      });
+    }
+
+    const accessToken = await getAccessToken();
+    const resultados = [];
+
+    for (const pc of passcodes) {
+      if (
+        pc.lockId === null ||
+        pc.lockId === undefined ||
+        pc.keyboardPwdId === null ||
+        pc.keyboardPwdId === undefined ||
+        !pc.codigo ||
+        pc.startDate === null ||
+        pc.startDate === undefined
+      ) {
+        resultados.push({
+          passcodeId: pc.id,
+          lockId: pc.lockId ?? null,
+          keyboardPwdId: pc.keyboardPwdId ?? null,
+          codigo: pc.codigo ?? null,
+          ok: false,
+          error: "Passcode incompleto en BD",
+        });
+        continue;
+      }
+
+      const startDateNum = Number(pc.startDate);
+
+      if (!Number.isFinite(startDateNum)) {
+        resultados.push({
+          passcodeId: pc.id,
+          lockId: pc.lockId,
+          keyboardPwdId: pc.keyboardPwdId,
+          codigo: pc.codigo,
+          ok: false,
+          error: "startDate inválido en BD",
+        });
+        continue;
+      }
+
+      if (newEndAt <= startDateNum) {
+        resultados.push({
+          passcodeId: pc.id,
+          lockId: pc.lockId,
+          keyboardPwdId: pc.keyboardPwdId,
+          codigo: pc.codigo,
+          ok: false,
+          error: "La nueva fecha debe ser mayor al startDate del passcode",
+        });
+        continue;
+      }
+
+      const r = await ttPost("/v3/keyboardPwd/change", {
+        clientId: process.env.TTLOCK_CLIENT_ID,
+        accessToken,
+        lockId: Number(pc.lockId),
+        keyboardPwdId: Number(pc.keyboardPwdId),
+        keyboardPwd: String(pc.codigo),
+        startDate: startDateNum,
+        endDate: newEndAt,
+        changeType: 2,
+        date: nowMs(),
+      });
+
+      const ok = parseInt(r?.errcode ?? -1, 10) === 0;
+
+      if (ok) {
+        await prisma.passcode.update({
+          where: { id: pc.id },
+          data: {
+            endDate: BigInt(String(newEndAt)),
+            ttlockOk: true,
+            ttlockMessage: "EXTENDIDO",
+          },
+        });
+      } else {
+        await prisma.passcode.update({
+          where: { id: pc.id },
+          data: {
+            ttlockOk: false,
+            ttlockMessage: `ERROR_EXTEND: ${JSON.stringify(r)}`,
+          },
+        });
+      }
+
+      resultados.push({
+        passcodeId: pc.id,
+        lockId: pc.lockId,
+        lockAlias: pc.lockAlias || null,
+        keyboardPwdId: pc.keyboardPwdId,
+        codigo: pc.codigo,
+        ok,
+        result: r,
+      });
+    }
+
+    const updated = resultados.filter((x) => x.ok).length;
+
+    return res.json({
+      ok: updated > 0,
+      updated,
+      total: resultados.length,
+      huesped: {
+        id: huesped.id,
+        nombre: huesped.nombre,
+        numeroReserva: huesped.numeroReserva,
+      },
+      resultados,
+    });
+  } catch (err) {
+    console.error(
+      "ERROR /extend-passcode-by-guest:",
+      err?.response?.data || err.message
+    );
+    return res.status(500).json({
+      ok: false,
+      error: "Error extendiendo passcodes del huésped",
+      details: err?.response?.data || err.message,
+    });
+  }
+}
+
+/* =======================================================================
    Debug env
    ======================================================================= */
 function debugEnv(_req, res) {
@@ -664,5 +839,6 @@ module.exports = {
   createPasscodeAll,
   listPasscodesAll,
   deletePasscode,
+  extendPasscodeByGuest,
   debugEnv,
 };

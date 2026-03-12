@@ -11,6 +11,7 @@ const {
   createPasscodeAll,
   listPasscodesAll,
   deletePasscode,
+  extendPasscodeByGuest,
   debugEnv,
 } = require("./mcp.controller");
 
@@ -24,6 +25,8 @@ router.post("/create-passcode-all", createPasscodeAll);
 router.post("/list-passcodes-all", listPasscodesAll);
 router.post("/delete-passcode", deletePasscode);
 
+// ✅ NUEVO: extender passcodes activos de un huésped
+router.put("/passcode/extend/:huespedId", extendPasscodeByGuest);
 
 // debug env
 router.get("/debug/env", debugEnv);

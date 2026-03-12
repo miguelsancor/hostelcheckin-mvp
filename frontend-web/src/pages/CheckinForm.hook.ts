@@ -342,7 +342,7 @@ export function useCheckinForm() {
   /* ======================= HOY ======================= */
   const cargarHuespedesHoy = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/checkin/hoy`);
+      const res = await fetch(`${API_BASE}/checkin/hoy`);
       const json = await res.json();
       setHuespedesHoy(json.huespedes || []);
     } catch {

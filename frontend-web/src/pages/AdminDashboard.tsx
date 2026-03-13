@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
 const API_BASE = "/api";
-const ADMIN_PASSWORD = "admin123";
 
 type Huesped = {
   id: number;
@@ -30,24 +29,12 @@ type Huesped = {
 };
 
 export default function AdminDashboard() {
-  const [autenticado, setAutenticado] = useState<boolean>(
-    localStorage.getItem("admin_auth") === "true"
-  );
+  const [autenticado, setAutenticado] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-
-  const login = () => {
-    if (password === ADMIN_PASSWORD) {
-      localStorage.setItem("admin_auth", "true");
-      setAutenticado(true);
-    } else {
-      alert("Clave incorrecta");
-    }
-  };
-
-  const logout = () => {
-    localStorage.removeItem("admin_auth");
-    setAutenticado(false);
-  };
+  const [loginLoading, setLoginLoading] = useState(false);
 
   const [huespedes, setHuespedes] = useState<Huesped[]>([]);
   const [filtro, setFiltro] = useState("");
@@ -57,7 +44,6 @@ export default function AdminDashboard() {
   const [scope, setScope] = useState<"hoy" | "todos">("todos");
   const [imagenZoom, setImagenZoom] = useState<string | null>(null);
 
-  // ✅ NUEVO: estados para extensión TTLock
   const [editTtlock, setEditTtlock] = useState<Huesped | null>(null);
   const [newTtlockEnd, setNewTtlockEnd] = useState("");
   const [savingTtlock, setSavingTtlock] = useState(false);
@@ -70,9 +56,100 @@ export default function AdminDashboard() {
     return s.slice(0, 10);
   };
 
+  const getSecureUploadUrl = (file?: string | null) => {
+    if (!file) return null;
+    return `${API_BASE}/admin/uploads/${encodeURIComponent(file)}`;
+  };
+
+  const checkSession = async () => {
+    try {
+      setCheckingSession(true);
+
+      const res = await fetch(`${API_BASE}/admin/auth/session`, {
+        method: "GET",
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        setAutenticado(false);
+        return;
+      }
+
+      const json = await res.json();
+      setAutenticado(!!json?.ok);
+    } catch (e) {
+      console.error(e);
+      setAutenticado(false);
+    } finally {
+      setCheckingSession(false);
+    }
+  };
+
+  const login = async () => {
+    try {
+      if (!username.trim() || !password.trim()) {
+        alert("Debes ingresar usuario y contraseña.");
+        return;
+      }
+
+      setLoginLoading(true);
+
+      const res = await fetch(`${API_BASE}/admin/auth/login`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: username.trim(),
+          password,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json?.ok) {
+        alert(json?.error || "No se pudo iniciar sesión");
+        return;
+      }
+
+      setPassword("");
+      setAutenticado(true);
+    } catch (e) {
+      console.error(e);
+      alert("Error iniciando sesión.");
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await fetch(`${API_BASE}/admin/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setAutenticado(false);
+      setHuespedes([]);
+      setMetrics(null);
+      setDetalle(null);
+    }
+  };
+
   const cargarHuespedes = async () => {
     try {
-      const res = await fetch(`${API_BASE}/admin/huespedes`);
+      const res = await fetch(`${API_BASE}/admin/huespedes`, {
+        credentials: "include",
+      });
+
+      if (res.status === 401) {
+        setAutenticado(false);
+        return;
+      }
+
       const json = await res.json();
 
       const lista: Huesped[] =
@@ -90,7 +167,15 @@ export default function AdminDashboard() {
 
   const cargarMetrics = async () => {
     try {
-      const res = await fetch(`${API_BASE}/admin/metrics`);
+      const res = await fetch(`${API_BASE}/admin/metrics`, {
+        credentials: "include",
+      });
+
+      if (res.status === 401) {
+        setAutenticado(false);
+        return;
+      }
+
       const json = await res.json();
       setMetrics(json);
     } catch (e) {
@@ -98,6 +183,10 @@ export default function AdminDashboard() {
       setMetrics(null);
     }
   };
+
+  useEffect(() => {
+    checkSession();
+  }, []);
 
   useEffect(() => {
     if (autenticado) {
@@ -138,9 +227,19 @@ export default function AdminDashboard() {
 
   const eliminar = async (id: number) => {
     if (!confirm("¿Eliminar huésped?")) return;
-    await fetch(`${API_BASE}/admin/huespedes/${id}`, { method: "DELETE" });
-    cargarHuespedes();
-    cargarMetrics();
+
+    const res = await fetch(`${API_BASE}/admin/huespedes/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    if (res.status === 401) {
+      setAutenticado(false);
+      return;
+    }
+
+    await cargarHuespedes();
+    await cargarMetrics();
   };
 
   const exportarExcel = () => {
@@ -172,7 +271,6 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, `huespedes_${Date.now()}.xlsx`);
   };
 
-  // ✅ NUEVO: abrir modal TTLock
   const abrirModalExtension = (h: Huesped) => {
     setEditTtlock(h);
 
@@ -184,7 +282,6 @@ export default function AdminDashboard() {
     setNewTtlockEnd(defaultValue);
   };
 
-  // ✅ NUEVO: guardar extensión TTLock
   const guardarExtensionTtlock = async () => {
     if (!editTtlock) return;
 
@@ -200,6 +297,7 @@ export default function AdminDashboard() {
         `${API_BASE}/mcp/passcode/extend/${editTtlock.id}`,
         {
           method: "PUT",
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
@@ -228,20 +326,43 @@ export default function AdminDashboard() {
     }
   };
 
+  if (checkingSession) {
+    return (
+      <div style={loginContainer}>
+        <div style={loginBox}>
+          <h2>Validando sesión...</h2>
+        </div>
+      </div>
+    );
+  }
+
   if (!autenticado) {
     return (
       <div style={loginContainer}>
         <div style={loginBox}>
           <h2>Acceso Administrativo</h2>
+
+          <input
+            type="text"
+            placeholder="Usuario"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            style={input}
+          />
+
           <input
             type="password"
             placeholder="Clave de administrador"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            style={input}
+            style={{ ...input, marginTop: "0.75rem" }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") login();
+            }}
           />
-          <button onClick={login} style={btnLogin}>
-            Ingresar
+
+          <button onClick={login} style={btnLogin} disabled={loginLoading}>
+            {loginLoading ? "Ingresando..." : "Ingresar"}
           </button>
         </div>
       </div>
@@ -310,15 +431,9 @@ export default function AdminDashboard() {
         {vista === "galeria" && (
           <div style={galeriaGrid}>
             {filtrados.map((h) => {
-              const urlPasaporte = h.archivoPasaporte
-                ? `${API_BASE}/uploads/${h.archivoPasaporte}`
-                : null;
-              const urlCedula = h.archivoCedula
-                ? `${API_BASE}/uploads/${h.archivoCedula}`
-                : null;
-              const urlFirma = h.archivoFirma
-                ? `${API_BASE}/uploads/${h.archivoFirma}`
-                : null;
+              const urlPasaporte = getSecureUploadUrl(h.archivoPasaporte);
+              const urlCedula = getSecureUploadUrl(h.archivoCedula);
+              const urlFirma = getSecureUploadUrl(h.archivoFirma);
 
               const thumbUrl = urlPasaporte || urlCedula || urlFirma || null;
 
@@ -536,11 +651,11 @@ export default function AdminDashboard() {
             <div style={imagenesDetalleGrid}>
               {detalle.archivoPasaporte && (
                 <img
-                  src={`${API_BASE}/uploads/${detalle.archivoPasaporte}`}
+                  src={getSecureUploadUrl(detalle.archivoPasaporte) || ""}
                   style={imagenDetalle}
                   onClick={() =>
                     setImagenZoom(
-                      `${API_BASE}/uploads/${detalle.archivoPasaporte}`
+                      getSecureUploadUrl(detalle.archivoPasaporte) || null
                     )
                   }
                   alt="Pasaporte"
@@ -548,11 +663,11 @@ export default function AdminDashboard() {
               )}
               {detalle.archivoCedula && (
                 <img
-                  src={`${API_BASE}/uploads/${detalle.archivoCedula}`}
+                  src={getSecureUploadUrl(detalle.archivoCedula) || ""}
                   style={imagenDetalle}
                   onClick={() =>
                     setImagenZoom(
-                      `${API_BASE}/uploads/${detalle.archivoCedula}`
+                      getSecureUploadUrl(detalle.archivoCedula) || null
                     )
                   }
                   alt="Cédula"
@@ -560,11 +675,11 @@ export default function AdminDashboard() {
               )}
               {detalle.archivoFirma && (
                 <img
-                  src={`${API_BASE}/uploads/${detalle.archivoFirma}`}
+                  src={getSecureUploadUrl(detalle.archivoFirma) || ""}
                   style={imagenDetalle}
                   onClick={() =>
                     setImagenZoom(
-                      `${API_BASE}/uploads/${detalle.archivoFirma}`
+                      getSecureUploadUrl(detalle.archivoFirma) || null
                     )
                   }
                   alt="Firma"

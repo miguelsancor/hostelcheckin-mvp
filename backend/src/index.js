@@ -4,39 +4,33 @@ require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-const fs = require("fs");
-const mime = require("mime-types");
 
 const checkinRoutes = require("./checkin/checkin.routes");
 const nobedsRoutes = require("./nobeds/nobeds.routes");
 const mcpRoutes = require("./mcp/mcp.routes");
 const adminRoutes = require("./admin/admin.routes");
 const adminAuthRoutes = require("./admin/admin.auth.routes");
-const adminFilesRoutes = require("./admin/admin.files.routes");
-const { requireAdminAuth } = require("./admin/admin.auth.middleware");
 
-// ✅ rutas TRA
+// ✅ NUEVO: rutas TRA
 const traRoutes = require("./tra/tra.routes");
 
 const app = express();
 
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  })
-);
-
+app.use(cors());
 app.use(cookieParser());
 app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
 /* ============================================================
-   SERVIR ARCHIVOS SUBIDOS (compatibilidad actual)
+   🔥 SERVIR ARCHIVOS SUBIDOS (IMÁGENES / FIRMAS / DOCUMENTOS)
    ============================================================ */
 const uploadsPath = path.join(__dirname, "..", "uploads");
+const fs = require("fs");
+const mime = require("mime-types");
 
-app.get("/uploads/:file", (req, res) => {
+/* ==========================================
+   SERVIR ARCHIVOS DE UPLOADS CON MIME REAL
+   ========================================== */
+function serveUpload(req, res) {
   const filename = req.params.file;
   const filepath = path.join(process.cwd(), "uploads", filename);
 
@@ -44,6 +38,7 @@ app.get("/uploads/:file", (req, res) => {
     return res.status(404).send("Archivo no encontrado");
   }
 
+  // Detectar tipo MIME correcto
   const mimeType = mime.lookup(filepath) || "application/octet-stream";
 
   res.setHeader("Content-Type", mimeType);
@@ -51,50 +46,37 @@ app.get("/uploads/:file", (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
 
   res.sendFile(filepath);
-});
+}
+
+app.get("/uploads/:file", serveUpload);
+
+// ✅ alias nuevo para dashboard admin actualizado
+app.get("/api/admin/uploads/:file", serveUpload);
 
 console.log("📁 Carpeta de uploads sirviéndose desde:", uploadsPath);
+
+/* ============================================================
+   RUTAS PRINCIPALES
+   ============================================================ */
+app.use("/api", checkinRoutes);        // /api/checkin, /api/checkin/...
+app.use("/api/nobeds", nobedsRoutes);  // /api/nobeds/reserva/:id, /reservas
+app.use("/api/tra", traRoutes);        // ✅ /api/tra/status/:reserva, /retry/:reserva
+
+// ✅ auth admin nuevo
+app.use("/api/admin/auth", adminAuthRoutes);
+
+// ✅ rutas estables existentes
+app.use("/mcp", mcpRoutes);            // /mcp/create-key, etc.
+app.use("/admin", adminRoutes);        // /admin/huespedes, /stats, etc.
+
+// ✅ aliases nuevos para frontend actualizado
+app.use("/api/mcp", mcpRoutes);        // /api/mcp/...
+app.use("/api/admin", adminRoutes);    // /api/admin/huespedes, /api/admin/metrics
 
 /* ============================================================
    HEALTHCHECK
    ============================================================ */
 app.get("/health", (_req, res) => res.json({ ok: true }));
-
-/* ============================================================
-   RUTAS PÚBLICAS PRINCIPALES
-   ============================================================ */
-app.use("/api", checkinRoutes);        // /api/checkin, /api/checkin/...
-app.use("/api/nobeds", nobedsRoutes);  // /api/nobeds/reserva/:id, /reservas
-app.use("/api/tra", traRoutes);        // /api/tra/status/:reserva, /retry/:reserva
-
-/* ============================================================
-   AUTH ADMIN NUEVO
-   ============================================================ */
-app.use("/api/admin/auth", adminAuthRoutes);
-
-/* ============================================================
-   ARCHIVOS ADMIN PROTEGIDOS
-   ============================================================ */
-app.use("/api/admin/uploads", requireAdminAuth, adminFilesRoutes);
-
-/* ============================================================
-   MCP
-   Dejamos ambos prefijos para no romper nada:
-   - legado: /mcp
-   - nuevo:  /api/mcp
-   ============================================================ */
-app.use("/mcp", mcpRoutes);
-app.use("/api/mcp", mcpRoutes);
-
-/* ============================================================
-   ADMIN
-   Dejamos ambos prefijos:
-   - legado: /admin
-   - nuevo:  /api/admin
-   OJO: /api/admin/auth ya está montado arriba y no se pisa.
-   ============================================================ */
-app.use("/admin", adminRoutes);
-app.use("/api/admin", requireAdminAuth, adminRoutes);
 
 /* ============================================================
    SERVER

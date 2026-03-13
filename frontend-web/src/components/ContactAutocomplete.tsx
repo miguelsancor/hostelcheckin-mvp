@@ -1,11 +1,28 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http:///api";
+
+export type ContactSuggestion = {
+  id?: number;
+  nombre?: string;
+  email?: string;
+  telefono?: string;
+  numeroReserva?: string;
+  [key: string]: any;
+};
 
 interface Props {
   value: string;
   onChange: (v: string) => void;
-  onSelectSuggestion?: (v: string) => void;
+  onSelectSuggestion?: (item: ContactSuggestion) => void;
+}
+
+function normalizePhone(raw: string) {
+  return String(raw || "").replace(/[^\d]/g, "");
+}
+
+function normalizeEmail(raw: string) {
+  return String(raw || "").trim().toLowerCase();
 }
 
 export default function ContactAutocomplete({
@@ -13,12 +30,27 @@ export default function ContactAutocomplete({
   onChange,
   onSelectSuggestion,
 }: Props) {
-  const [sugerencias, setSugerencias] = useState<any[]>([]);
+  const [sugerencias, setSugerencias] = useState<ContactSuggestion[]>([]);
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!value || value.length < 2) {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(event.target as Node)) {
+        setShow(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const raw = String(value || "").trim();
+
+    if (!raw || raw.length < 2) {
       setSugerencias([]);
       setShow(false);
       return;
@@ -28,14 +60,19 @@ export default function ContactAutocomplete({
       try {
         setLoading(true);
 
+        const query = raw.includes("@")
+          ? normalizeEmail(raw)
+          : normalizePhone(raw) || raw;
+
         const res = await fetch(
-          `${API_BASE}/api/checkin/contactos?query=${encodeURIComponent(value)}`
+          `${API_BASE}/api/checkin/contactos?query=${encodeURIComponent(query)}`
         );
 
         if (res.ok) {
           const data = await res.json();
-          setSugerencias(Array.isArray(data) ? data : []);
-          setShow(true);
+          const list = Array.isArray(data) ? data : [];
+          setSugerencias(list);
+          setShow(list.length > 0);
         } else {
           setSugerencias([]);
           setShow(false);
@@ -51,100 +88,116 @@ export default function ContactAutocomplete({
     return () => clearTimeout(timer);
   }, [value]);
 
-  const seleccionar = (item: any) => {
-    const texto = item.email || item.telefono || item.nombre || "";
-    onChange(texto);
+  const seleccionar = (item: ContactSuggestion) => {
+    const textoVisible =
+      item.telefono?.trim() ||
+      item.email?.trim() ||
+      item.nombre?.trim() ||
+      item.numeroReserva?.trim() ||
+      "";
+
+    onChange(textoVisible);
     setShow(false);
 
-    if (onSelectSuggestion) onSelectSuggestion(texto);
+    if (onSelectSuggestion) onSelectSuggestion(item);
   };
 
   return (
-    <div style={{ position: "relative" }}>
+    <div ref={wrapRef} style={{ position: "relative", width: "100%" }}>
       <input
         type="text"
-        placeholder="Email o Teléfono"
+        placeholder="Teléfono, email o nombre"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          onChange(e.target.value);
+          if (!show) setShow(true);
+        }}
         onFocus={() => sugerencias.length > 0 && setShow(true)}
         style={{
           width: "100%",
           padding: "0.75rem",
-          borderRadius: "0.5rem",
+          borderRadius: "0.75rem",
           border: "1px solid #4b5563",
           backgroundColor: "#fff",
           color: "#333",
+          outline: "none",
+          fontSize: "14px",
         }}
       />
 
-      {/* LISTA DE SUGERENCIAS (ARRIBA + 1 RENGLÓN) */}
       {show && sugerencias.length > 0 && (
         <ul
           style={{
             position: "absolute",
             left: 0,
             right: 0,
-
-            // ✅ ARRIBA del input
             bottom: "calc(100% + 8px)",
             top: "auto",
-
             width: "100%",
             background: "white",
-            borderRadius: "10px",
-            border: "1px solid #ccc",
-
-            // ✅ SOLO 1 RENGLÓN visible
-            maxHeight: "56px",
-            overflowY: "hidden",
-
+            borderRadius: "12px",
+            border: "1px solid #d1d5db",
+            maxHeight: "220px",
+            overflowY: "auto",
             padding: 0,
             margin: 0,
             zIndex: 99999,
-            boxShadow: "0 4px 10px rgba(0,0,0,0.15)",
+            boxShadow: "0 10px 24px rgba(0,0,0,0.18)",
+            listStyle: "none",
           }}
         >
-          {sugerencias.slice(0, 1).map((s, index) => {
-            const nombre =
-              s.nombre && s.nombre.trim().length > 0 ? s.nombre : "[Sin nombre]";
+          {sugerencias.slice(0, 5).map((s, index) => {
+            const telefono =
+              s.telefono && String(s.telefono).trim().length > 0
+                ? String(s.telefono).trim()
+                : "[Sin teléfono]";
 
-            const subtexto = s.email || s.telefono || "";
+            const sublinea = [
+              s.nombre,
+              s.email,
+              s.numeroReserva ? `Reserva ${s.numeroReserva}` : "",
+            ]
+              .filter(Boolean)
+              .join(" · ");
 
             return (
               <li
-                key={index}
+                key={`${s.numeroReserva || "sin-reserva"}-${index}`}
                 onMouseDown={() => seleccionar(s)}
                 style={{
-                  padding: "12px",
+                  padding: "12px 14px",
                   cursor: "pointer",
-                  listStyle: "none",
-                  borderBottom: "none",
+                  borderBottom:
+                    index !== Math.min(sugerencias.length, 5) - 1
+                      ? "1px solid #f1f5f9"
+                      : "none",
                   color: "#111",
                   backgroundColor: "white",
                 }}
               >
                 <div
                   style={{
-                    fontWeight: "600",
+                    fontWeight: 700,
                     fontSize: "0.95rem",
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                   }}
                 >
-                  {nombre}
+                  {telefono}
                 </div>
+
                 <div
                   style={{
-                    fontSize: "0.85rem",
-                    color: "#555",
-                    marginTop: "3px",
+                    fontSize: "0.83rem",
+                    color: "#6b7280",
+                    marginTop: "4px",
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                   }}
                 >
-                  {subtexto}
+                  {sublinea || "Sin más datos"}
                 </div>
               </li>
             );

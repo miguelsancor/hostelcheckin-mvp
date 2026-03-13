@@ -1,4 +1,3 @@
-// backend/src/checkin/checkin.controller.js
 const axios = require("axios");
 const prisma = require("../utils/prismaClient");
 const { generarNumeroReserva, toStr, toDateStr } = require("../utils/helpers");
@@ -518,7 +517,10 @@ async function buscarReserva(req, res) {
       return res.status(400).json({ ok: false, error: "Parámetros insuficientes" });
     }
 
-    if (!huesped) return res.status(404).json({ ok: false, error: "Reserva no encontrada" });
+    if (!huesped) {
+      return res.status(404).json({ ok: false, error: "Reserva no encontrada" });
+    }
+
     res.json(huesped);
   } catch (error) {
     console.error("error /api/checkin/buscar:", error);
@@ -556,11 +558,27 @@ async function contactos(req, res) {
     let { query } = req.query;
     if (!query) return res.json([]);
 
-    query = String(query).trim().toLowerCase();
+    const rawQuery = String(query).trim();
+    const q = rawQuery.toLowerCase();
+    const qDigits = rawQuery.replace(/[^\d]/g, "");
 
     const rawSqlite = await prisma.huesped.findMany({
-      where: { OR: [{ telefono: { contains: query } }, { email: { contains: query } }] },
-      select: { id: true, nombre: true, telefono: true, email: true, numeroReserva: true },
+      where: {
+        OR: [
+          { nombre: { contains: rawQuery } },
+          { email: { contains: q } },
+          { telefono: { contains: rawQuery } },
+          ...(qDigits ? [{ telefono: { contains: qDigits } }] : []),
+          { numeroReserva: { contains: rawQuery } },
+        ],
+      },
+      select: {
+        id: true,
+        nombre: true,
+        telefono: true,
+        email: true,
+        numeroReserva: true,
+      },
       take: 20,
     });
 
@@ -580,25 +598,50 @@ async function contactos(req, res) {
 
       if (Array.isArray(nbRes.data)) {
         nobeds = nbRes.data
-          .filter(
-            (r) =>
-              (r.email && r.email.toLowerCase().includes(query)) ||
-              (r.phone && String(r.phone).toLowerCase().includes(query))
-          )
+          .filter((r) => {
+            const firstName = String(r.first_name || "").trim();
+            const lastName = String(r.last_name || "").trim();
+            const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
+            const email = String(r.email || "").trim().toLowerCase();
+            const phone = String(r.phone || "").trim();
+            const phoneDigits = phone.replace(/[^\d]/g, "");
+            const orderId = String(r.order_id || "").trim();
+
+            return (
+              fullName.includes(q) ||
+              email.includes(q) ||
+              phone.includes(rawQuery) ||
+              (qDigits ? phoneDigits.includes(qDigits) : false) ||
+              orderId.includes(rawQuery)
+            );
+          })
           .map((r) => ({
             origen: "nobeds",
-            id: r.id || `nb-${r.phone || r.email}`,
-            nombre: `${r.first_name} ${r.last_name}`,
+            id: r.id || `nb-${r.phone || r.email || r.order_id}`,
+            nombre: `${String(r.first_name || "").trim()} ${String(r.last_name || "").trim()}`.trim(),
             telefono: r.phone,
             email: r.email,
-            numeroReserva: r.order_id,
+            numeroReserva: String(r.order_id || ""),
           }));
       }
     } catch (err) {
       console.error("Error obteniendo nobeds:", err.message);
     }
 
-    return res.json([...sqliteResults, ...nobeds].slice(0, 20));
+    const merged = [...sqliteResults, ...nobeds];
+
+    const unique = merged.filter(
+      (item, index, arr) =>
+        index ===
+        arr.findIndex(
+          (x) =>
+            String(x.numeroReserva || "") === String(item.numeroReserva || "") &&
+            String(x.email || "") === String(item.email || "") &&
+            String(x.telefono || "") === String(item.telefono || "")
+        )
+    );
+
+    return res.json(unique.slice(0, 20));
   } catch (error) {
     console.error("ERROR /api/checkin/contactos:", error);
     return res.status(500).json({ error: "Error interno" });
@@ -611,10 +654,23 @@ async function contactos(req, res) {
 async function buscarCombinado(req, res) {
   try {
     const { valor } = req.params;
-    if (!valor) return res.status(400).json({ ok: false, error: "Falta valor" });
+    if (!valor) {
+      return res.status(400).json({ ok: false, error: "Falta valor" });
+    }
+
+    const raw = String(valor).trim();
+    const q = raw.toLowerCase();
+    const qDigits = raw.replace(/[^\d]/g, "");
 
     let huesped = await prisma.huesped.findFirst({
-      where: { OR: [{ telefono: valor }, { email: valor }] },
+      where: {
+        OR: [
+          { telefono: raw },
+          { email: q },
+          { nombre: { contains: raw } },
+          ...(qDigits ? [{ telefono: { contains: qDigits } }] : []),
+        ],
+      },
     });
 
     if (huesped) return res.json({ ok: true, origen: "local", data: huesped });
@@ -623,13 +679,25 @@ async function buscarCombinado(req, res) {
     const { data } = await axios.get(url, { timeout: 20000 });
 
     if (Array.isArray(data)) {
-      const match = data.find(
-        (r) =>
-          (r.email && r.email.toLowerCase() === String(valor).toLowerCase()) ||
-          (r.phone && String(r.phone).trim() === String(valor).trim())
-      );
+      const match = data.find((r) => {
+        const firstName = String(r.first_name || "").trim();
+        const lastName = String(r.last_name || "").trim();
+        const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
+        const email = String(r.email || "").trim().toLowerCase();
+        const phone = String(r.phone || "").trim();
+        const phoneDigits = phone.replace(/[^\d]/g, "");
 
-      if (match) return res.json({ ok: true, origen: "nobeds", data: match });
+        return (
+          email === q ||
+          phone === raw ||
+          (qDigits ? phoneDigits === qDigits : false) ||
+          fullName.includes(q)
+        );
+      });
+
+      if (match) {
+        return res.json({ ok: true, origen: "nobeds", data: match });
+      }
     }
 
     return res.status(404).json({ ok: false, error: "No encontrado" });
@@ -645,7 +713,9 @@ async function buscarCombinado(req, res) {
 async function getByNumeroReserva(req, res) {
   try {
     const valor = String(req.params.numeroReserva).trim();
-    if (!valor) return res.status(400).json({ ok: false, error: "Falta numeroReserva" });
+    if (!valor) {
+      return res.status(400).json({ ok: false, error: "Falta numeroReserva" });
+    }
 
     const huesped = await prisma.huesped.findFirst({
       where: { OR: [{ numeroReserva: valor }, { numeroDocumento: valor }] },

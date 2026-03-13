@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import ContactAutocomplete from "../components/ContactAutocomplete";
+import ContactAutocomplete, {
+  type ContactSuggestion,
+} from "../components/ContactAutocomplete";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http:///api";
 
@@ -50,13 +52,15 @@ function normalizeEmail(raw: string) {
 }
 
 export default function Login() {
-  // ✅ CAMBIO 1: por defecto Email / Teléfono
+  // ✅ por defecto contacto
   const [tipoBusqueda, setTipoBusqueda] = useState<TipoBusqueda>("contacto");
 
   const [tipoDocumento, setTipoDocumento] = useState("Cédula");
   const [numeroDocumento, setNumeroDocumento] = useState("");
   const [codigoReserva, setCodigoReserva] = useState("");
   const [valorContacto, setValorContacto] = useState("");
+  const [contactoSeleccionado, setContactoSeleccionado] =
+    useState<ContactSuggestion | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [reservaEncontrada, setReservaEncontrada] = useState<any>(null);
@@ -66,7 +70,7 @@ export default function Login() {
     () => [
       { key: "codigo" as const, label: "Número de reserva" },
       { key: "documento" as const, label: "Documento" },
-      { key: "contacto" as const, label: "Email / Teléfono" },
+      { key: "contacto" as const, label: "Nombre / Email / Teléfono" },
     ],
     []
   );
@@ -174,7 +178,7 @@ export default function Login() {
   };
 
   /* ===============================================
-      ✅ BUSCAR RESERVA (sin tocar backend)
+      ✅ BUSCAR RESERVA
   =============================================== */
   const buscarReserva = async () => {
     try {
@@ -190,9 +194,11 @@ export default function Login() {
           alert("Ingresa el número de reserva");
           return;
         }
+
         const res = await fetch(
           `${API_BASE}/api/nobeds/reserva/${encodeURIComponent(code)}`
         );
+
         if (res.ok) {
           const data = await res.json();
           if (data?.ok && data?.reserva) reserva = data.reserva;
@@ -206,6 +212,7 @@ export default function Login() {
           alert("Ingresa el número de documento");
           return;
         }
+
         const res = await fetch(`${API_BASE}/api/checkin/buscar`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -214,62 +221,111 @@ export default function Login() {
             numeroDocumento: doc,
           }),
         });
+
         if (res.ok) reserva = await res.json();
       }
 
-      // 3) Contacto (email/teléfono) - tolerante
+      // 3) Contacto / Nombre
       if (tipoBusqueda === "contacto") {
         const raw = valorContacto.trim();
+
         if (!raw) {
-          alert("Ingresa email o teléfono");
+          alert("Ingresa nombre, email o teléfono");
           return;
         }
 
-        const isEmail = raw.includes("@");
-        const candidates = isEmail
-          ? [normalizeEmail(raw), raw.trim(), raw]
-          : phoneCandidates(raw).concat([raw.trim(), raw]);
+        // ✅ si el usuario eligió una sugerencia, usar primero su numeroReserva
+        if (contactoSeleccionado?.numeroReserva) {
+          const nr = String(contactoSeleccionado.numeroReserva).trim();
 
-        for (const v of Array.from(new Set(candidates)).filter(Boolean)) {
-          const res = await fetch(
-            `${API_BASE}/api/checkin/buscar-combinado/${encodeURIComponent(v)}`
-          );
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.ok && data?.data) {
-              reserva = data.data;
-              break;
+          if (nr) {
+            const nb = await fetch(
+              `${API_BASE}/api/nobeds/reserva/${encodeURIComponent(nr)}`
+            );
+
+            if (nb.ok) {
+              const data = await nb.json();
+              if (data?.ok && data?.reserva) {
+                reserva = data.reserva;
+              }
+            }
+
+            if (!reserva) {
+              const local = await fetch(
+                `${API_BASE}/api/checkin/por-reserva/${encodeURIComponent(nr)}`
+              );
+
+              if (local.ok) {
+                const data = await local.json();
+                if (data?.ok && data?.data) {
+                  reserva = data.data;
+                }
+              }
             }
           }
         }
 
-        // fallback: autocomplete contactos
+        // ✅ flujo actual tolerante por email / teléfono
         if (!reserva) {
-          const q = isEmail ? normalizeEmail(raw) : normalizePhone(raw);
+          const isEmail = raw.includes("@");
+          const candidates = isEmail
+            ? [normalizeEmail(raw), raw.trim(), raw]
+            : phoneCandidates(raw).concat([raw.trim(), raw]);
+
+          for (const v of Array.from(new Set(candidates)).filter(Boolean)) {
+            const res = await fetch(
+              `${API_BASE}/api/checkin/buscar-combinado/${encodeURIComponent(v)}`
+            );
+
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.ok && data?.data) {
+                reserva = data.data;
+                break;
+              }
+            }
+          }
+        }
+
+        // ✅ fallback predictivo por nombre/email/teléfono
+        if (!reserva) {
+          const q = raw.includes("@")
+            ? normalizeEmail(raw)
+            : normalizePhone(raw) || raw;
+
           const res = await fetch(
             `${API_BASE}/api/checkin/contactos?query=${encodeURIComponent(q)}`
           );
+
           if (res.ok) {
             const list = await res.json();
+
             if (Array.isArray(list) && list.length > 0) {
               const best = list[0];
               const nr = String(best?.numeroReserva || "").trim();
+
               if (nr) {
                 const nb = await fetch(
                   `${API_BASE}/api/nobeds/reserva/${encodeURIComponent(nr)}`
                 );
+
                 if (nb.ok) {
                   const data = await nb.json();
-                  if (data?.ok && data?.reserva) reserva = data.reserva;
+                  if (data?.ok && data?.reserva) {
+                    reserva = data.reserva;
+                  }
                 }
 
                 if (!reserva) {
                   const local = await fetch(
                     `${API_BASE}/api/checkin/por-reserva/${encodeURIComponent(nr)}`
                   );
+
                   if (local.ok) {
                     const data = await local.json();
-                    if (data?.ok && data?.data) reserva = data.data;
+                    if (data?.ok && data?.data) {
+                      reserva = data.data;
+                    }
                   }
                 }
               }
@@ -324,8 +380,8 @@ export default function Login() {
 
         <h2 style={ui.title}>Auto Check-in</h2>
         <p style={ui.subtitle}>
-          Ingresa tu <b>número de reserva</b>, <b>documento</b> o <b>contacto</b>{" "}
-          del titular para comenzar.
+          Ingresa tu <b>número de reserva</b>, <b>documento</b>, <b>nombre</b>,{" "}
+          <b>email</b> o <b>teléfono</b> del titular para comenzar.
         </p>
 
         {/* Tabs */}
@@ -397,13 +453,25 @@ export default function Login() {
             <>
               <ContactAutocomplete
                 value={valorContacto}
-                onChange={setValorContacto}
-                onSelectSuggestion={() => {}}
+                onChange={(val) => {
+                  setValorContacto(val);
+                  setContactoSeleccionado(null);
+                }}
+                onSelectSuggestion={(item) => {
+                  setContactoSeleccionado(item);
+                  setValorContacto(
+                    item?.nombre ||
+                      item?.email ||
+                      item?.telefono ||
+                      item?.numeroReserva ||
+                      ""
+                  );
+                }}
               />
               <div style={ui.hint}>
-                Teléfono: puedes escribir <b>sin +57</b> (ej: 3001234567). Email: se
-                limpia automáticamente.
+                Puedes buscar por <b>teléfono</b>, <b>email</b> o <b>nombre</b>. Te mostraremos coincidencias del titular.
               </div>
+
             </>
           )}
         </div>
@@ -421,12 +489,14 @@ export default function Login() {
             {loading ? "Buscando..." : "Iniciar check-in"}
           </button>
 
-          <button style={ui.secondaryBtn} onClick={crearFormatoEnBlanco} disabled={loading}>
+          <button
+            style={ui.secondaryBtn}
+            onClick={crearFormatoEnBlanco}
+            disabled={loading}
+          >
             Reservar
           </button>
         </div>
-
-        {/* ✅ CAMBIO 2: QUITAMOS BLOQUE DE PASOS (stepsBox) */}
 
         <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>
           ¿Necesitas ayuda?{" "}

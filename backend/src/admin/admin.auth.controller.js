@@ -11,17 +11,25 @@ function getSessionHours() {
 }
 
 function getCookieOptions() {
-  const secure =
-    String(process.env.COOKIE_SECURE || "false").toLowerCase() === "true";
-
-  return {
-    httpOnly: true,
-    secure,
-    sameSite: "lax",
-    path: "/",
-    maxAge: getSessionHours() * 60 * 60 * 1000,
-  };
-}
+    const secure =
+      String(process.env.COOKIE_SECURE || "true").toLowerCase() === "true";
+  
+    const options = {
+      httpOnly: true,
+      secure,
+      sameSite: "lax",
+      path: "/",
+      maxAge: getSessionHours() * 60 * 60 * 1000,
+    };
+  
+    const domain = String(process.env.ADMIN_COOKIE_DOMAIN || "").trim();
+    if (domain) {
+      options.domain = domain;
+    }
+  
+    return options;
+  }
+  
 
 function signToken(payload) {
   const secret = process.env.ADMIN_SESSION_SECRET;

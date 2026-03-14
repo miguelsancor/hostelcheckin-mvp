@@ -177,10 +177,6 @@ export default function Login() {
     navigate("/checkin", { replace: true });
   };
 
-  const irAlPanelAdmin = () => {
-    navigate("/admin");
-  };
-
   /* ===============================================
       ✅ BUSCAR RESERVA
   =============================================== */
@@ -475,6 +471,7 @@ export default function Login() {
               <div style={ui.hint}>
                 Puedes buscar por <b>teléfono</b>, <b>email</b> o <b>nombre</b>. Te mostraremos coincidencias del titular.
               </div>
+
             </>
           )}
         </div>
@@ -498,17 +495,6 @@ export default function Login() {
             disabled={loading}
           >
             Reservar
-          </button>
-        </div>
-
-        {/* NUEVO: acceso al panel admin */}
-        <div style={ui.adminBox}>
-          <div style={ui.adminTitle}>¿Eres parte del equipo?</div>
-          <div style={ui.adminText}>
-            Accede al panel administrativo para consultar registros y gestionar el sistema.
-          </div>
-          <button type="button" style={ui.adminBtn} onClick={irAlPanelAdmin}>
-            Ir al panel administrativo
           </button>
         </div>
 
@@ -622,34 +608,6 @@ const ui: { [key: string]: React.CSSProperties } = {
     border: "1px solid rgba(255,255,255,0.14)",
     backgroundColor: "rgba(255,255,255,0.06)",
     color: "#fff",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  adminBox: {
-    marginTop: 18,
-    padding: "14px 14px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(147,197,253,0.20)",
-    background: "rgba(37,99,235,0.10)",
-  },
-  adminTitle: {
-    fontSize: 14,
-    fontWeight: 800,
-    marginBottom: 4,
-  },
-  adminText: {
-    fontSize: 12,
-    opacity: 0.9,
-    lineHeight: 1.45,
-    marginBottom: 10,
-  },
-  adminBtn: {
-    width: "100%",
-    padding: "11px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(147,197,253,0.30)",
-    backgroundColor: "rgba(255,255,255,0.06)",
-    color: "#dbeafe",
     fontWeight: 800,
     cursor: "pointer",
   },

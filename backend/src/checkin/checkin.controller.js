@@ -94,12 +94,14 @@ async function createSession(req, res) {
 async function getSession(req, res) {
   try {
     const token = String(req.params.token || "").trim();
-    if (!token)
+    if (!token) {
       return res.status(400).json({ ok: false, message: "Falta token" });
+    }
 
     const sess = await prisma.checkinSession.findUnique({ where: { token } });
-    if (!sess)
+    if (!sess) {
       return res.status(404).json({ ok: false, message: "Sesión no existe" });
+    }
 
     // TTL
     if (sess.expiracion && new Date(sess.expiracion).getTime() < Date.now()) {
@@ -123,12 +125,14 @@ async function getSession(req, res) {
 async function saveSession(req, res) {
   try {
     const token = String(req.params.token || "").trim();
-    if (!token)
+    if (!token) {
       return res.status(400).json({ ok: false, message: "Falta token" });
+    }
 
     const sess = await prisma.checkinSession.findUnique({ where: { token } });
-    if (!sess)
+    if (!sess) {
       return res.status(404).json({ ok: false, message: "Sesión no existe" });
+    }
 
     if (sess.expiracion && new Date(sess.expiracion).getTime() < Date.now()) {
       return res.status(404).json({ ok: false, message: "Sesión expiró" });
@@ -290,14 +294,15 @@ async function postCheckinSimple(req, res) {
         room_id: parsed?.room_id ?? parsed?.roomId ?? parsed?.roomID ?? null,
       };
 
-      // pasamos al mailer lo más parecido a lo que ve el front (huespedes)
       setImmediate(() => {
         sendCheckinEmail({
           reserva: reservaMail,
           formList: Array.isArray(huespedes) ? huespedes : [titular],
         })
           .then((r) => console.log("MAIL result:", r))
-          .catch((e) => console.log("MAIL error (no bloquea):", e?.message || e));
+          .catch((e) =>
+            console.log("MAIL error (no bloquea):", e?.message || e)
+          );
       });
     } catch (e) {
       console.log("MAIL init error (no bloquea):", e?.message || e);
@@ -363,8 +368,9 @@ async function postCheckinMultiple(req, res) {
     const parsedData = req.body?.data ? JSON.parse(req.body.data) : {};
 
     if (!guests.length && parsedData.huespedes) guests = parsedData.huespedes;
-    if (!guests.length)
+    if (!guests.length) {
       return res.status(400).json({ ok: false, error: "No llegaron huéspedes" });
+    }
 
     const titular = guests[0];
     const numeroReserva = generarNumeroReserva();
@@ -447,7 +453,11 @@ async function postCheckinMultiple(req, res) {
       const reservaMail = {
         numeroReserva,
         checkinUrl: payload.checkinUrl,
-        room_id: parsedData?.room_id ?? parsedData?.roomId ?? parsedData?.roomID ?? null,
+        room_id:
+          parsedData?.room_id ??
+          parsedData?.roomId ??
+          parsedData?.roomID ??
+          null,
       };
 
       setImmediate(() => {
@@ -514,7 +524,9 @@ async function buscarReserva(req, res) {
         where: { tipoDocumento, numeroDocumento },
       });
     } else {
-      return res.status(400).json({ ok: false, error: "Parámetros insuficientes" });
+      return res
+        .status(400)
+        .json({ ok: false, error: "Parámetros insuficientes" });
     }
 
     if (!huesped) {
@@ -552,6 +564,9 @@ async function huespedesHoy(_req, res) {
 
 /* =======================================================================
    AUTOCOMPLETE CONTACTOS
+   - SQLite: mantiene resultados locales
+   - NoBeds: SOLO reservas vigentes (checkout >= hoy Bogotá)
+   - Excluye canceladas
    ======================================================================= */
 async function contactos(req, res) {
   try {
@@ -562,6 +577,19 @@ async function contactos(req, res) {
     const q = rawQuery.toLowerCase();
     const qDigits = rawQuery.replace(/[^\d]/g, "");
 
+    // =========================================================
+    // HOY en Bogotá (YYYY-MM-DD)
+    // =========================================================
+    const hoyBogota = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Bogota",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+
+    // =========================================================
+    // SQLITE
+    // =========================================================
     const rawSqlite = await prisma.huesped.findMany({
       where: {
         OR: [
@@ -591,7 +619,11 @@ async function contactos(req, res) {
       numeroReserva: r.numeroReserva,
     }));
 
+    // =========================================================
+    // NOBEDS
+    // =========================================================
     let nobeds = [];
+
     try {
       const url = `${process.env.NOBEDS_API}/${process.env.NOBEDS_TOKEN}`;
       const nbRes = await axios.get(url, { timeout: 20000 });
@@ -599,28 +631,55 @@ async function contactos(req, res) {
       if (Array.isArray(nbRes.data)) {
         nobeds = nbRes.data
           .filter((r) => {
-            const firstName = String(r.first_name || "").trim();
+            const firstName = String(r.first_name || r.name || "").trim();
             const lastName = String(r.last_name || "").trim();
             const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
+
             const email = String(r.email || "").trim().toLowerCase();
             const phone = String(r.phone || "").trim();
             const phoneDigits = phone.replace(/[^\d]/g, "");
             const orderId = String(r.order_id || "").trim();
 
-            return (
+            // Fecha de salida válida
+            const rawCheckout =
+              r.checkout ||
+              r.check_out ||
+              r.end_date ||
+              r.endDate ||
+              "";
+
+            const checkoutDate = String(rawCheckout).trim().slice(0, 10);
+
+            // Estado
+            const status = String(r.status || "").trim().toLowerCase();
+
+            const reservaVigente =
+              checkoutDate && checkoutDate >= hoyBogota;
+
+            const noCancelada = ![
+              "cancelled",
+              "canceled",
+              "cancelada",
+              "anulada",
+            ].includes(status);
+
+            const coincideBusqueda =
               fullName.includes(q) ||
               email.includes(q) ||
               phone.includes(rawQuery) ||
               (qDigits ? phoneDigits.includes(qDigits) : false) ||
-              orderId.includes(rawQuery)
-            );
+              orderId.includes(rawQuery);
+
+            return coincideBusqueda && reservaVigente && noCancelada;
           })
           .map((r) => ({
             origen: "nobeds",
             id: r.id || `nb-${r.phone || r.email || r.order_id}`,
-            nombre: `${String(r.first_name || "").trim()} ${String(r.last_name || "").trim()}`.trim(),
-            telefono: r.phone,
-            email: r.email,
+            nombre: `${String(r.first_name || r.name || "").trim()} ${String(
+              r.last_name || ""
+            ).trim()}`.trim(),
+            telefono: r.phone || "",
+            email: r.email || "",
             numeroReserva: String(r.order_id || ""),
           }));
       }
@@ -628,6 +687,9 @@ async function contactos(req, res) {
       console.error("Error obteniendo nobeds:", err.message);
     }
 
+    // =========================================================
+    // MERGE + DEDUPE
+    // =========================================================
     const merged = [...sqliteResults, ...nobeds];
 
     const unique = merged.filter(

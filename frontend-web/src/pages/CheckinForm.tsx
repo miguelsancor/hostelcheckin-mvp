@@ -28,12 +28,7 @@ export default function CheckinForm() {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [termsError, setTermsError] = useState("");
-
   const [isMobile, setIsMobile] = useState(false);
-
-  // ✅ acceso sutil para admins
-  const [adminClickCount, setAdminClickCount] = useState(0);
-  const [showAdminLink, setShowAdminLink] = useState(false);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= 768);
@@ -41,25 +36,6 @@ export default function CheckinForm() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
-
-  useEffect(() => {
-    if (!showAdminLink) return;
-    const timer = setTimeout(() => {
-      setShowAdminLink(false);
-      setAdminClickCount(0);
-    }, 12000);
-    return () => clearTimeout(timer);
-  }, [showAdminLink]);
-
-  const handleTitleAdminReveal = () => {
-    const next = adminClickCount + 1;
-    setAdminClickCount(next);
-
-    if (next >= 7) {
-      setShowAdminLink(true);
-      setAdminClickCount(0);
-    }
-  };
 
   const TERMS_TEXT = useMemo(
     () => `
@@ -153,50 +129,28 @@ POLITICAS DE CONDICIONES LEGALES ESPECIALES.
           padding: isMobile ? "1rem" : "2rem",
           boxSizing: "border-box",
           overflowX: "hidden",
+          position: "relative",
         }}
       >
         <h2
-          onClick={handleTitleAdminReveal}
-          title=""
           style={{
             ...styles.title,
             textAlign: "center",
             fontSize: isMobile ? "2rem" : undefined,
             lineHeight: 1.15,
-            marginBottom: "0.35rem",
-            cursor: "default",
-            userSelect: "none",
+            marginBottom: "1rem",
           }}
         >
           Registro de Huéspedes
         </h2>
 
-        {showAdminLink && (
-          <div
-            style={{
-              textAlign: "center",
-              marginBottom: "0.85rem",
-              fontSize: "0.78rem",
-              opacity: 0.7,
-            }}
-          >
-            <a
-              href="https://cheking.kuyay.co/admin"
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                color: "#9ca3af",
-                textDecoration: "none",
-                borderBottom: "1px dotted rgba(156,163,175,0.45)",
-                paddingBottom: "1px",
-              }}
-            >
-              acceso interno
-            </a>
-          </div>
-        )}
-
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "1.25rem" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            marginBottom: "1.25rem",
+          }}
+        >
           <button
             onClick={cargarHuespedesHoy}
             style={{
@@ -348,6 +302,35 @@ POLITICAS DE CONDICIONES LEGALES ESPECIALES.
           >
             {loading ? "Enviando..." : "Enviar Registro / Submit"}
           </button>
+        </div>
+
+        <div
+          style={{
+            marginTop: "1rem",
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
+        >
+          <a
+            href="https://cheking.kuyay.co/admin"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              fontSize: "0.72rem",
+              color: "rgba(255,255,255,0.38)",
+              textDecoration: "none",
+              letterSpacing: "0.02em",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = "rgba(255,255,255,0.62)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = "rgba(255,255,255,0.38)";
+            }}
+          >
+            Acceso interno
+          </a>
         </div>
       </div>
 

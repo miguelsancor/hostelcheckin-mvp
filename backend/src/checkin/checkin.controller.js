@@ -324,7 +324,6 @@ async function postCheckinSimple(req, res) {
         ctx: ctxTra,
       });
 
-      // 🔥 en background
       setImmediate(() => {
         processTraForReserva(numeroReserva).catch((e) =>
           console.error("TRA process error:", e)
@@ -567,6 +566,7 @@ async function huespedesHoy(_req, res) {
    - SQLite: mantiene resultados locales
    - NoBeds: SOLO reservas vigentes (checkout >= hoy Bogotá)
    - Excluye canceladas
+   - Devuelve también fechaIngreso y fechaSalida
    ======================================================================= */
 async function contactos(req, res) {
   try {
@@ -606,6 +606,8 @@ async function contactos(req, res) {
         telefono: true,
         email: true,
         numeroReserva: true,
+        fechaIngreso: true,
+        fechaSalida: true,
       },
       take: 20,
     });
@@ -617,6 +619,8 @@ async function contactos(req, res) {
       telefono: r.telefono,
       email: r.email,
       numeroReserva: r.numeroReserva,
+      fechaIngreso: r.fechaIngreso,
+      fechaSalida: r.fechaSalida,
     }));
 
     // =========================================================
@@ -640,7 +644,6 @@ async function contactos(req, res) {
             const phoneDigits = phone.replace(/[^\d]/g, "");
             const orderId = String(r.order_id || "").trim();
 
-            // Fecha de salida válida
             const rawCheckout =
               r.checkout ||
               r.check_out ||
@@ -650,11 +653,9 @@ async function contactos(req, res) {
 
             const checkoutDate = String(rawCheckout).trim().slice(0, 10);
 
-            // Estado
             const status = String(r.status || "").trim().toLowerCase();
 
-            const reservaVigente =
-              checkoutDate && checkoutDate >= hoyBogota;
+            const reservaVigente = checkoutDate && checkoutDate >= hoyBogota;
 
             const noCancelada = ![
               "cancelled",
@@ -681,6 +682,8 @@ async function contactos(req, res) {
             telefono: r.phone || "",
             email: r.email || "",
             numeroReserva: String(r.order_id || ""),
+            fechaIngreso: r.checkin || r.check_in || null,
+            fechaSalida: r.checkout || r.check_out || r.end_date || r.endDate || null,
           }));
       }
     } catch (err) {

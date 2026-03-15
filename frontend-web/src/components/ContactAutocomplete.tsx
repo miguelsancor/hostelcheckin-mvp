@@ -3,11 +3,13 @@ import { useState, useEffect, useRef } from "react";
 const API_BASE = import.meta.env.VITE_API_BASE || "http:///api";
 
 export type ContactSuggestion = {
-  id?: number;
+  id?: number | string;
   nombre?: string;
   email?: string;
   telefono?: string;
   numeroReserva?: string;
+  fechaIngreso?: string | null;
+  fechaSalida?: string | null;
   [key: string]: any;
 };
 
@@ -23,6 +25,17 @@ function normalizePhone(raw: string) {
 
 function normalizeEmail(raw: string) {
   return String(raw || "").trim().toLowerCase();
+}
+
+function formatShortDate(value?: string | null) {
+  if (!value) return "";
+  const raw = String(value).trim();
+  const onlyDate = raw.includes("T") ? raw.split("T")[0] : raw;
+  const parts = onlyDate.split("-");
+  if (parts.length !== 3) return onlyDate;
+
+  const [year, month, day] = parts;
+  return `${day}/${month}/${year}`;
 }
 
 export default function ContactAutocomplete({
@@ -137,7 +150,7 @@ export default function ContactAutocomplete({
             background: "white",
             borderRadius: "12px",
             border: "1px solid #d1d5db",
-            maxHeight: "220px",
+            maxHeight: "260px",
             overflowY: "auto",
             padding: 0,
             margin: 0,
@@ -152,10 +165,18 @@ export default function ContactAutocomplete({
                 ? String(s.telefono).trim()
                 : "[Sin teléfono]";
 
+            const fechaIngreso = formatShortDate(s.fechaIngreso);
+            const fechaSalida = formatShortDate(s.fechaSalida);
+            const rangoFechas =
+              fechaIngreso && fechaSalida
+                ? `${fechaIngreso} → ${fechaSalida}`
+                : fechaIngreso || fechaSalida || "";
+
             const sublinea = [
               s.nombre,
               s.email,
               s.numeroReserva ? `Reserva ${s.numeroReserva}` : "",
+              rangoFechas,
             ]
               .filter(Boolean)
               .join(" · ");
@@ -192,9 +213,9 @@ export default function ContactAutocomplete({
                     fontSize: "0.83rem",
                     color: "#6b7280",
                     marginTop: "4px",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
+                    lineHeight: 1.35,
+                    whiteSpace: "normal",
+                    wordBreak: "break-word",
                   }}
                 >
                   {sublinea || "Sin más datos"}

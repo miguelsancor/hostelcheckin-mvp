@@ -9,13 +9,80 @@
   text-align: left;
 }
 
-/* Fondo global: quitamos la chica y ponemos fondo corporativo local */
+/* Base global para que funcionen bien las capas del fondo */
+html,
 body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* Fondo global:
+   - se mantiene tu hotel-bg.svg
+   - se agrega foto real del hostel en una capa tenue
+   - se agregan gradientes premium sin dañar tus estilos actuales
+*/
+body {
+  position: relative;
+  min-height: 100vh;
+  background-color: #020617;
+
+  /* TU fondo principal se mantiene */
   background-image: url('/hotel-bg.svg');
   background-repeat: no-repeat;
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
+
+  overflow-x: hidden;
+}
+
+/* Capa 1: imagen real del hostel, muy tenue y difuminada */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -8%;
+  z-index: -2;
+  pointer-events: none;
+
+  background-image:
+    linear-gradient(rgba(2, 6, 23, 0.50), rgba(2, 6, 23, 0.70)),
+    url("https://kuyay.co/wp-content/uploads/2025/02/7JvU_riOsCsCD9LNgJFjZ-1-1-e1753401722985-2048x979.jpg");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+
+  opacity: 0.17;
+  filter: blur(34px) saturate(0.92) brightness(0.92);
+  transform: scale(1.08);
+}
+
+/* Capa 2: gradientes cinematográficos para mezclar ambos fondos */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+
+  background:
+    radial-gradient(circle at 78% 32%, rgba(245, 158, 11, 0.16), transparent 26%),
+    radial-gradient(circle at 30% 26%, rgba(59, 130, 246, 0.12), transparent 24%),
+    linear-gradient(to bottom, rgba(2, 6, 23, 0.08), rgba(2, 6, 23, 0.34));
+
+  animation: cinematicGlow 18s ease-in-out infinite alternate;
+}
+
+@keyframes cinematicGlow {
+  0% {
+    filter: saturate(1) brightness(1);
+  }
+  50% {
+    filter: saturate(1.05) brightness(1.02);
+  }
+  100% {
+    filter: saturate(1) brightness(1);
+  }
 }
 
 /* Logo demo Vite (si lo usas) */
@@ -50,9 +117,9 @@ body {
   width: 100%;
   margin-top: 10px;
 }
-.select-search-type>label,
-.select-search-type>.select-reserv-document,
-.select-search-type>.input-reserv-document {
+.select-search-type > label,
+.select-search-type > .select-reserv-document,
+.select-search-type > .input-reserv-document {
   display: inline-block;
   width: 100%;
   font-size: 1.2rem;
@@ -82,4 +149,17 @@ body {
 /* Responsivo: root ocupa toda la pantalla, sin floats */
 @media only screen and (max-width: 600px) {
   #root { padding: 0; }
+
+  body::before {
+    opacity: 0.13;
+    filter: blur(24px) saturate(0.92) brightness(0.92);
+    transform: scale(1.04);
+  }
+
+  body::after {
+    background:
+      radial-gradient(circle at 75% 28%, rgba(245, 158, 11, 0.12), transparent 24%),
+      radial-gradient(circle at 28% 24%, rgba(59, 130, 246, 0.10), transparent 22%),
+      linear-gradient(to bottom, rgba(2, 6, 23, 0.10), rgba(2, 6, 23, 0.36));
+  }
 }

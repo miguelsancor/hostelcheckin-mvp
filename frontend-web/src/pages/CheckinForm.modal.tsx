@@ -19,6 +19,56 @@ type ResultModalProps = {
 type TraStatus = "OK" | "PENDING" | "ERROR";
 type TTLockStatus = "IDLE" | "CREATING" | "OK" | "ERROR";
 
+function parseDateOnly(value?: string | null) {
+  const s = String(value || "").trim();
+  if (!s) return null;
+
+  const onlyDate = s.includes("T") ? s.split("T")[0] : s;
+  const parts = onlyDate.split("-").map(Number);
+
+  if (parts.length !== 3) return null;
+
+  const [year, month, day] = parts;
+  if (!year || !month || !day) return null;
+
+  return { year, month, day };
+}
+
+function buildTtlockWindow(fechaIngreso?: string | null, fechaSalida?: string | null) {
+  const ingreso = parseDateOnly(fechaIngreso);
+  const salida = parseDateOnly(fechaSalida);
+
+  if (!ingreso || !salida) {
+    throw new Error("Huésped sin fechas válidas para TTLock");
+  }
+
+  const startAt = new Date(
+    ingreso.year,
+    ingreso.month - 1,
+    ingreso.day,
+    10,
+    0,
+    0,
+    0
+  ).getTime();
+
+  const endAt = new Date(
+    salida.year,
+    salida.month - 1,
+    salida.day,
+    15,
+    0,
+    0,
+    0
+  ).getTime();
+
+  if (!Number.isFinite(startAt) || !Number.isFinite(endAt) || endAt <= startAt) {
+    throw new Error("Ventana TTLock inválida");
+  }
+
+  return { startAt, endAt };
+}
+
 export function ResultModal({
   show,
   message,
@@ -26,9 +76,6 @@ export function ResultModal({
   reserva,
   onClose,
 }: ResultModalProps) {
-  /* =========================
-     ✅ HOOKS (SIEMPRE ARRIBA, SIN RETURNS ANTES)
-  ========================= */
   const [loading, setLoading] = useState(false);
   const [ttlockResult, setTtlockResult] = useState<any>(null);
   const [ttlockStatus, setTtlockStatus] = useState<TTLockStatus>("IDLE");
@@ -38,7 +85,6 @@ export function ResultModal({
   const [traStatus, setTraStatus] = useState<TraStatus | null>(null);
   const [traDetails, setTraDetails] = useState<any>(null);
 
-  // Evita doble disparo de TTLock en una misma apertura
   const ttlockTriggeredRef = useRef(false);
 
   const apiBase = "/api";
@@ -52,17 +98,18 @@ export function ResultModal({
     return String(nr || "").trim();
   }, [reserva]);
 
-  /* =========================
-     ✅ FUNCIONES
-  ========================= */
   async function fetchTraStatus() {
     if (!numeroReserva) return;
+
     try {
       setTraLoading(true);
+
       const r = await fetch(
         `${apiBase}/api/tra/status/${encodeURIComponent(numeroReserva)}`
       );
+
       const j = await r.json();
+
       if (r.ok && j?.ok) {
         setTraStatus(j.status as TraStatus);
         setTraDetails(j.details || null);
@@ -82,17 +129,22 @@ export function ResultModal({
 
   async function retryTra() {
     if (!numeroReserva) return;
+
     try {
       setTraLoading(true);
+
       const r = await fetch(
         `${apiBase}/api/tra/retry/${encodeURIComponent(numeroReserva)}`,
         { method: "POST" }
       );
+
       const j = await r.json();
+
       if (!r.ok || j?.ok === false) {
         alert(j?.message || j?.error || "No se pudo reintentar TRA");
         return;
       }
+
       await fetchTraStatus();
     } catch (e: any) {
       alert(e?.message || "Error reintentando TRA");
@@ -102,7 +154,6 @@ export function ResultModal({
   }
 
   async function crearCodigoPorHabitacion() {
-    // Validaciones
     if (!guest?.fechaIngreso || !guest?.fechaSalida || !guest?.nombre) {
       setTtlockStatus("ERROR");
       setTtlockError("Huésped sin fechas completas");
@@ -127,8 +178,10 @@ export function ResultModal({
       setTtlockStatus("CREATING");
       setTtlockError(null);
 
-      const startAt = new Date(guest.fechaIngreso + "T14:00:00").getTime();
-      const endAt = new Date(guest.fechaSalida + "T12:00:00").getTime();
+      const { startAt, endAt } = buildTtlockWindow(
+        guest.fechaIngreso,
+        guest.fechaSalida
+      );
 
       const payload: any = {
         numeroReserva,
@@ -163,11 +216,6 @@ export function ResultModal({
     }
   }
 
-  /* =========================
-     ✅ EFECTOS (NUNCA CONDICIONALES)
-  ========================= */
-
-  // Reset cada vez que se abre/cierra
   useEffect(() => {
     if (!show) return;
 
@@ -181,7 +229,6 @@ export function ResultModal({
     setTraDetails(null);
   }, [show]);
 
-  // Poll TRA al abrir
   useEffect(() => {
     if (!show) return;
     if (!numeroReserva) return;
@@ -189,8 +236,8 @@ export function ResultModal({
     fetchTraStatus();
 
     const startedAt = Date.now();
+
     const t = setInterval(() => {
-      // si ya OK, deja de insistir
       if (traStatus === "OK") return;
 
       const elapsed = Date.now() - startedAt;
@@ -203,16 +250,13 @@ export function ResultModal({
     }, 2000);
 
     return () => clearInterval(t);
-    // IMPORTANTE: no metas fetchTraStatus en deps, está bien así.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, numeroReserva]);
 
-  // AUTO TTLock cuando TRA OK
   useEffect(() => {
     if (!show) return;
     if (ttlockResult) return;
     if (ttlockTriggeredRef.current) return;
-
     if (traStatus !== "OK") return;
     if (!guest || !reserva) return;
 
@@ -221,9 +265,6 @@ export function ResultModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, traStatus, guest, reserva, ttlockResult]);
 
-  /* =========================
-     ✅ RENDER HELPERS
-  ========================= */
   function renderTraLine() {
     if (!numeroReserva) return null;
 
@@ -330,9 +371,6 @@ export function ResultModal({
   const pin = ttlockResult?.pin ?? ttlockResult?.code;
   const roomName = ttlockResult?.room ?? reserva?.room ?? "Tu habitación";
 
-  /* =========================
-     ✅ AHORA SÍ: RETURN CONDICIONAL (DESPUÉS DE HOOKS)
-  ========================= */
   if (!show) return null;
 
   return (
@@ -343,7 +381,6 @@ export function ResultModal({
             <pre style={modalPre}>{message}</pre>
             {renderTraLine()}
             {renderTTLockLine()}
-            {/* ❌ Ya no existe el botón de crear código */}
           </>
         )}
 
@@ -380,7 +417,7 @@ export function ResultModal({
               }}
             >
               <ul>
-                <li>⏰ Check-out: 11:00 AM</li>
+                <li>⏰ Activa de 10:00 AM a 3:00 PM del día siguiente</li>
                 <li>🔒 No compartas tu código</li>
                 <li>🚪 Cierra la puerta completamente al salir</li>
               </ul>

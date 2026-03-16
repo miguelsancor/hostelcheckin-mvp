@@ -58,7 +58,7 @@ export default function AdminDashboard() {
 
   const getSecureUploadUrl = (file?: string | null) => {
     if (!file) return null;
-    return `${API_BASE}/admin/uploads/${encodeURIComponent(file)}`;
+    return `${API_BASE}/uploads/${encodeURIComponent(file)}`;
   };
 
   const checkSession = async () => {

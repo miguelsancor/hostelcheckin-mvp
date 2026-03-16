@@ -1,18 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useCheckinForm } from "./CheckinForm.hook";
 import { GuestCard } from "./CheckinForm.guest";
 import { ResultModal, GuestsTodayModal } from "./CheckinForm.modal";
 import { styles } from "./CheckinForm.styles";
+import TERMS_TEXT from "./terminoscondiciones.txt?raw";
 
 function CameraHintIcon() {
   return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M9 4.5L7.4 6.5H5.5C4.12 6.5 3 7.62 3 9V17.5C3 18.88 4.12 20 5.5 20H18.5C19.88 20 21 18.88 21 17.5V9C21 7.62 19.88 6.5 18.5 6.5H16.6L15 4.5H9Z"
         stroke="currentColor"
@@ -56,64 +51,6 @@ export default function CheckinForm() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
-
-  const TERMS_TEXT = useMemo(
-    () => `
-GENERAL
-
-OBJETO
-Informar los términos y condiciones de la reserva de habitación que se adquiere con Kuyay Hostel una reserva que realiza un cliente y no forma parte de un grupo o una negociación de más de 09 habitaciones y/o camas individuales se denomina individual.
-
-APLICACIÓN
-Términos y condiciones aplicables para el cliente que ha adquirido una reserva individual de alojamiento en Kuyay Hostel
-
-TERMINOS Y CONDICIONES PARA RESERVAS INDIVIDUALES
-
-1.1. Policy for entering the hostel (Check-In) and leaving the hostel (Check-Out)
-Su reserva inicia a las 2:00 p. m.( 14 Horas ) del día de llegada y finaliza a las 12:00 p. m. ( 12:00 horas ) del día de salida.
-Hora máxima de cheking hasta 10:00 pm si vas a llegar después de las 10:00 pm debes informarnos para ayudarte con tu acomodación
-
-1.2. Tarjeta de registro de alojamiento TAR (Register Card)
-i. Los prestadores de servicios de alojamiento turístico deberán llevar el registro de los huéspedes a través del diligenciamiento de la tarjeta de registro de alojamiento en el sistema que, para todos los efectos, dispone el gobierno nacional de la republica de Colombia.
-ii. La tarjeta de registro alojamiento es prueba del contrato de hospedaje.
-
-1.3. Política de Ingreso antes de las 02:00 p.m - Early Check In
-i. Sujeto a disponibilidad.
-ii. Para los ingresos previos a las 8:00 a.m. se cobra la totalidad de la noche.
-iii. Ingreso entre 8:00 a.m. y 2:00 p.m. se cobrará 1/4 parte de la tarifa vigente por la tarifa adquirida en su estadía.
-
-1.4. Política de Salida temprana o previo a su fecha de salida reservada - Early Departure
-i. Para estos efectos el huesped debe Informar con un día de anticipación previo a la nueva fecha de salida su early departure, a fin que el hostel disponga de la habitación para su venta.
-ii. En caso de no brindar dicha información el huesped sera sujeto del cobro de la(s) noches subsiguientes hasta su fecha de salida reservada.
-
-1.5. Política Salida tardia o posterior a las 12:00 p.m. - Late Check Out
-i. Sujeto a disponibilidad.
-ii. Late check out hasta las 16 horas (4:00 p.m.) sin cobro. Sujeto a disponibilidad
-iii. Late check out entre las 17 horas (4:00 p.m.) y las 22 horas (7:00 p.m.) se cobrará la tarifa completa adquirida por el huésped en su reserva.
-
-2. Política de Cancelación y Modificación
-i. Usted podrá cancelar o modificar su(s) reserva(s) sin penalidad si lo hace antes de las 24 horas (3:00 p. m.) del día anterior de su fecha de llegada; en caso de no hacer uso de su reserva y no haberla cancelado o modificado dentro del tiempo establecido, le será cobrada una penalidad por el valor de la primera noche de alojamiento más impuestos y servicios adicionales reservados. No aplica para tarifas no reembolsables.
-ii. Las reservas no garantizadas serán canceladas 72 horas antes de la fecha de llegada
-
-3.Política de Registro de Menores de Edad
-Si viaja con su(s) hijo(s) menor(es) de 18 años de edad, debe presentar el documento de identificación del(los) menor(es) de edad (registro civil), que demuestre dicha relación de parentesco. Si el(los) menor(es) de edad no viaja(n) en compañía de sus padres, usted deberá entregar en la recepción, adicionalmente al documento de identificación del menor (registro civil), el permiso de los padres, el cual deberá estar autenticado por un Notario y acompañado de la copia del documento de identificación de quienes dieron la autorización. Sin esta documentación no se permite el ingreso de los menores de edad al hostel. Lo anterior segun lo dispuesto en la Ley 679 de 2001 Estatuto para Prevenir la Explotación Sexual de Niños, Niñas y Adolescentes y sus normas concordantes.
-
-4.Política Anticorrupción y Antifraude
-No se permitir conductas o prácticas deshonestas que atenten contra la integridad empresarial, como por ejemplo: ofrecer o aceptar regalos, invitaciones, u otro tipo de incentivos que puedan recompensar o influir para que tome o se abstenga de tomar alguna medida comercial o legal, o cuando intencionalmente oculta, altera, falsifica u omite información en beneficio propio o en beneficio de otros, o la incursión en eventuales conflictos de interés que pudieran anteponer prioridades personales a las colectivas; promoviendo una cultura de ética, transparencia y rectitud en el desarrollo de las actividades.
-
-5.Política de fumador
-Nos permitimos informarle que nuestro hotel es una propiedad LIBRE DE HUMO. Por su salud y seguridad NO está permitido fumar en la habitación, de no ser respetada esta norma, se cargará un monto de COP 900.0000 + IVA el cual se verá reflejado en su cuenta.
-
-6.Politica de acompañantes
-Por motivos de Seguridad, todos nuestros huéspedes deben ser registrados en la recepción durante el “check in”. No está permitido el ingreso de nuevos huéspedes durante la estadía. Kuyay Hostel no admitirá el registro de huéspedes adicionales o acompañantes, de acuerdo a sus políticas de seguridad si no fueron registrados al momento del Ingreso “check in”.
-
-POLITICAS DE CONDICIONES LEGALES ESPECIALES.
-
-7.Política Prevención Lavado de Activos y Financiación del Terrorismo
-(…texto completo…)
-`,
-    []
-  );
 
   const onSubmitClick = () => {
     if (!acceptTerms) {
@@ -247,7 +184,7 @@ POLITICAS DE CONDICIONES LEGALES ESPECIALES.
                 marginBottom: "0.25rem",
               }}
             >
-              Puedes subir documentos o tomar foto desde tu dispositivo
+              Puedes subir documentos o usar la cámara de tu dispositivo
             </div>
             <div
               style={{
@@ -256,9 +193,9 @@ POLITICAS DE CONDICIONES LEGALES ESPECIALES.
                 lineHeight: 1.5,
               }}
             >
-              El sistema intentará usar la cámara en celulares compatibles.
-              En algunos navegadores puede mostrarse el selector del dispositivo
-              antes de abrir la cámara. El documento sigue siendo opcional.
+              En celulares compatibles el sistema intentará abrir la cámara.
+              Algunos navegadores muestran primero el selector del dispositivo.
+              El documento sigue siendo opcional.
             </div>
           </div>
         </div>
@@ -307,9 +244,7 @@ POLITICAS DE CONDICIONES LEGALES ESPECIALES.
               gap: "0.75rem",
             }}
           >
-            <div
-              style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
-            >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
               <input
                 id="acceptTerms"
                 type="checkbox"

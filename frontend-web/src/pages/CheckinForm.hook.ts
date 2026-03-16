@@ -2,33 +2,37 @@ import { useEffect, useRef, useState } from "react";
 import type { Huesped, Reserva, LockItem, HuespedBD } from "./CheckinForm.types";
 import { roomMapping } from "./roomMapping";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http:///api";
+const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
 
 /* ======================= HELPERS ======================= */
 function getQueryParams() {
-  if (typeof window === "undefined") return { orderId: null as string | null, token: null as string | null };
+  if (typeof window === "undefined") {
+    return { orderId: null as string | null, token: null as string | null };
+  }
+
   const params = new URLSearchParams(window.location.search);
+
   return {
-    orderId: params.get("reserva"), // compat
-    token: params.get("t"),         // ✅ nuevo
+    orderId: params.get("reserva"),
+    token: params.get("t"),
   };
 }
 
-// ✅ Convierte "2026-02-04T00:00:00" -> "2026-02-04"
 function toDateInput(value?: string | null) {
   if (!value) return "";
   const s = String(value).trim();
   if (s.includes("T")) return s.split("T")[0];
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) return "";
+
   return d.toISOString().slice(0, 10);
 }
 
-/* ======================= CREAR HUESPED VACÍO CON ID ======================= */
 function nuevoHuesped(): Huesped {
   return {
-    _id: self.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2),
+    _id: globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2),
     nombre: "",
     tipoDocumento: "",
     numeroDocumento: "",
@@ -47,10 +51,13 @@ function nuevoHuesped(): Huesped {
   };
 }
 
-// ✅ para guardar borrador: NO serializar Files
 function stripFiles(h: Huesped) {
   const { archivoCedula, archivoFirma, archivoPasaporte, ...rest } = h as any;
   return rest;
+}
+
+function buildUrl(path: string) {
+  return `${API_BASE}${path}`;
 }
 
 /* ======================= HOOK PRINCIPAL ======================= */
@@ -65,19 +72,15 @@ export function useCheckinForm() {
   const [modalMessage, setModalMessage] = useState("");
   const [showModalHoy, setShowModalHoy] = useState(false);
 
-  // ✅ token compartible
   const [sessionToken, setSessionToken] = useState<string>("");
 
-  // autosave debounce
-  const saveTimer = useRef<any>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ✅ helper: crear sesión y reemplazar URL (sin recargar)
   const ensureSession = async (reservaObj: Reserva, list: Huesped[]) => {
     try {
-      // si ya hay token, no hagas nada
       if (sessionToken && sessionToken.trim().length > 10) return;
 
-      const resp = await fetch(`${API_BASE}/api/checkin/session`, {
+      const resp = await fetch(buildUrl("/api/checkin/session"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -91,20 +94,16 @@ export function useCheckinForm() {
       if (json?.ok && json?.token) {
         const t = String(json.token);
         setSessionToken(t);
-
-        // 🔥 cambia la URL actual a /checkin?t=... sin recargar
         window.history.replaceState({}, "", `/checkin?t=${encodeURIComponent(t)}`);
       }
     } catch {
-      // silencioso: si backend no está, no rompemos el flujo
+      // silencioso
     }
   };
 
-  /* ======================= CARGA INICIAL ======================= */
   useEffect(() => {
     const { orderId, token } = getQueryParams();
 
-    // ✅ 1) Si viene token, hidratar desde backend
     if (token && token.trim().length > 10) {
       setSessionToken(token);
 
@@ -112,7 +111,9 @@ export function useCheckinForm() {
         try {
           setLoading(true);
 
-          const resp = await fetch(`${API_BASE}/api/checkin/session/${encodeURIComponent(token)}`);
+          const resp = await fetch(
+            buildUrl(`/api/checkin/session/${encodeURIComponent(token)}`)
+          );
           const json = await resp.json();
 
           if (!json?.ok) {
@@ -123,15 +124,17 @@ export function useCheckinForm() {
           const rsv: Reserva | null = json?.reserva || null;
           const list: any[] = Array.isArray(json?.formList) ? json.formList : [];
 
-          const normalized: Huesped[] = (list.length ? list : [nuevoHuesped()]).map((h: any) => ({
-            ...nuevoHuesped(),
-            ...h,
-            fechaIngreso: toDateInput(h?.fechaIngreso || ""),
-            fechaSalida: toDateInput(h?.fechaSalida || ""),
-            archivoCedula: null,
-            archivoFirma: null,
-            archivoPasaporte: null,
-          }));
+          const normalized: Huesped[] = (list.length ? list : [nuevoHuesped()]).map(
+            (h: any) => ({
+              ...nuevoHuesped(),
+              ...h,
+              fechaIngreso: toDateInput(h?.fechaIngreso || ""),
+              fechaSalida: toDateInput(h?.fechaSalida || ""),
+              archivoCedula: null,
+              archivoFirma: null,
+              archivoPasaporte: null,
+            })
+          );
 
           if (rsv) {
             setReserva({
@@ -154,13 +157,12 @@ export function useCheckinForm() {
       return;
     }
 
-    // ✅ 2) Si viene ?reserva=..., cargar y luego crear token y reemplazar URL
     if (orderId) {
       (async () => {
         try {
           setLoading(true);
 
-          const resp = await fetch(`${API_BASE}/api/checkin/por-reserva/${orderId}`);
+          const resp = await fetch(buildUrl(`/api/checkin/por-reserva/${orderId}`));
           const json = await resp.json();
 
           if (!json.ok || !json.data) {
@@ -179,7 +181,7 @@ export function useCheckinForm() {
             direccion: p.direccion || "",
             lugarProcedencia: p.lugarProcedencia || "",
             lugarDestino: p.lugarDestino || "",
-            telefono: p.phone || "",
+            telefono: p.phone || p.telefono || "",
             email: p.email || "",
             motivoViaje: p.motivoViaje || "",
             fechaIngreso: toDateInput(p.checkin),
@@ -190,20 +192,18 @@ export function useCheckinForm() {
             numeroReserva: p.numeroReserva,
             nombre: p.nombre,
             email: p.email,
-            telefono: p.telefono,
+            telefono: p.telefono || p.phone || "",
             checkin: toDateInput(p.checkin),
             checkout: toDateInput(p.checkout),
-            room_id: null,
-            lockId: undefined,
+            room_id: p.room_id ?? null,
+            lockId: p.lockId ?? undefined,
           };
 
           setReserva(reservaObj);
           setFormList([huesped]);
 
-          // compat rollback
           localStorage.setItem("reserva", JSON.stringify(p));
 
-          // ✅ crea token aunque vengas por ?reserva
           await ensureSession(reservaObj, [huesped]);
         } catch {
           fallbackFromLocalStorage(true);
@@ -215,13 +215,12 @@ export function useCheckinForm() {
       return;
     }
 
-    // ✅ 3) si entras a /checkin (sin query), usar LS y AÚN ASÍ crear token
     fallbackFromLocalStorage(true);
   }, []);
 
-  /* ======================= FALLBACK LOCAL STORAGE ======================= */
   function fallbackFromLocalStorage(createTokenIfPossible: boolean) {
     const data = localStorage.getItem("reserva");
+
     if (data) {
       try {
         const parsed = JSON.parse(data);
@@ -247,34 +246,34 @@ export function useCheckinForm() {
 
         const reservaObj: Reserva = {
           numeroReserva: parsed.numeroReserva || "",
-          nombre: parsed.nombre || "",
+          nombre: parsed.nombre || parsed.name || "",
           email: parsed.email || "",
-          telefono: parsed.telefono || "",
+          telefono: parsed.telefono || parsed.phone || "",
           checkin,
           checkout,
-          room_id: null,
-          lockId: undefined,
+          room_id: parsed.room_id ?? null,
+          lockId: parsed.lockId ?? undefined,
         };
 
         setReserva(reservaObj);
         setFormList([huesped]);
 
-        // ✅ AQUÍ está el fix: aunque entres a /checkin sin query, igual generamos ?t=...
         if (createTokenIfPossible && reservaObj?.numeroReserva) {
           void ensureSession(reservaObj, [huesped]);
         }
 
         return;
-      } catch {}
+      } catch {
+        // ignora parse error
+      }
     }
 
     setFormList([nuevoHuesped()]);
     setReserva(null);
   }
 
-  /* ======================= TTLOCK ======================= */
   useEffect(() => {
-    fetch(`${API_BASE}/mcp/keys`)
+    fetch(buildUrl("/mcp/keys"))
       .then((res) => res.json())
       .then((json) => {
         if (Array.isArray(json?.list)) setLocks(json.list);
@@ -282,7 +281,6 @@ export function useCheckinForm() {
       .catch(() => {});
   }, []);
 
-  /* ======================= AUTOSAVE BORRADOR POR TOKEN ======================= */
   useEffect(() => {
     if (!sessionToken || sessionToken.trim().length <= 10) return;
     if (!formList || formList.length === 0) return;
@@ -291,7 +289,7 @@ export function useCheckinForm() {
 
     saveTimer.current = setTimeout(async () => {
       try {
-        await fetch(`${API_BASE}/api/checkin/session/${encodeURIComponent(sessionToken)}`, {
+        await fetch(buildUrl(`/api/checkin/session/${encodeURIComponent(sessionToken)}`), {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -309,27 +307,47 @@ export function useCheckinForm() {
     };
   }, [sessionToken, reserva, formList]);
 
-  /* ======================= HANDLERS ======================= */
-  const handleChange = (index: number, e: any) => {
+  const handleChange = (
+    index: number,
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
+  ) => {
+    const { name, value } = e.target;
+
     setFormList((prev) => {
       const updated = [...prev];
-      updated[index] = { ...updated[index], [e.target.name]: e.target.value };
+      updated[index] = { ...updated[index], [name]: value };
       return updated;
     });
   };
 
-  const handleFileChange = (index: number, e: any) => {
-    if (!e.target.files?.length) return;
-    const file = e.target.files[0];
+  const handleFileChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const input = e.target;
+    const { name, files } = input;
+
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
 
     setFormList((prev) => {
       const updated = [...prev];
-      updated[index] = { ...updated[index], [e.target.name]: file };
+      updated[index] = {
+        ...updated[index],
+        [name]: file,
+      };
       return updated;
     });
+
+    input.value = "";
   };
 
-  const handleAddGuest = () => setFormList((prev) => [...prev, nuevoHuesped()]);
+  const handleAddGuest = () => {
+    setFormList((prev) => [...prev, nuevoHuesped()]);
+  };
 
   const removeGuestByIndex = (index: number) => {
     setFormList((prev) => {
@@ -339,10 +357,9 @@ export function useCheckinForm() {
     });
   };
 
-  /* ======================= HOY ======================= */
   const cargarHuespedesHoy = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/checkin/hoy`);
+      const res = await fetch(buildUrl("/api/checkin/hoy"));
       const json = await res.json();
       setHuespedesHoy(json.huespedes || []);
     } catch {
@@ -354,7 +371,6 @@ export function useCheckinForm() {
 
   const cerrarModalHoy = () => setShowModalHoy(false);
 
-  /* ======================= SUBMIT FINAL ======================= */
   const handleSubmit = async (motivoViaje?: string) => {
     if (!formList.length) {
       alert("Agrega al menos un huésped.");
@@ -371,7 +387,6 @@ export function useCheckinForm() {
     try {
       const titular = listaConMotivo[0];
 
-      // ✅ URL real construida en el navegador (sin IP)
       const checkinUrl = `${window.location.protocol}//${window.location.host}/checkin${
         sessionToken ? `?t=${encodeURIComponent(sessionToken)}` : ""
       }`;
@@ -398,10 +413,12 @@ export function useCheckinForm() {
       listaConMotivo.forEach((h, idx) => {
         if (h.archivoCedula) fd.append(`archivoCedula_${idx}`, h.archivoCedula);
         if (h.archivoFirma) fd.append(`archivoFirma_${idx}`, h.archivoFirma);
-        if (h.archivoPasaporte) fd.append(`archivoPasaporte_${idx}`, h.archivoPasaporte);
+        if (h.archivoPasaporte) {
+          fd.append(`archivoPasaporte_${idx}`, h.archivoPasaporte);
+        }
       });
 
-      const res = await fetch(`${API_BASE}/api/checkin`, {
+      const res = await fetch(buildUrl("/api/checkin"), {
         method: "POST",
         body: fd,
       });
@@ -420,8 +437,7 @@ export function useCheckinForm() {
         numeroReserva,
       }));
 
-      const msg = `✅ Huéspedes registrados\nReserva: ${numeroReserva}`;
-      setModalMessage(msg);
+      setModalMessage(`✅ Huéspedes registrados\nReserva: ${numeroReserva}`);
       setShowModal(true);
     } catch (err) {
       console.error("Error en handleSubmit:", err);
@@ -440,13 +456,11 @@ export function useCheckinForm() {
     showModal,
     modalMessage,
     showModalHoy,
-
     handleChange,
     handleFileChange,
     handleAddGuest,
     removeGuestByIndex,
     handleSubmit,
-
     cargarHuespedesHoy,
     cerrarModalHoy,
     setShowModal,

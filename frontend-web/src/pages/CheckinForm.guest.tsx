@@ -20,13 +20,7 @@ const isMobile =
 
 function FileIcon() {
   return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"
         stroke="currentColor"
@@ -40,13 +34,7 @@ function FileIcon() {
 
 function CameraIcon() {
   return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M9 4.5L7.4 6.5H5.5C4.12 6.5 3 7.62 3 9V17.5C3 18.88 4.12 20 5.5 20H18.5C19.88 20 21 18.88 21 17.5V9C21 7.62 19.88 6.5 18.5 6.5H16.6L15 4.5H9Z"
         stroke="currentColor"
@@ -60,13 +48,7 @@ function CameraIcon() {
 
 function SuccessIcon() {
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M20 6L9 17l-5-5"
         stroke="currentColor"
@@ -131,12 +113,7 @@ function UploadField({
 
   return (
     <Field label={label}>
-      <div
-        style={{
-          width: "100%",
-          minWidth: 0,
-        }}
-      >
+      <div style={{ width: "100%", minWidth: 0 }}>
         <div
           style={{
             background: "rgba(255,255,255,0.03)",
@@ -211,9 +188,8 @@ function UploadField({
               lineHeight: 1.45,
             }}
           >
-            Puedes elegir un archivo guardado o intentar tomar una foto.
-            Dependiendo del navegador, el sistema puede mostrar primero el
-            selector del dispositivo.
+            Puedes elegir un archivo guardado o intentar tomar una foto. Según
+            el navegador, puede aparecer primero el selector del dispositivo.
           </div>
 
           <div
@@ -532,12 +508,7 @@ export function GuestCard({
               borderTop: "1px solid rgba(255,255,255,0.08)",
             }}
           >
-            <div
-              style={{
-                textAlign: "center",
-                marginBottom: "1rem",
-              }}
-            >
+            <div style={{ textAlign: "center", marginBottom: "1rem" }}>
               <h3
                 style={{
                   color: "white",
@@ -555,8 +526,8 @@ export function GuestCard({
                   margin: 0,
                 }}
               >
-                Puedes completar esta parte ahora o dejarla para después. Ayuda
-                a agilizar la validación de la reserva.
+                Puedes completar esta parte ahora o dejarla para después. Esto
+                ayuda a agilizar la validación de la reserva.
               </p>
             </div>
 

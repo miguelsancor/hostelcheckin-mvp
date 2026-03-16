@@ -4,6 +4,26 @@ import { GuestCard } from "./CheckinForm.guest";
 import { ResultModal, GuestsTodayModal } from "./CheckinForm.modal";
 import { styles } from "./CheckinForm.styles";
 
+function CameraHintIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M9 4.5L7.4 6.5H5.5C4.12 6.5 3 7.62 3 9V17.5C3 18.88 4.12 20 5.5 20H18.5C19.88 20 21 18.88 21 17.5V9C21 7.62 19.88 6.5 18.5 6.5H16.6L15 4.5H9Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
 export default function CheckinForm() {
   const {
     formList,
@@ -79,7 +99,7 @@ ii. Las reservas no garantizadas serán canceladas 72 horas antes de la fecha de
 Si viaja con su(s) hijo(s) menor(es) de 18 años de edad, debe presentar el documento de identificación del(los) menor(es) de edad (registro civil), que demuestre dicha relación de parentesco. Si el(los) menor(es) de edad no viaja(n) en compañía de sus padres, usted deberá entregar en la recepción, adicionalmente al documento de identificación del menor (registro civil), el permiso de los padres, el cual deberá estar autenticado por un Notario y acompañado de la copia del documento de identificación de quienes dieron la autorización. Sin esta documentación no se permite el ingreso de los menores de edad al hostel. Lo anterior segun lo dispuesto en la Ley 679 de 2001 Estatuto para Prevenir la Explotación Sexual de Niños, Niñas y Adolescentes y sus normas concordantes.
 
 4.Política Anticorrupción y Antifraude
-No se permitir conductas o prácticas deshonestas que atenten contra la integridad empresarial , como por ejemplo: ofrecer o aceptar regalos, invitaciones, u otro tipo de incentivos que puedan recompensar o influir para que tome o se abstenga de tomar alguna medida comercial o legal, o cuando intencionalmente oculta, altera, falsifica u omite información en beneficio propio o en beneficio de otros, o la incursión en eventuales conflictos de interés que pudieran anteponer prioridades personales a las colectivas; promoviendo una cultura de ética, transparencia y rectitud en el desarrollo de las actividades.
+No se permitir conductas o prácticas deshonestas que atenten contra la integridad empresarial, como por ejemplo: ofrecer o aceptar regalos, invitaciones, u otro tipo de incentivos que puedan recompensar o influir para que tome o se abstenga de tomar alguna medida comercial o legal, o cuando intencionalmente oculta, altera, falsifica u omite información en beneficio propio o en beneficio de otros, o la incursión en eventuales conflictos de interés que pudieran anteponer prioridades personales a las colectivas; promoviendo una cultura de ética, transparencia y rectitud en el desarrollo de las actividades.
 
 5.Política de fumador
 Nos permitimos informarle que nuestro hotel es una propiedad LIBRE DE HUMO. Por su salud y seguridad NO está permitido fumar en la habitación, de no ser respetada esta norma, se cargará un monto de COP 900.0000 + IVA el cual se verá reflejado en su cuenta.
@@ -176,7 +196,7 @@ POLITICAS DE CONDICIONES LEGALES ESPECIALES.
               textAlign: "center",
               fontSize: isMobile ? "1.1rem" : undefined,
               lineHeight: 1.3,
-              marginBottom: "1.25rem",
+              marginBottom: "1rem",
             }}
           >
             Código de Reserva:{" "}
@@ -185,6 +205,63 @@ POLITICAS DE CONDICIONES LEGALES ESPECIALES.
             </span>
           </h3>
         )}
+
+        <div
+          style={{
+            marginBottom: "1.2rem",
+            background:
+              "linear-gradient(135deg, rgba(37,99,235,0.18), rgba(139,92,246,0.14))",
+            border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: "0.95rem",
+            padding: isMobile ? "0.9rem" : "1rem 1.1rem",
+            display: "flex",
+            flexDirection: isMobile ? "column" : "row",
+            alignItems: isMobile ? "flex-start" : "center",
+            gap: "0.85rem",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
+          }}
+        >
+          <div
+            style={{
+              width: "42px",
+              height: "42px",
+              minWidth: "42px",
+              borderRadius: "0.85rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#93c5fd",
+              background: "rgba(255,255,255,0.07)",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
+            <CameraHintIcon />
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <div
+              style={{
+                color: "white",
+                fontWeight: 800,
+                fontSize: "0.96rem",
+                marginBottom: "0.25rem",
+              }}
+            >
+              Puedes subir documentos o tomar foto desde tu dispositivo
+            </div>
+            <div
+              style={{
+                color: "#cbd5e1",
+                fontSize: "0.84rem",
+                lineHeight: 1.5,
+              }}
+            >
+              El sistema intentará usar la cámara en celulares compatibles.
+              En algunos navegadores puede mostrarse el selector del dispositivo
+              antes de abrir la cámara. El documento sigue siendo opcional.
+            </div>
+          </div>
+        </div>
 
         {formList.map((formData, index) => (
           <GuestCard
@@ -230,7 +307,9 @@ POLITICAS DE CONDICIONES LEGALES ESPECIALES.
               gap: "0.75rem",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
+            >
               <input
                 id="acceptTerms"
                 type="checkbox"
@@ -239,7 +318,11 @@ POLITICAS DE CONDICIONES LEGALES ESPECIALES.
                   setAcceptTerms(e.target.checked);
                   if (e.target.checked) setTermsError("");
                 }}
-                style={{ transform: "scale(1.2)", cursor: "pointer", flexShrink: 0 }}
+                style={{
+                  transform: "scale(1.2)",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
               />
 
               <label
@@ -275,7 +358,13 @@ POLITICAS DE CONDICIONES LEGALES ESPECIALES.
           </div>
 
           {termsError && (
-            <div style={{ marginTop: "0.75rem", color: "#fca5a5", fontSize: "0.9rem" }}>
+            <div
+              style={{
+                marginTop: "0.75rem",
+                color: "#fca5a5",
+                fontSize: "0.9rem",
+              }}
+            >
               {termsError}
             </div>
           )}
@@ -369,7 +458,13 @@ POLITICAS DE CONDICIONES LEGALES ESPECIALES.
                 gap: "1rem",
               }}
             >
-              <h2 style={{ margin: 0, fontSize: isMobile ? "1rem" : "1.1rem", lineHeight: 1.3 }}>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: isMobile ? "1rem" : "1.1rem",
+                  lineHeight: 1.3,
+                }}
+              >
                 Términos y Condiciones del servicio
               </h2>
 

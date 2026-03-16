@@ -18,6 +18,66 @@ type GuestCardProps = {
 const isMobile =
   typeof window !== "undefined" ? window.innerWidth <= 768 : false;
 
+function FileIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M14 3v5h5" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function CameraIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M9 4.5L7.4 6.5H5.5C4.12 6.5 3 7.62 3 9V17.5C3 18.88 4.12 20 5.5 20H18.5C19.88 20 21 18.88 21 17.5V9C21 7.62 19.88 6.5 18.5 6.5H16.6L15 4.5H9Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function SuccessIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M20 6L9 17l-5-5"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function Field({
   label,
   children,
@@ -73,84 +133,119 @@ function UploadField({
     <Field label={label}>
       <div
         style={{
-          display: "flex",
-          flexDirection: "column",
           width: "100%",
           minWidth: 0,
         }}
       >
         <div
           style={{
-            display: "flex",
-            flexDirection: isMobile ? "column" : "row",
-            flexWrap: "wrap",
-            gap: "0.55rem",
-            alignItems: "stretch",
-            width: "100%",
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "1rem",
+            padding: isMobile ? "0.85rem" : "0.95rem",
+            boxShadow: "0 10px 24px rgba(0,0,0,0.18)",
           }}
         >
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
+          <div
             style={{
-              background: "#334155",
-              color: "white",
-              border: "1px solid rgba(255,255,255,0.14)",
-              borderRadius: "0.5rem",
-              padding: "0.72rem 0.95rem",
-              cursor: "pointer",
-              fontWeight: 700,
-              fontSize: "0.85rem",
-              minHeight: "44px",
-              width: isMobile ? "100%" : "auto",
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+              gap: "0.7rem",
             }}
           >
-            Escoger archivo
-          </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.55rem",
+                minHeight: "52px",
+                width: "100%",
+                borderRadius: "0.85rem",
+                background: "linear-gradient(135deg, #1e293b, #334155)",
+                color: "white",
+                border: "1px solid rgba(255,255,255,0.10)",
+                cursor: "pointer",
+                fontWeight: 800,
+                fontSize: "0.88rem",
+                letterSpacing: "0.01em",
+              }}
+            >
+              <FileIcon />
+              Subir archivo
+            </button>
 
-          <button
-            type="button"
-            onClick={() => cameraInputRef.current?.click()}
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.55rem",
+                minHeight: "52px",
+                width: "100%",
+                borderRadius: "0.85rem",
+                background: "linear-gradient(135deg, #2563eb, #7c3aed)",
+                color: "white",
+                border: "none",
+                cursor: "pointer",
+                fontWeight: 800,
+                fontSize: "0.88rem",
+                letterSpacing: "0.01em",
+                boxShadow: "0 12px 24px rgba(59,130,246,0.18)",
+              }}
+            >
+              <CameraIcon />
+              Usar cámara
+            </button>
+          </div>
+
+          <div
             style={{
-              background: "#2563eb",
-              color: "white",
-              border: "none",
-              borderRadius: "0.5rem",
-              padding: "0.72rem 0.95rem",
-              cursor: "pointer",
-              fontWeight: 700,
-              fontSize: "0.85rem",
-              minHeight: "44px",
-              width: isMobile ? "100%" : "auto",
+              marginTop: "0.7rem",
+              color: "#94a3b8",
+              fontSize: "0.78rem",
+              lineHeight: 1.45,
             }}
           >
-            Tomar foto
-          </button>
-        </div>
+            Puedes elegir un archivo guardado o intentar tomar una foto.
+            Dependiendo del navegador, el sistema puede mostrar primero el
+            selector del dispositivo.
+          </div>
 
-        <div
-          style={{
-            color: "#9ca3af",
-            fontSize: "0.78rem",
-            marginTop: "0.45rem",
-            lineHeight: 1.35,
-          }}
-        >
-          Opcional: puedes subir un archivo existente o tomar una foto en este momento.
-        </div>
-
-        {fileValue && (
-          <span
+          <div
             style={{
-              color: "#10b981",
-              fontSize: "0.8rem",
-              marginTop: "0.45rem",
+              marginTop: "0.8rem",
+              minHeight: "38px",
+              borderRadius: "0.8rem",
+              border: fileValue
+                ? "1px solid rgba(16,185,129,0.25)"
+                : "1px dashed rgba(255,255,255,0.12)",
+              background: fileValue
+                ? "rgba(16,185,129,0.08)"
+                : "rgba(255,255,255,0.02)",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.55rem",
+              padding: "0.7rem 0.85rem",
+              color: fileValue ? "#34d399" : "#94a3b8",
+              fontSize: "0.82rem",
               wordBreak: "break-word",
             }}
           >
-            {fileValue.name}
-          </span>
-        )}
+            {fileValue ? (
+              <>
+                <SuccessIcon />
+                <span>{fileValue.name}</span>
+              </>
+            ) : (
+              <span>No has seleccionado ningún archivo todavía.</span>
+            )}
+          </div>
+        </div>
 
         <input
           ref={fileInputRef}
@@ -432,33 +527,38 @@ export function GuestCard({
 
           <div
             style={{
-              marginTop: "1.25rem",
+              marginTop: "1.35rem",
               paddingTop: "1.25rem",
               borderTop: "1px solid rgba(255,255,255,0.08)",
             }}
           >
-            <h3
+            <div
               style={{
-                color: "white",
-                fontSize: "1rem",
-                marginBottom: "0.35rem",
-                textAlign: "center",
-              }}
-            >
-              Documentos
-            </h3>
-
-            <p
-              style={{
-                color: "#9ca3af",
-                fontSize: "0.85rem",
                 textAlign: "center",
                 marginBottom: "1rem",
-                lineHeight: 1.4,
               }}
             >
-              Solo debes agregar el documento del titular de la reserva
-            </p>
+              <h3
+                style={{
+                  color: "white",
+                  fontSize: "1.05rem",
+                  marginBottom: "0.3rem",
+                }}
+              >
+                Documentos del titular
+              </h3>
+              <p
+                style={{
+                  color: "#94a3b8",
+                  fontSize: "0.86rem",
+                  lineHeight: 1.45,
+                  margin: 0,
+                }}
+              >
+                Puedes completar esta parte ahora o dejarla para después. Ayuda
+                a agilizar la validación de la reserva.
+              </p>
+            </div>
 
             <div style={styles.row}>
               {esCedula && (

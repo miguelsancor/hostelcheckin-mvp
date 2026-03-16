@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import { styles } from "./CheckinForm.styles";
 import type { Huesped } from "./CheckinForm.types";
 
@@ -53,6 +53,128 @@ function Field({
   );
 }
 
+type UploadFieldProps = {
+  label: string;
+  inputName: string;
+  fileValue?: File | null;
+  onFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
+};
+
+function UploadField({
+  label,
+  inputName,
+  fileValue,
+  onFile,
+}: UploadFieldProps) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+
+  return (
+    <Field label={label}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          width: "100%",
+          minWidth: 0,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: isMobile ? "column" : "row",
+            flexWrap: "wrap",
+            gap: "0.55rem",
+            alignItems: "stretch",
+            width: "100%",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              background: "#334155",
+              color: "white",
+              border: "1px solid rgba(255,255,255,0.14)",
+              borderRadius: "0.5rem",
+              padding: "0.72rem 0.95rem",
+              cursor: "pointer",
+              fontWeight: 700,
+              fontSize: "0.85rem",
+              minHeight: "44px",
+              width: isMobile ? "100%" : "auto",
+            }}
+          >
+            Escoger archivo
+          </button>
+
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            style={{
+              background: "#2563eb",
+              color: "white",
+              border: "none",
+              borderRadius: "0.5rem",
+              padding: "0.72rem 0.95rem",
+              cursor: "pointer",
+              fontWeight: 700,
+              fontSize: "0.85rem",
+              minHeight: "44px",
+              width: isMobile ? "100%" : "auto",
+            }}
+          >
+            Tomar foto
+          </button>
+        </div>
+
+        <div
+          style={{
+            color: "#9ca3af",
+            fontSize: "0.78rem",
+            marginTop: "0.45rem",
+            lineHeight: 1.35,
+          }}
+        >
+          Opcional: puedes subir un archivo existente o tomar una foto en este momento.
+        </div>
+
+        {fileValue && (
+          <span
+            style={{
+              color: "#10b981",
+              fontSize: "0.8rem",
+              marginTop: "0.45rem",
+              wordBreak: "break-word",
+            }}
+          >
+            {fileValue.name}
+          </span>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          name={inputName}
+          accept="image/*,.pdf"
+          onChange={onFile}
+          style={{ display: "none" }}
+        />
+
+        <input
+          ref={cameraInputRef}
+          type="file"
+          name={inputName}
+          accept="image/*"
+          capture="environment"
+          onChange={onFile}
+          style={{ display: "none" }}
+        />
+      </div>
+    </Field>
+  );
+}
+
 const REASONS_TRIP = [
   "Tourism",
   "Medical check up",
@@ -81,6 +203,7 @@ export function GuestCard({
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     onFile(index, e);
+    e.target.value = "";
   };
 
   const esCedula = data.tipoDocumento === "Cédula";
@@ -340,98 +463,29 @@ export function GuestCard({
             <div style={styles.row}>
               {esCedula && (
                 <>
-                  <Field label="Foto cédula frente / ID front">
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        width: "100%",
-                        minWidth: 0,
-                      }}
-                    >
-                      <input
-                        type="file"
-                        name="archivoCedula"
-                        onChange={handleFile}
-                        style={styles.fileInput}
-                      />
-                      {(data as any).archivoCedula && (
-                        <span
-                          style={{
-                            color: "#10b981",
-                            fontSize: "0.8rem",
-                            marginTop: "0.35rem",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          {((data as any).archivoCedula as File).name}
-                        </span>
-                      )}
-                    </div>
-                  </Field>
+                  <UploadField
+                    label="Foto cédula frente / ID front"
+                    inputName="archivoCedula"
+                    fileValue={(data as any).archivoCedula || null}
+                    onFile={handleFile}
+                  />
 
-                  <Field label="Foto cédula atrás / ID back">
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        width: "100%",
-                        minWidth: 0,
-                      }}
-                    >
-                      <input
-                        type="file"
-                        name="archivoFirma"
-                        onChange={handleFile}
-                        style={styles.fileInput}
-                      />
-                      {(data as any).archivoFirma && (
-                        <span
-                          style={{
-                            color: "#10b981",
-                            fontSize: "0.8rem",
-                            marginTop: "0.35rem",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          {((data as any).archivoFirma as File).name}
-                        </span>
-                      )}
-                    </div>
-                  </Field>
+                  <UploadField
+                    label="Foto cédula atrás / ID back"
+                    inputName="archivoFirma"
+                    fileValue={(data as any).archivoFirma || null}
+                    onFile={handleFile}
+                  />
                 </>
               )}
 
               {esPasaporte && (
-                <Field label="Foto pasaporte / Passport photo">
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      width: "100%",
-                      minWidth: 0,
-                    }}
-                  >
-                    <input
-                      type="file"
-                      name="archivoPasaporte"
-                      onChange={handleFile}
-                      style={styles.fileInput}
-                    />
-                    {(data as any).archivoPasaporte && (
-                      <span
-                        style={{
-                          color: "#10b981",
-                          fontSize: "0.8rem",
-                          marginTop: "0.35rem",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {((data as any).archivoPasaporte as File).name}
-                      </span>
-                    )}
-                  </div>
-                </Field>
+                <UploadField
+                  label="Foto pasaporte / Passport photo"
+                  inputName="archivoPasaporte"
+                  fileValue={(data as any).archivoPasaporte || null}
+                  onFile={handleFile}
+                />
               )}
 
               {!esCedula && !esPasaporte && (

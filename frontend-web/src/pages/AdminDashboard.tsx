@@ -61,6 +61,11 @@ export default function AdminDashboard() {
     return `${API_BASE}/uploads/${encodeURIComponent(file)}`;
   };
 
+  const ttlockText = (value?: string | null) => {
+    const v = String(value || "").trim();
+    return v || "-";
+  };
+
   const checkSession = async () => {
     try {
       setCheckingSession(true);
@@ -219,6 +224,7 @@ export default function AdminDashboard() {
         ${h.telefono}
         ${h.email}
         ${h.numeroReserva}
+        ${h.codigoTTLock ?? ""}
       `.toLowerCase();
 
       return texto.includes(f);
@@ -471,6 +477,9 @@ export default function AdminDashboard() {
                   <p>
                     <b>Reserva:</b> {h.numeroReserva}
                   </p>
+                  <p>
+                    <b>TTLock:</b> {ttlockText(h.codigoTTLock)}
+                  </p>
 
                   {h.checkinUrl ? (
                     <a
@@ -559,7 +568,9 @@ export default function AdminDashboard() {
                         "-"
                       )}
                     </td>
-                    <td style={td}>Oculto</td>
+                    <td style={{ ...td, fontWeight: 700, color: "#facc15" }}>
+                      {ttlockText(h.codigoTTLock)}
+                    </td>
                     <td
                       style={{
                         ...td,
@@ -645,7 +656,8 @@ export default function AdminDashboard() {
               <b>Checkin URL:</b> {detalle.checkinUrl ?? "-"}
             </p>
             <p>
-              <b>Código TTLock:</b> Oculto por seguridad
+              <b>Código TTLock:</b>{" "}
+              <span style={ttlockBadge}>{ttlockText(detalle.codigoTTLock)}</span>
             </p>
 
             <div style={imagenesDetalleGrid}>
@@ -706,7 +718,8 @@ export default function AdminDashboard() {
               <b>Reserva:</b> {editTtlock.numeroReserva}
             </p>
             <p>
-              <b>Código TTLock:</b> Oculto por seguridad
+              <b>Código TTLock:</b>{" "}
+              <span style={ttlockBadge}>{ttlockText(editTtlock.codigoTTLock)}</span>
             </p>
             <p>
               <b>Salida actual:</b> {editTtlock.fechaSalida ?? "-"}
@@ -1053,4 +1066,15 @@ const zoomImage: React.CSSProperties = {
   borderRadius: "1rem",
   border: "2px solid #1d4ed8",
   objectFit: "contain",
+};
+
+const ttlockBadge: React.CSSProperties = {
+  display: "inline-block",
+  padding: "0.2rem 0.55rem",
+  borderRadius: "0.45rem",
+  background: "#451a03",
+  color: "#facc15",
+  border: "1px solid #92400e",
+  fontWeight: 700,
+  letterSpacing: "0.03em",
 };

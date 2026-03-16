@@ -19,6 +19,13 @@ type ResultModalProps = {
 type TraStatus = "OK" | "PENDING" | "ERROR";
 type TTLockStatus = "IDLE" | "CREATING" | "OK" | "ERROR";
 
+/* =========================================================
+   ✅ HELPERS FECHA / ZONA HORARIA BOGOTÁ
+   - Colombia = UTC-5
+   - Se genera epoch fijo en hora Bogotá
+   - No depende del timezone del navegador/dispositivo
+========================================================= */
+
 function parseDateOnly(value?: string | null) {
   const s = String(value || "").trim();
   if (!s) return null;
@@ -34,7 +41,30 @@ function parseDateOnly(value?: string | null) {
   return { year, month, day };
 }
 
-function buildTtlockWindow(fechaIngreso?: string | null, fechaSalida?: string | null) {
+/**
+ * Convierte una fecha/hora local de Bogotá a epoch ms UTC.
+ * Bogotá = UTC-5 => UTC = horaBogota + 5
+ */
+function bogotaDateToEpoch(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute = 0,
+  second = 0
+) {
+  return Date.UTC(year, month - 1, day, hour + 5, minute, second, 0);
+}
+
+/**
+ * Regla del cliente:
+ * - activa desde 10:00 AM del día de ingreso (Bogotá)
+ * - vence a las 3:00 PM del día de salida (Bogotá)
+ */
+function buildTtlockWindowBogota(
+  fechaIngreso?: string | null,
+  fechaSalida?: string | null
+) {
   const ingreso = parseDateOnly(fechaIngreso);
   const salida = parseDateOnly(fechaSalida);
 
@@ -42,25 +72,23 @@ function buildTtlockWindow(fechaIngreso?: string | null, fechaSalida?: string | 
     throw new Error("Huésped sin fechas válidas para TTLock");
   }
 
-  const startAt = new Date(
+  const startAt = bogotaDateToEpoch(
     ingreso.year,
-    ingreso.month - 1,
+    ingreso.month,
     ingreso.day,
     10,
     0,
-    0,
     0
-  ).getTime();
+  );
 
-  const endAt = new Date(
+  const endAt = bogotaDateToEpoch(
     salida.year,
-    salida.month - 1,
+    salida.month,
     salida.day,
     15,
     0,
-    0,
     0
-  ).getTime();
+  );
 
   if (!Number.isFinite(startAt) || !Number.isFinite(endAt) || endAt <= startAt) {
     throw new Error("Ventana TTLock inválida");
@@ -178,7 +206,7 @@ export function ResultModal({
       setTtlockStatus("CREATING");
       setTtlockError(null);
 
-      const { startAt, endAt } = buildTtlockWindow(
+      const { startAt, endAt } = buildTtlockWindowBogota(
         guest.fechaIngreso,
         guest.fechaSalida
       );
@@ -417,7 +445,7 @@ export function ResultModal({
               }}
             >
               <ul>
-                <li>⏰ Activa de 10:00 AM a 3:00 PM del día siguiente</li>
+                <li>⏰ Activa de 10:00 AM a 3:00 PM del día siguiente (hora Bogotá)</li>
                 <li>🔒 No compartas tu código</li>
                 <li>🚪 Cierra la puerta completamente al salir</li>
               </ul>

@@ -152,3 +152,184 @@ model TraRegistro {
   @@index([status])
   @@index([endpoint])
 }
+
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Huesped {
+  id               Int      @id @default(autoincrement())
+  nombre           String
+  tipoDocumento    String
+  numeroDocumento  String
+  nacionalidad     String
+  direccion        String
+  lugarProcedencia String
+  lugarDestino     String
+  telefono         String
+  email            String
+  motivoViaje      String
+  fechaIngreso     String
+  fechaSalida      String
+  numeroReserva    String   @unique
+  creadoEn         DateTime @default(now())
+
+  checkinUrl       String?
+  codigoTTLock     String?
+
+  // CAMPOS PARA ARCHIVOS
+  archivoPasaporte String?
+  archivoCedula    String?
+  archivoFirma     String?
+
+  passcodes        Passcode[]
+
+  // ✅ NUEVO: registros de integración TRA (auditoría + semáforo + reintentos)
+  traRegistros     TraRegistro[]
+}
+
+model Passcode {
+  id            Int      @id @default(autoincrement())
+
+  // Relación con huésped
+  huespedId     Int
+  huesped       Huesped  @relation(fields: [huespedId], references: [id], onDelete: Cascade)
+
+  // TTLock (Puerta)
+  lockId        Int
+  lockAlias     String?  // ej: "ALLYN", "Door 1 Ay", etc.
+
+  // El código real (a veces NO viene en la respuesta)
+  codigo        String?
+
+  // ID que devuelve TTLock para ese passcode
+  keyboardPwdId Int?
+
+  // Tipo de operación interna
+  tipo          String   // "ADD" | "GET" | "SYNC" etc.
+
+  // Vigencia (epoch)
+  startDate     BigInt
+  endDate       BigInt
+
+  // Estado interno
+  estado        String   @default("ACTIVO")
+
+  // Estado/resultado TTLock
+  ttlockOk      Boolean  @default(true)
+  ttlockMessage String?  // ej: "YA EXISTE", "CREADO", "ERROR: ..."
+
+  // Auditoría
+  creadoEn      DateTime @default(now())
+
+  @@index([huespedId])
+  @@index([lockId])
+  @@index([keyboardPwdId])
+
+  // Evita duplicar el mismo registro por puerta + id de TTLock
+  @@unique([lockId, keyboardPwdId])
+}
+
+/* ===========================================================
+   ✅ NUEVO: Sesión compartible persistida en SQLite
+   - crea token único para abrir /checkin?t=...
+   - guarda snapshot (reserva + formList sin archivos)
+   - TTL por expiracion
+   =========================================================== */
+model CheckinSession {
+  id            Int      @id @default(autoincrement())
+
+  // Para relacionar con la reserva
+  numeroReserva String   @unique
+
+  // Token compartible
+  token         String   @unique
+
+  // URL opcional si quieres guardarla
+  checkinUrl    String?
+
+  // Snapshot del borrador: { reserva, formList }
+  payload       Json?
+
+  creadoEn      DateTime @default(now())
+  expiracion    DateTime
+  usadoEn       DateTime?
+
+  updatedAt     DateTime @updatedAt
+}
+
+/* ===========================================================
+   ✅ NUEVO (SIN ROMPER): Registro de envíos TRA (auditoría + semáforo + retry)
+   - Guarda qué mandamos a /one o /two y qué respondió
+   - Guarda el code del principal para usarlo como "padre" en secundarios
+   =========================================================== */
+model TraRegistro {
+  id              Int      @id @default(autoincrement())
+
+  // Relación con huésped (uno o muchos intentos)
+  huespedId       Int
+  huesped         Huesped  @relation(fields: [huespedId], references: [id], onDelete: Cascade)
+
+  // Reserva (útil para agrupar principal + secundarios)
+  numeroReserva   String
+
+  // "PRIMARY" | "SECONDARY"
+  role            String
+
+  // "/one" | "/two" (para saber qué se envió)
+  endpoint        String
+
+  // Para secundarios: el code del principal (campo "padre" en /two)
+  padreCode       Int?
+
+  // code devuelto por TRA (en /one es el importante)
+  code            Int?
+
+  // Estado de integración
+  status          String   @default("PENDING") // PENDING | SENT | ERROR
+  attempts        Int      @default(0)
+  lastAttemptAt   DateTime?
+
+  // Payloads para auditoría
+  requestPayload  Json?
+  responsePayload Json?
+  errorMessage    String?
+
+  creadoEn        DateTime @default(now())
+
+  @@index([numeroReserva])
+  @@index([huespedId])
+  @@index([status])
+  @@index([endpoint])
+}
+
+model Pago {
+  id                Int      @id @default(autoincrement())
+
+  numeroReserva     String
+  huespedId         Int?
+
+  metodo            String
+  estado            String   @default("PENDING")
+
+  monto             Float
+  moneda            String   @default("COP")
+
+  referencia        String?
+  canal             String?
+  descripcion       String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  metadata          Json?
+
+  @@index([numeroReserva])
+  @@index([estado])
+}

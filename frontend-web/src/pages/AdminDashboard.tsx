@@ -28,6 +28,44 @@ type Huesped = {
   archivoFirma?: string | null;
 };
 
+type ReservaCobro = {
+  id?: number;
+  numeroReserva: string;
+  huespedId?: number | null;
+  totalHospedaje: number;
+  anticipo: number;
+  saldoPendiente: number;
+  moneda: string;
+  estadoPago: "PENDING" | "PARTIAL" | "APPROVED";
+  observacion?: string | null;
+  creadoEn?: string;
+  actualizadoEn?: string;
+};
+
+const defaultCobro = (huesped?: Huesped | null): ReservaCobro => ({
+  numeroReserva: huesped?.numeroReserva || "",
+  huespedId: huesped?.id ?? null,
+  totalHospedaje: 0,
+  anticipo: 0,
+  saldoPendiente: 0,
+  moneda: "COP",
+  estadoPago: "PENDING",
+  observacion: "",
+});
+
+function formatMoney(value?: number, currency = "COP") {
+  const n = Number(value || 0);
+  try {
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(n);
+  } catch {
+    return `${currency} ${n}`;
+  }
+}
+
 export default function AdminDashboard() {
   const [autenticado, setAutenticado] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -47,6 +85,11 @@ export default function AdminDashboard() {
   const [editTtlock, setEditTtlock] = useState<Huesped | null>(null);
   const [newTtlockEnd, setNewTtlockEnd] = useState("");
   const [savingTtlock, setSavingTtlock] = useState(false);
+
+  const [cobrosMap, setCobrosMap] = useState<Record<string, ReservaCobro>>({});
+  const [editCobroHuesped, setEditCobroHuesped] = useState<Huesped | null>(null);
+  const [editCobro, setEditCobro] = useState<ReservaCobro>(defaultCobro());
+  const [savingCobro, setSavingCobro] = useState(false);
 
   const normalizarFecha = (value?: string | null) => {
     if (!value) return "";
@@ -141,6 +184,7 @@ export default function AdminDashboard() {
       setHuespedes([]);
       setMetrics(null);
       setDetalle(null);
+      setCobrosMap({});
     }
   };
 
@@ -189,6 +233,34 @@ export default function AdminDashboard() {
     }
   };
 
+  const cargarCobros = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/cobros`, {
+        credentials: "include",
+      });
+
+      if (res.status === 401) {
+        setAutenticado(false);
+        return;
+      }
+
+      const json = await res.json();
+      const lista: ReservaCobro[] = Array.isArray(json?.cobros) ? json.cobros : [];
+
+      const map: Record<string, ReservaCobro> = {};
+      for (const item of lista) {
+        if (item?.numeroReserva) {
+          map[item.numeroReserva] = item;
+        }
+      }
+
+      setCobrosMap(map);
+    } catch (e) {
+      console.error(e);
+      setCobrosMap({});
+    }
+  };
+
   useEffect(() => {
     checkSession();
   }, []);
@@ -197,6 +269,7 @@ export default function AdminDashboard() {
     if (autenticado) {
       cargarHuespedes();
       cargarMetrics();
+      cargarCobros();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autenticado]);
@@ -218,6 +291,7 @@ export default function AdminDashboard() {
     if (!f) return base;
 
     return base.filter((h) => {
+      const cobro = cobrosMap[h.numeroReserva];
       const texto = `
         ${h.nombre}
         ${h.numeroDocumento}
@@ -225,11 +299,13 @@ export default function AdminDashboard() {
         ${h.email}
         ${h.numeroReserva}
         ${h.codigoTTLock ?? ""}
+        ${cobro?.estadoPago ?? ""}
+        ${cobro?.moneda ?? ""}
       `.toLowerCase();
 
       return texto.includes(f);
     });
-  }, [huespedes, filtro, scope]);
+  }, [huespedes, filtro, scope, cobrosMap]);
 
   const eliminar = async (id: number) => {
     if (!confirm("¿Eliminar huésped?")) return;
@@ -246,30 +322,40 @@ export default function AdminDashboard() {
 
     await cargarHuespedes();
     await cargarMetrics();
+    await cargarCobros();
   };
 
   const exportarExcel = () => {
-    const data = filtrados.map((h) => ({
-      ID: h.id,
-      Nombre: h.nombre,
-      Documento: `${h.tipoDocumento} ${h.numeroDocumento}`,
-      Nacionalidad: h.nacionalidad,
-      Dirección: h.direccion,
-      Procedencia: h.lugarProcedencia,
-      Destino: h.lugarDestino,
-      Teléfono: h.telefono,
-      Email: h.email,
-      Motivo: h.motivoViaje,
-      Ingreso: h.fechaIngreso,
-      Salida: h.fechaSalida,
-      Reserva: h.numeroReserva,
-      Checkin_URL: h.checkinUrl ?? "",
-      TTLock: h.codigoTTLock ?? "",
-      Creado: h.creadoEn,
-      Pasaporte: h.archivoPasaporte ?? "",
-      Cedula: h.archivoCedula ?? "",
-      Firma: h.archivoFirma ?? "",
-    }));
+    const data = filtrados.map((h) => {
+      const cobro = cobrosMap[h.numeroReserva];
+      return {
+        ID: h.id,
+        Nombre: h.nombre,
+        Documento: `${h.tipoDocumento} ${h.numeroDocumento}`,
+        Nacionalidad: h.nacionalidad,
+        Dirección: h.direccion,
+        Procedencia: h.lugarProcedencia,
+        Destino: h.lugarDestino,
+        Teléfono: h.telefono,
+        Email: h.email,
+        Motivo: h.motivoViaje,
+        Ingreso: h.fechaIngreso,
+        Salida: h.fechaSalida,
+        Reserva: h.numeroReserva,
+        Checkin_URL: h.checkinUrl ?? "",
+        TTLock: h.codigoTTLock ?? "",
+        TotalHospedaje: cobro?.totalHospedaje ?? 0,
+        Anticipo: cobro?.anticipo ?? 0,
+        SaldoPendiente: cobro?.saldoPendiente ?? 0,
+        Moneda: cobro?.moneda ?? "COP",
+        EstadoPago: cobro?.estadoPago ?? "PENDING",
+        ObservacionCobro: cobro?.observacion ?? "",
+        Creado: h.creadoEn,
+        Pasaporte: h.archivoPasaporte ?? "",
+        Cedula: h.archivoCedula ?? "",
+        Firma: h.archivoFirma ?? "",
+      };
+    });
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -329,6 +415,115 @@ export default function AdminDashboard() {
       alert("Error actualizando TTLock.");
     } finally {
       setSavingTtlock(false);
+    }
+  };
+
+  const abrirModalCobro = async (h: Huesped) => {
+    try {
+      setEditCobroHuesped(h);
+
+      const local = cobrosMap[h.numeroReserva];
+      if (local) {
+        setEditCobro({
+          ...defaultCobro(h),
+          ...local,
+          numeroReserva: h.numeroReserva,
+          huespedId: h.id,
+        });
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/admin/cobros/${encodeURIComponent(h.numeroReserva)}`, {
+        credentials: "include",
+      });
+
+      if (res.status === 401) {
+        setAutenticado(false);
+        return;
+      }
+
+      const json = await res.json();
+      const cobro = json?.cobro;
+
+      setEditCobro({
+        ...defaultCobro(h),
+        ...(cobro || {}),
+        numeroReserva: h.numeroReserva,
+        huespedId: h.id,
+      });
+    } catch (e) {
+      console.error(e);
+      setEditCobro(defaultCobro(h));
+    }
+  };
+
+  const recalcularSaldo = (nextTotal?: number, nextAnticipo?: number) => {
+    const total = Number(nextTotal ?? editCobro.totalHospedaje ?? 0);
+    const anticipo = Number(nextAnticipo ?? editCobro.anticipo ?? 0);
+    const saldo = Math.max(0, total - anticipo);
+
+    setEditCobro((prev) => ({
+      ...prev,
+      totalHospedaje: total,
+      anticipo,
+      saldoPendiente: saldo,
+      estadoPago: saldo <= 0 ? "APPROVED" : anticipo > 0 ? "PARTIAL" : "PENDING",
+    }));
+  };
+
+  const guardarCobro = async () => {
+    try {
+      if (!editCobroHuesped) return;
+
+      if (!editCobro.numeroReserva.trim()) {
+        alert("La reserva es obligatoria.");
+        return;
+      }
+
+      setSavingCobro(true);
+
+      const payload = {
+        numeroReserva: editCobro.numeroReserva.trim(),
+        huespedId: editCobroHuesped.id,
+        totalHospedaje: Number(editCobro.totalHospedaje || 0),
+        anticipo: Number(editCobro.anticipo || 0),
+        saldoPendiente: Number(editCobro.saldoPendiente || 0),
+        moneda: editCobro.moneda || "COP",
+        estadoPago: editCobro.estadoPago || "PENDING",
+        observacion: editCobro.observacion || "",
+      };
+
+      const res = await fetch(`${API_BASE}/admin/cobros`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json?.ok) {
+        alert(json?.error || "No se pudo guardar el cobro.");
+        return;
+      }
+
+      alert("Cobro guardado correctamente.");
+
+      setCobrosMap((prev) => ({
+        ...prev,
+        [payload.numeroReserva]: json.cobro,
+      }));
+
+      setEditCobroHuesped(null);
+      setEditCobro(defaultCobro());
+      await cargarCobros();
+    } catch (e) {
+      console.error(e);
+      alert("Error guardando cobro.");
+    } finally {
+      setSavingCobro(false);
     }
   };
 
@@ -406,7 +601,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
+        <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", flexWrap: "wrap" }}>
           <button onClick={exportarExcel} style={btnExcel}>
             📥 Excel
           </button>
@@ -440,6 +635,7 @@ export default function AdminDashboard() {
               const urlPasaporte = getSecureUploadUrl(h.archivoPasaporte);
               const urlCedula = getSecureUploadUrl(h.archivoCedula);
               const urlFirma = getSecureUploadUrl(h.archivoFirma);
+              const cobro = cobrosMap[h.numeroReserva];
 
               const thumbUrl = urlPasaporte || urlCedula || urlFirma || null;
 
@@ -480,6 +676,18 @@ export default function AdminDashboard() {
                   <p>
                     <b>TTLock:</b> {ttlockText(h.codigoTTLock)}
                   </p>
+                  <p>
+                    <b>Total:</b> {formatMoney(cobro?.totalHospedaje, cobro?.moneda || "COP")}
+                  </p>
+                  <p>
+                    <b>Saldo:</b> {formatMoney(cobro?.saldoPendiente, cobro?.moneda || "COP")}
+                  </p>
+                  <p>
+                    <b>Estado:</b>{" "}
+                    <span style={paymentBadge(cobro?.estadoPago || "PENDING")}>
+                      {cobro?.estadoPago || "PENDING"}
+                    </span>
+                  </p>
 
                   {h.checkinUrl ? (
                     <a
@@ -504,6 +712,14 @@ export default function AdminDashboard() {
                   >
                     <button style={btnEye} onClick={() => setDetalle(h)}>
                       👁
+                    </button>
+
+                    <button
+                      style={btnMoney}
+                      onClick={() => abrirModalCobro(h)}
+                      title="Editar cobro"
+                    >
+                      💰
                     </button>
 
                     <button
@@ -536,70 +752,96 @@ export default function AdminDashboard() {
                   <th style={th}>Ingreso</th>
                   <th style={th}>Salida</th>
                   <th style={th}>Reserva</th>
+                  <th style={th}>Cobro</th>
+                  <th style={th}>Saldo</th>
+                  <th style={th}>Estado Pago</th>
                   <th style={th}>Checkin</th>
                   <th style={th}>TTLock</th>
                   <th style={th}>Acción</th>
                 </tr>
               </thead>
               <tbody>
-                {filtrados.map((h, idx) => (
-                  <tr key={h.id} style={idx % 2 === 0 ? trEven : trOdd}>
-                    <td style={td}>{h.id}</td>
-                    <td style={td}>{h.nombre}</td>
-                    <td style={td}>
-                      {h.tipoDocumento} - {h.numeroDocumento}
-                    </td>
-                    <td style={td}>{h.telefono}</td>
-                    <td style={td}>{h.email}</td>
-                    <td style={td}>{h.fechaIngreso}</td>
-                    <td style={td}>{h.fechaSalida}</td>
-                    <td style={td}>{h.numeroReserva}</td>
-                    <td style={td}>
-                      {h.checkinUrl ? (
-                        <a
-                          href={h.checkinUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={link}
-                        >
-                          abrir
-                        </a>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td style={{ ...td, fontWeight: 700, color: "#facc15" }}>
-                      {ttlockText(h.codigoTTLock)}
-                    </td>
-                    <td
-                      style={{
-                        ...td,
-                        display: "flex",
-                        gap: "0.5rem",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <button style={btnEye} onClick={() => setDetalle(h)}>
-                        👁
-                      </button>
+                {filtrados.map((h, idx) => {
+                  const cobro = cobrosMap[h.numeroReserva];
 
-                      <button
-                        style={btnTtlock}
-                        onClick={() => abrirModalExtension(h)}
+                  return (
+                    <tr key={h.id} style={idx % 2 === 0 ? trEven : trOdd}>
+                      <td style={td}>{h.id}</td>
+                      <td style={td}>{h.nombre}</td>
+                      <td style={td}>
+                        {h.tipoDocumento} - {h.numeroDocumento}
+                      </td>
+                      <td style={td}>{h.telefono}</td>
+                      <td style={td}>{h.email}</td>
+                      <td style={td}>{h.fechaIngreso}</td>
+                      <td style={td}>{h.fechaSalida}</td>
+                      <td style={td}>{h.numeroReserva}</td>
+                      <td style={td}>
+                        {formatMoney(cobro?.totalHospedaje, cobro?.moneda || "COP")}
+                      </td>
+                      <td style={td}>
+                        {formatMoney(cobro?.saldoPendiente, cobro?.moneda || "COP")}
+                      </td>
+                      <td style={td}>
+                        <span style={paymentBadge(cobro?.estadoPago || "PENDING")}>
+                          {cobro?.estadoPago || "PENDING"}
+                        </span>
+                      </td>
+                      <td style={td}>
+                        {h.checkinUrl ? (
+                          <a
+                            href={h.checkinUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={link}
+                          >
+                            abrir
+                          </a>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td style={{ ...td, fontWeight: 700, color: "#facc15" }}>
+                        {ttlockText(h.codigoTTLock)}
+                      </td>
+                      <td
+                        style={{
+                          ...td,
+                          display: "flex",
+                          gap: "0.5rem",
+                          flexWrap: "wrap",
+                        }}
                       >
-                        ⏰
-                      </button>
+                        <button style={btnEye} onClick={() => setDetalle(h)}>
+                          👁
+                        </button>
 
-                      <button style={btnDelete} onClick={() => eliminar(h.id)}>
-                        ❌
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        <button
+                          style={btnMoney}
+                          onClick={() => abrirModalCobro(h)}
+                          title="Editar cobro"
+                        >
+                          💰
+                        </button>
+
+                        <button
+                          style={btnTtlock}
+                          onClick={() => abrirModalExtension(h)}
+                        >
+                          ⏰
+                        </button>
+
+                        <button style={btnDelete} onClick={() => eliminar(h.id)}>
+                          ❌
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
 
                 {filtrados.length === 0 && (
                   <tr>
-                    <td style={{ ...td, padding: "1rem" }} colSpan={11}>
+                    <td style={{ ...td, padding: "1rem" }} colSpan={14}>
                       No hay registros para mostrar (scope: {scope}).
                     </td>
                   </tr>
@@ -619,8 +861,7 @@ export default function AdminDashboard() {
               <b>Nombre:</b> {detalle.nombre}
             </p>
             <p>
-              <b>Documento:</b> {detalle.tipoDocumento}{" "}
-              {detalle.numeroDocumento}
+              <b>Documento:</b> {detalle.tipoDocumento} {detalle.numeroDocumento}
             </p>
             <p>
               <b>Nacionalidad:</b> {detalle.nacionalidad}
@@ -659,6 +900,38 @@ export default function AdminDashboard() {
               <b>Código TTLock:</b>{" "}
               <span style={ttlockBadge}>{ttlockText(detalle.codigoTTLock)}</span>
             </p>
+
+            {cobrosMap[detalle.numeroReserva] && (
+              <>
+                <p>
+                  <b>Total Hospedaje:</b>{" "}
+                  {formatMoney(
+                    cobrosMap[detalle.numeroReserva]?.totalHospedaje,
+                    cobrosMap[detalle.numeroReserva]?.moneda || "COP"
+                  )}
+                </p>
+                <p>
+                  <b>Anticipo:</b>{" "}
+                  {formatMoney(
+                    cobrosMap[detalle.numeroReserva]?.anticipo,
+                    cobrosMap[detalle.numeroReserva]?.moneda || "COP"
+                  )}
+                </p>
+                <p>
+                  <b>Saldo Pendiente:</b>{" "}
+                  {formatMoney(
+                    cobrosMap[detalle.numeroReserva]?.saldoPendiente,
+                    cobrosMap[detalle.numeroReserva]?.moneda || "COP"
+                  )}
+                </p>
+                <p>
+                  <b>Estado Pago:</b>{" "}
+                  <span style={paymentBadge(cobrosMap[detalle.numeroReserva]?.estadoPago || "PENDING")}>
+                    {cobrosMap[detalle.numeroReserva]?.estadoPago || "PENDING"}
+                  </span>
+                </p>
+              </>
+            )}
 
             <div style={imagenesDetalleGrid}>
               {detalle.archivoPasaporte && (
@@ -768,6 +1041,147 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {editCobroHuesped && (
+        <div style={modal}>
+          <div style={modalBox}>
+            <h3>Configurar cobro de hospedaje</h3>
+
+            <p>
+              <b>Huésped:</b> {editCobroHuesped.nombre}
+            </p>
+            <p>
+              <b>Reserva:</b> {editCobroHuesped.numeroReserva}
+            </p>
+
+            <div style={{ marginTop: "1rem" }}>
+              <label style={label}>Total hospedaje</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={editCobro.totalHospedaje}
+                onChange={(e) => recalcularSaldo(Number(e.target.value || 0), editCobro.anticipo)}
+                style={input}
+              />
+            </div>
+
+            <div style={{ marginTop: "1rem" }}>
+              <label style={label}>Anticipo</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={editCobro.anticipo}
+                onChange={(e) => recalcularSaldo(editCobro.totalHospedaje, Number(e.target.value || 0))}
+                style={input}
+              />
+            </div>
+
+            <div style={{ marginTop: "1rem" }}>
+              <label style={label}>Saldo pendiente</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={editCobro.saldoPendiente}
+                onChange={(e) =>
+                  setEditCobro((prev) => ({
+                    ...prev,
+                    saldoPendiente: Number(e.target.value || 0),
+                  }))
+                }
+                style={input}
+              />
+            </div>
+
+            <div style={{ marginTop: "1rem" }}>
+              <label style={label}>Moneda</label>
+              <select
+                value={editCobro.moneda}
+                onChange={(e) =>
+                  setEditCobro((prev) => ({
+                    ...prev,
+                    moneda: e.target.value,
+                  }))
+                }
+                style={input}
+              >
+                <option value="COP">COP</option>
+                <option value="USD">USD</option>
+                <option value="BRL">BRL</option>
+                <option value="EUR">EUR</option>
+              </select>
+            </div>
+
+            <div style={{ marginTop: "1rem" }}>
+              <label style={label}>Estado pago</label>
+              <select
+                value={editCobro.estadoPago}
+                onChange={(e) =>
+                  setEditCobro((prev) => ({
+                    ...prev,
+                    estadoPago: e.target.value as "PENDING" | "PARTIAL" | "APPROVED",
+                  }))
+                }
+                style={input}
+              >
+                <option value="PENDING">PENDING</option>
+                <option value="PARTIAL">PARTIAL</option>
+                <option value="APPROVED">APPROVED</option>
+              </select>
+            </div>
+
+            <div style={{ marginTop: "1rem" }}>
+              <label style={label}>Observación</label>
+              <textarea
+                value={editCobro.observacion || ""}
+                onChange={(e) =>
+                  setEditCobro((prev) => ({
+                    ...prev,
+                    observacion: e.target.value,
+                  }))
+                }
+                style={textarea}
+              />
+            </div>
+
+            <div style={summaryBox}>
+              <div><b>Total:</b> {formatMoney(editCobro.totalHospedaje, editCobro.moneda)}</div>
+              <div><b>Anticipo:</b> {formatMoney(editCobro.anticipo, editCobro.moneda)}</div>
+              <div><b>Saldo:</b> {formatMoney(editCobro.saldoPendiente, editCobro.moneda)}</div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "0.75rem",
+                marginTop: "1rem",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                onClick={() => {
+                  setEditCobroHuesped(null);
+                  setEditCobro(defaultCobro());
+                }}
+                style={btnToggle}
+                disabled={savingCobro}
+              >
+                Cancelar
+              </button>
+
+              <button
+                onClick={guardarCobro}
+                style={btnMoney}
+                disabled={savingCobro}
+              >
+                {savingCobro ? "Guardando..." : "Guardar cobro"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {imagenZoom && (
         <div style={zoomOverlay} onClick={() => setImagenZoom(null)}>
           <img src={imagenZoom} style={zoomImage} alt="Zoom" />
@@ -837,6 +1251,33 @@ const input: React.CSSProperties = {
   width: "100%",
 };
 
+const textarea: React.CSSProperties = {
+  minHeight: "100px",
+  padding: "0.7rem",
+  borderRadius: "0.4rem",
+  border: "1px solid #333",
+  background: "#111",
+  color: "#fff",
+  width: "100%",
+  resize: "vertical",
+};
+
+const label: React.CSSProperties = {
+  display: "block",
+  marginBottom: "0.5rem",
+  fontWeight: 700,
+};
+
+const summaryBox: React.CSSProperties = {
+  marginTop: "1rem",
+  padding: "1rem",
+  borderRadius: "0.8rem",
+  background: "#0f172a",
+  border: "1px solid #1f2937",
+  display: "grid",
+  gap: "0.4rem",
+};
+
 const metricsGrid: React.CSSProperties = {
   display: "grid",
   gap: "1rem",
@@ -862,7 +1303,7 @@ const tablaWrapper: React.CSSProperties = {
 const tabla: React.CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
-  minWidth: "1100px",
+  minWidth: "1450px",
 };
 
 const th: React.CSSProperties = {
@@ -912,6 +1353,15 @@ const btnEye: React.CSSProperties = {
 
 const btnTtlock: React.CSSProperties = {
   background: "#f59e0b",
+  color: "white",
+  border: "none",
+  padding: "0.3rem 0.6rem",
+  borderRadius: "0.4rem",
+  cursor: "pointer",
+};
+
+const btnMoney: React.CSSProperties = {
+  background: "#16a34a",
   color: "white",
   border: "none",
   padding: "0.3rem 0.6rem",
@@ -1019,6 +1469,7 @@ const modalBox: React.CSSProperties = {
   borderRadius: "1rem",
   color: "white",
   maxWidth: "600px",
+  width: "100%",
   maxHeight: "90vh",
   overflowY: "auto",
 };
@@ -1077,4 +1528,42 @@ const ttlockBadge: React.CSSProperties = {
   border: "1px solid #92400e",
   fontWeight: 700,
   letterSpacing: "0.03em",
+};
+
+const paymentBadge = (status: string): React.CSSProperties => {
+  const normalized = String(status || "PENDING").toUpperCase();
+
+  if (normalized === "APPROVED") {
+    return {
+      display: "inline-block",
+      padding: "0.2rem 0.55rem",
+      borderRadius: "0.45rem",
+      background: "#052e16",
+      color: "#86efac",
+      border: "1px solid #166534",
+      fontWeight: 700,
+    };
+  }
+
+  if (normalized === "PARTIAL") {
+    return {
+      display: "inline-block",
+      padding: "0.2rem 0.55rem",
+      borderRadius: "0.45rem",
+      background: "#3f2a00",
+      color: "#facc15",
+      border: "1px solid #a16207",
+      fontWeight: 700,
+    };
+  }
+
+  return {
+    display: "inline-block",
+    padding: "0.2rem 0.55rem",
+    borderRadius: "0.45rem",
+    background: "#3f0d0d",
+    color: "#fca5a5",
+    border: "1px solid #991b1b",
+    fontWeight: 700,
+  };
 };

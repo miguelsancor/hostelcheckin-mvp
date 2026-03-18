@@ -119,3 +119,14 @@ model Pago {
   @@index([numeroReserva])
   @@index([estado])
 }
+
+model ReservaCobro {
+  id              Int      @id @default(autoincrement())
+  numeroReserva   String   @unique
+  totalHospedaje  Float
+  anticipo        Float    @default(0)
+  saldoPendiente  Float
+  moneda          String   @default("COP")
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
+}

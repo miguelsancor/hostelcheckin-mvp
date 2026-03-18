@@ -11,6 +11,16 @@ const {
   metrics,
 } = require("./admin.controller");
 
+const {
+  saveReservaCobro,
+  getReservaCobro,
+  listReservaCobros,
+} = require("./admin.billing.controller");
+
+// ============================================================
+// HUÉSPEDES
+// ============================================================
+
 // /admin/huespedes
 router.get("/huespedes", listarHuespedes);
 
@@ -26,10 +36,27 @@ router.put("/huesped/:id/checkin", actualizarCheckinUrlPorId);
 // /admin/huesped/checkin-por-reserva
 router.put("/huesped/checkin-por-reserva", actualizarCheckinPorReserva);
 
+// ============================================================
+// STATS / MÉTRICAS
+// ============================================================
+
 // /admin/stats
 router.get("/stats", stats);
 
 // /admin/metrics
 router.get("/metrics", metrics);
+
+// ============================================================
+// COBROS / VALOR HOSPEDAJE
+// ============================================================
+
+// /admin/cobros
+router.get("/cobros", listReservaCobros);
+
+// /admin/cobros/:numeroReserva
+router.get("/cobros/:numeroReserva", getReservaCobro);
+
+// /admin/cobros
+router.post("/cobros", saveReservaCobro);
 
 module.exports = router;

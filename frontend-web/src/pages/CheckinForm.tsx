@@ -156,10 +156,15 @@ function generateMockPaymentRef() {
 
 type PaymentStatus = "PENDING" | "REDIRECTED" | "PROCESSING" | "APPROVED";
 
+const BOLD_ENABLED = (import.meta.env.VITE_BOLD_ENABLED || "false").toLowerCase() === "true";
+const BOLD_REQUIRE_PAYMENT =
+  (import.meta.env.VITE_BOLD_REQUIRE_PAYMENT || "false").toLowerCase() === "true";
 const BOLD_MODE = (import.meta.env.VITE_BOLD_MODE || "demo").toLowerCase();
 const BOLD_CHECKOUT_URL = import.meta.env.VITE_BOLD_CHECKOUT_URL || "";
 const BOLD_BUSINESS_NAME = import.meta.env.VITE_BOLD_BUSINESS_NAME || "Kuyay Hostel";
 const BOLD_PUBLIC_LABEL = import.meta.env.VITE_BOLD_PUBLIC_LABEL || "Pago seguro con Bold";
+const BOLD_SHOW_COMING_SOON =
+  (import.meta.env.VITE_BOLD_SHOW_COMING_SOON || "true").toLowerCase() === "true";
 
 export default function CheckinForm() {
   const {
@@ -196,6 +201,7 @@ export default function CheckinForm() {
 
   const isBoldDemo = BOLD_MODE !== "prod";
   const hasRealBoldUrl = !!BOLD_CHECKOUT_URL?.trim();
+  const showPaymentBlock = BOLD_ENABLED || BOLD_SHOW_COMING_SOON;
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= 768);
@@ -249,6 +255,9 @@ export default function CheckinForm() {
   }, [paymentStatus]);
 
   const paymentHelperText = useMemo(() => {
+    if (!BOLD_ENABLED && BOLD_SHOW_COMING_SOON) {
+      return "La integración de pago se encuentra en preparación. El flujo actual de registro sigue operando normalmente.";
+    }
     if (isBoldDemo) {
       return "Modo demo activo. Esta sección está en construcción y no realiza cobros reales todavía.";
     }
@@ -262,14 +271,13 @@ export default function CheckinForm() {
   }, [isBoldDemo, paymentStatus]);
 
   const canSubmit = useMemo(() => {
-    if (isBoldDemo) {
-      return acceptTerms;
-    }
-    return acceptTerms && paymentStatus === "APPROVED";
-  }, [acceptTerms, isBoldDemo, paymentStatus]);
+    if (!acceptTerms) return false;
+    if (!BOLD_REQUIRE_PAYMENT) return true;
+    return paymentStatus === "APPROVED";
+  }, [acceptTerms, paymentStatus]);
 
   const onSubmitClick = () => {
-    if (!isBoldDemo && paymentStatus !== "APPROVED") {
+    if (BOLD_REQUIRE_PAYMENT && paymentStatus !== "APPROVED") {
       setPaymentError("Debes completar y confirmar el pago con Bold antes de enviar el registro.");
       return;
     }
@@ -286,6 +294,11 @@ export default function CheckinForm() {
 
   const openBoldPayment = () => {
     setPaymentError("");
+
+    if (!BOLD_ENABLED) {
+      setPaymentError("La pasarela aún no está habilitada para uso real.");
+      return;
+    }
 
     if (isBoldDemo) {
       setShowPaymentModal(true);
@@ -339,6 +352,7 @@ export default function CheckinForm() {
   };
 
   const paymentButtonLabel = useMemo(() => {
+    if (!BOLD_ENABLED) return "Próximamente";
     if (paymentStatus === "APPROVED") return "Pago confirmado";
     if (isBoldDemo) return "Probar flujo demo";
     return "Pagar con Bold";
@@ -510,417 +524,427 @@ export default function CheckinForm() {
           </button>
         </div>
 
-        <div
-          style={{
-            marginTop: "1.5rem",
-            background:
-              "linear-gradient(135deg, rgba(14,165,233,0.12), rgba(37,99,235,0.14), rgba(124,58,237,0.12))",
-            border: "1px solid rgba(255,255,255,0.10)",
-            borderRadius: "1rem",
-            padding: isMobile ? "1rem" : "1.1rem",
-            boxShadow: "0 16px 40px rgba(0,0,0,0.20)",
-          }}
-        >
+        {showPaymentBlock && (
           <div
             style={{
-              display: "flex",
-              flexDirection: isMobile ? "column" : "row",
-              alignItems: isMobile ? "flex-start" : "center",
-              gap: "0.9rem",
-              marginBottom: "1rem",
-            }}
-          >
-            <BoldWordmark />
-
-            <div style={{ flex: 1 }}>
-              <div
-                style={{
-                  color: "white",
-                  fontWeight: 900,
-                  fontSize: "1rem",
-                  marginBottom: "0.2rem",
-                }}
-              >
-                {BOLD_PUBLIC_LABEL}
-              </div>
-
-              <div
-                style={{
-                  color: "#cbd5e1",
-                  fontSize: "0.88rem",
-                  lineHeight: 1.45,
-                }}
-              >
-                Pasarela preparada para integración con Bold. El diseño ya está listo para operar con enlace real o ambiente de pruebas.
-              </div>
-            </div>
-
-            <div
-              style={{
-                padding: "0.45rem 0.8rem",
-                borderRadius: "999px",
-                background: `${paymentStatusColor}22`,
-                border: `1px solid ${paymentStatusColor}66`,
-                color: paymentStatusColor,
-                fontWeight: 800,
-                fontSize: "0.84rem",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {paymentStatusLabel}
-            </div>
-          </div>
-
-          <div
-            style={{
-              marginBottom: "1rem",
-              background: isBoldDemo
-                ? "rgba(245,158,11,0.10)"
-                : "rgba(59,130,246,0.10)",
-              border: isBoldDemo
-                ? "1px solid rgba(245,158,11,0.30)"
-                : "1px solid rgba(59,130,246,0.26)",
-              color: isBoldDemo ? "#fde68a" : "#dbeafe",
-              borderRadius: "0.9rem",
-              padding: "0.9rem 1rem",
-              display: "flex",
-              alignItems: "flex-start",
-              gap: "0.7rem",
-              lineHeight: 1.5,
-              fontSize: "0.92rem",
-            }}
-          >
-            <span style={{ marginTop: 2, display: "inline-flex" }}>
-              <AlertTriangleIcon />
-            </span>
-            <div>
-              <strong style={{ display: "block", marginBottom: 4 }}>
-                {isBoldDemo ? "Pasarela en construcción" : "Flujo conectado a Bold"}
-              </strong>
-              <span>
-                {paymentHelperText}
-              </span>
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "1.1fr 0.9fr",
-              gap: "1rem",
+              marginTop: "1.5rem",
+              background:
+                "linear-gradient(135deg, rgba(14,165,233,0.12), rgba(37,99,235,0.14), rgba(124,58,237,0.12))",
+              border: "1px solid rgba(255,255,255,0.10)",
+              borderRadius: "1rem",
+              padding: isMobile ? "1rem" : "1.1rem",
+              boxShadow: "0 16px 40px rgba(0,0,0,0.20)",
             }}
           >
             <div
               style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: "0.9rem",
-                padding: "1rem",
+                display: "flex",
+                flexDirection: isMobile ? "column" : "row",
+                alignItems: isMobile ? "flex-start" : "center",
+                gap: "0.9rem",
+                marginBottom: "1rem",
               }}
             >
+              <BoldWordmark />
+
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    color: "white",
+                    fontWeight: 900,
+                    fontSize: "1rem",
+                    marginBottom: "0.2rem",
+                  }}
+                >
+                  {BOLD_PUBLIC_LABEL}
+                </div>
+
+                <div
+                  style={{
+                    color: "#cbd5e1",
+                    fontSize: "0.88rem",
+                    lineHeight: 1.45,
+                  }}
+                >
+                  Pasarela preparada para integración con Bold. El diseño ya está listo para operar con enlace real o ambiente de pruebas.
+                </div>
+              </div>
+
               <div
                 style={{
-                  color: "#93c5fd",
+                  padding: "0.45rem 0.8rem",
+                  borderRadius: "999px",
+                  background: `${paymentStatusColor}22`,
+                  border: `1px solid ${paymentStatusColor}66`,
+                  color: paymentStatusColor,
                   fontWeight: 800,
                   fontSize: "0.84rem",
-                  letterSpacing: "0.03em",
-                  textTransform: "uppercase",
-                  marginBottom: "0.75rem",
+                  whiteSpace: "nowrap",
                 }}
               >
-                Resumen del cobro
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gap: "0.7rem",
-                  color: "white",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: "1rem",
-                  }}
-                >
-                  <span style={{ color: "#cbd5e1" }}>Comercio</span>
-                  <strong>{BOLD_BUSINESS_NAME}</strong>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: "1rem",
-                  }}
-                >
-                  <span style={{ color: "#cbd5e1" }}>Método</span>
-                  <strong>Bold</strong>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: "1rem",
-                  }}
-                >
-                  <span style={{ color: "#cbd5e1" }}>Concepto</span>
-                  <strong style={{ textAlign: "right" }}>{paymentDescription}</strong>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: "1rem",
-                  }}
-                >
-                  <span style={{ color: "#cbd5e1" }}>Moneda</span>
-                  <strong>COP</strong>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: "1rem",
-                    alignItems: "center",
-                    paddingTop: "0.35rem",
-                    borderTop: "1px solid rgba(255,255,255,0.08)",
-                  }}
-                >
-                  <span style={{ color: "#cbd5e1" }}>Total a pagar</span>
-                  <strong style={{ fontSize: "1.25rem", color: "#10b981" }}>
-                    {formatCOP(paymentAmount)}
-                  </strong>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  marginTop: "1rem",
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: "0.6rem",
-                }}
-              >
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.45rem",
-                    padding: "0.5rem 0.7rem",
-                    borderRadius: "999px",
-                    background: "rgba(255,255,255,0.06)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    color: "white",
-                    fontSize: "0.82rem",
-                    fontWeight: 700,
-                  }}
-                >
-                  <CardPayIcon />
-                  Tarjetas
-                </div>
-
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.45rem",
-                    padding: "0.5rem 0.7rem",
-                    borderRadius: "999px",
-                    background: "rgba(255,255,255,0.06)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    color: "white",
-                    fontSize: "0.82rem",
-                    fontWeight: 700,
-                  }}
-                >
-                  <BankPayIcon />
-                  PSE
-                </div>
-
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.45rem",
-                    padding: "0.5rem 0.7rem",
-                    borderRadius: "999px",
-                    background: "rgba(255,255,255,0.06)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    color: "white",
-                    fontSize: "0.82rem",
-                    fontWeight: 700,
-                  }}
-                >
-                  <WalletPayIcon />
-                  Nequi
-                </div>
+                {paymentStatusLabel}
               </div>
             </div>
 
             <div
               style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                marginBottom: "1rem",
+                background:
+                  !BOLD_ENABLED || isBoldDemo
+                    ? "rgba(245,158,11,0.10)"
+                    : "rgba(59,130,246,0.10)",
+                border:
+                  !BOLD_ENABLED || isBoldDemo
+                    ? "1px solid rgba(245,158,11,0.30)"
+                    : "1px solid rgba(59,130,246,0.26)",
+                color: !BOLD_ENABLED || isBoldDemo ? "#fde68a" : "#dbeafe",
                 borderRadius: "0.9rem",
-                padding: "1rem",
+                padding: "0.9rem 1rem",
                 display: "flex",
-                flexDirection: "column",
-                gap: "0.8rem",
+                alignItems: "flex-start",
+                gap: "0.7rem",
+                lineHeight: 1.5,
+                fontSize: "0.92rem",
+              }}
+            >
+              <span style={{ marginTop: 2, display: "inline-flex" }}>
+                <AlertTriangleIcon />
+              </span>
+              <div>
+                <strong style={{ display: "block", marginBottom: 4 }}>
+                  {!BOLD_ENABLED
+                    ? "Pasarela en preparación"
+                    : isBoldDemo
+                    ? "Pasarela en construcción"
+                    : "Flujo conectado a Bold"}
+                </strong>
+                <span>{paymentHelperText}</span>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "1.1fr 0.9fr",
+                gap: "1rem",
               }}
             >
               <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.6rem",
-                  color: "white",
-                  fontWeight: 800,
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "0.9rem",
+                  padding: "1rem",
                 }}
               >
-                <span
+                <div
                   style={{
+                    color: "#93c5fd",
+                    fontWeight: 800,
+                    fontSize: "0.84rem",
+                    letterSpacing: "0.03em",
+                    textTransform: "uppercase",
+                    marginBottom: "0.75rem",
+                  }}
+                >
+                  Resumen del cobro
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gap: "0.7rem",
+                    color: "white",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "1rem",
+                    }}
+                  >
+                    <span style={{ color: "#cbd5e1" }}>Comercio</span>
+                    <strong>{BOLD_BUSINESS_NAME}</strong>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "1rem",
+                    }}
+                  >
+                    <span style={{ color: "#cbd5e1" }}>Método</span>
+                    <strong>Bold</strong>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "1rem",
+                    }}
+                  >
+                    <span style={{ color: "#cbd5e1" }}>Concepto</span>
+                    <strong style={{ textAlign: "right" }}>{paymentDescription}</strong>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "1rem",
+                    }}
+                  >
+                    <span style={{ color: "#cbd5e1" }}>Moneda</span>
+                    <strong>COP</strong>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "1rem",
+                      alignItems: "center",
+                      paddingTop: "0.35rem",
+                      borderTop: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <span style={{ color: "#cbd5e1" }}>Total a pagar</span>
+                    <strong style={{ fontSize: "1.25rem", color: "#10b981" }}>
+                      {formatCOP(paymentAmount)}
+                    </strong>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "1rem",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.6rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.45rem",
+                      padding: "0.5rem 0.7rem",
+                      borderRadius: "999px",
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      color: "white",
+                      fontSize: "0.82rem",
+                      fontWeight: 700,
+                    }}
+                  >
+                    <CardPayIcon />
+                    Tarjetas
+                  </div>
+
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.45rem",
+                      padding: "0.5rem 0.7rem",
+                      borderRadius: "999px",
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      color: "white",
+                      fontSize: "0.82rem",
+                      fontWeight: 700,
+                    }}
+                  >
+                    <BankPayIcon />
+                    PSE
+                  </div>
+
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.45rem",
+                      padding: "0.5rem 0.7rem",
+                      borderRadius: "999px",
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      color: "white",
+                      fontSize: "0.82rem",
+                      fontWeight: 700,
+                    }}
+                  >
+                    <WalletPayIcon />
+                    Nequi
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "0.9rem",
+                  padding: "1rem",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.8rem",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.6rem",
+                    color: "white",
+                    fontWeight: 800,
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 28,
+                      height: 28,
+                      borderRadius: 999,
+                      background: "rgba(255,255,255,0.08)",
+                      color: "#93c5fd",
+                    }}
+                  >
+                    <LockSecureIcon />
+                  </span>
+                  Pago seguro en línea
+                </div>
+
+                <div
+                  style={{
+                    color: "#cbd5e1",
+                    fontSize: "0.9rem",
+                    lineHeight: 1.45,
+                  }}
+                >
+                  Tu pago se procesa fuera de este formulario, a través del checkout de Bold. Este formulario no almacena datos de tarjeta.
+                </div>
+
+                <div
+                  style={{
+                    borderRadius: "0.75rem",
+                    background: "rgba(0,0,0,0.2)",
+                    padding: "0.8rem",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                  }}
+                >
+                  <div style={{ color: "#94a3b8", fontSize: "0.82rem", marginBottom: 6 }}>
+                    Referencia
+                  </div>
+                  <div style={{ color: "white", fontWeight: 800 }}>
+                    {paymentRef || "Aún no generada"}
+                  </div>
+
+                  <div
+                    style={{
+                      color: "#94a3b8",
+                      fontSize: "0.82rem",
+                      marginTop: "0.8rem",
+                      marginBottom: 6,
+                    }}
+                  >
+                    Confirmación
+                  </div>
+                  <div style={{ color: "white", fontWeight: 700 }}>
+                    {paymentApprovedAt ||
+                      (paymentStatus === "REDIRECTED" ? "En espera de validación" : "-")}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={openBoldPayment}
+                  disabled={!BOLD_ENABLED || paymentStatus === "APPROVED" || processingPayment}
+                  style={{
+                    width: "100%",
+                    background:
+                      !BOLD_ENABLED
+                        ? "#475569"
+                        : paymentStatus === "APPROVED"
+                        ? "#065f46"
+                        : "linear-gradient(135deg, #0ea5e9, #2563eb, #7c3aed)",
+                    border: "none",
+                    color: "white",
+                    borderRadius: "0.75rem",
+                    padding: "0.95rem 1rem",
+                    cursor:
+                      !BOLD_ENABLED || paymentStatus === "APPROVED" || processingPayment
+                        ? "not-allowed"
+                        : "pointer",
+                    fontWeight: 900,
+                    fontSize: "0.96rem",
+                    opacity: !BOLD_ENABLED || paymentStatus === "APPROVED" ? 0.9 : 1,
+                    boxShadow: "0 14px 30px rgba(37,99,235,0.25)",
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    width: 28,
-                    height: 28,
-                    borderRadius: 999,
-                    background: "rgba(255,255,255,0.08)",
-                    color: "#93c5fd",
-                  }}
-                >
-                  <LockSecureIcon />
-                </span>
-                Pago seguro en línea
-              </div>
-
-              <div
-                style={{
-                  color: "#cbd5e1",
-                  fontSize: "0.9rem",
-                  lineHeight: 1.45,
-                }}
-              >
-                Tu pago se procesa fuera de este formulario, a través del checkout de Bold. Este formulario no almacena datos de tarjeta.
-              </div>
-
-              <div
-                style={{
-                  borderRadius: "0.75rem",
-                  background: "rgba(0,0,0,0.2)",
-                  padding: "0.8rem",
-                  border: "1px solid rgba(255,255,255,0.06)",
-                }}
-              >
-                <div style={{ color: "#94a3b8", fontSize: "0.82rem", marginBottom: 6 }}>
-                  Referencia
-                </div>
-                <div style={{ color: "white", fontWeight: 800 }}>
-                  {paymentRef || "Aún no generada"}
-                </div>
-
-                <div
-                  style={{
-                    color: "#94a3b8",
-                    fontSize: "0.82rem",
-                    marginTop: "0.8rem",
-                    marginBottom: 6,
-                  }}
-                >
-                  Confirmación
-                </div>
-                <div style={{ color: "white", fontWeight: 700 }}>
-                  {paymentApprovedAt || (paymentStatus === "REDIRECTED" ? "En espera de validación" : "-")}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={openBoldPayment}
-                disabled={paymentStatus === "APPROVED" || processingPayment}
-                style={{
-                  width: "100%",
-                  background:
-                    paymentStatus === "APPROVED"
-                      ? "#065f46"
-                      : "linear-gradient(135deg, #0ea5e9, #2563eb, #7c3aed)",
-                  border: "none",
-                  color: "white",
-                  borderRadius: "0.75rem",
-                  padding: "0.95rem 1rem",
-                  cursor:
-                    paymentStatus === "APPROVED" || processingPayment
-                      ? "not-allowed"
-                      : "pointer",
-                  fontWeight: 900,
-                  fontSize: "0.96rem",
-                  opacity: paymentStatus === "APPROVED" ? 0.9 : 1,
-                  boxShadow: "0 14px 30px rgba(37,99,235,0.25)",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.55rem",
-                }}
-              >
-                <span>{paymentButtonLabel}</span>
-                {paymentStatus !== "APPROVED" && <ExternalArrowIcon />}
-              </button>
-
-              {paymentStatus === "APPROVED" && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
                     gap: "0.55rem",
-                    color: "#86efac",
-                    fontWeight: 800,
-                    fontSize: "0.9rem",
                   }}
                 >
-                  <CheckCircleIcon />
-                  Estado visual completado
-                </div>
-              )}
-
-              {(isBoldDemo || paymentStatus === "APPROVED" || paymentStatus === "REDIRECTED") && (
-                <button
-                  type="button"
-                  onClick={resetMockPayment}
-                  style={{
-                    width: "100%",
-                    background: "transparent",
-                    border: "1px solid rgba(255,255,255,0.16)",
-                    color: "white",
-                    borderRadius: "0.75rem",
-                    padding: "0.8rem 1rem",
-                    cursor: "pointer",
-                    fontWeight: 800,
-                  }}
-                >
-                  Reiniciar estado de pago
+                  <span>{paymentButtonLabel}</span>
+                  {BOLD_ENABLED && paymentStatus !== "APPROVED" && <ExternalArrowIcon />}
                 </button>
-              )}
-            </div>
-          </div>
 
-          {paymentError && (
-            <div
-              style={{
-                marginTop: "0.9rem",
-                color: "#fca5a5",
-                fontSize: "0.9rem",
-              }}
-            >
-              {paymentError}
+                {paymentStatus === "APPROVED" && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.55rem",
+                      color: "#86efac",
+                      fontWeight: 800,
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    <CheckCircleIcon />
+                    Estado visual completado
+                  </div>
+                )}
+
+                {(isBoldDemo || paymentStatus === "APPROVED" || paymentStatus === "REDIRECTED") &&
+                  BOLD_ENABLED && (
+                    <button
+                      type="button"
+                      onClick={resetMockPayment}
+                      style={{
+                        width: "100%",
+                        background: "transparent",
+                        border: "1px solid rgba(255,255,255,0.16)",
+                        color: "white",
+                        borderRadius: "0.75rem",
+                        padding: "0.8rem 1rem",
+                        cursor: "pointer",
+                        fontWeight: 800,
+                      }}
+                    >
+                      Reiniciar estado de pago
+                    </button>
+                  )}
+              </div>
             </div>
-          )}
-        </div>
+
+            {paymentError && (
+              <div
+                style={{
+                  marginTop: "0.9rem",
+                  color: "#fca5a5",
+                  fontSize: "0.9rem",
+                }}
+              >
+                {paymentError}
+              </div>
+            )}
+          </div>
+        )}
 
         <div
           style={{
@@ -1019,15 +1043,11 @@ export default function CheckinForm() {
             }}
             disabled={loading || !canSubmit}
           >
-            {loading
-              ? "Enviando..."
-              : isBoldDemo
-              ? "Enviar Registro / Demo"
-              : "Enviar Registro / Submit"}
+            {loading ? "Enviando..." : "Enviar Registro / Submit"}
           </button>
         </div>
 
-        {isBoldDemo && (
+        {showPaymentBlock && (!BOLD_ENABLED || isBoldDemo) && (
           <div
             style={{
               marginTop: "0.85rem",
@@ -1037,7 +1057,7 @@ export default function CheckinForm() {
               lineHeight: 1.45,
             }}
           >
-            Aviso: la pasarela de pago está en construcción. El flujo actual es visual y de pruebas.
+            Aviso: la pasarela de pago está en construcción o preparación. El flujo actual puede seguir operando sin bloquear el registro hasta que se active formalmente.
           </div>
         )}
 

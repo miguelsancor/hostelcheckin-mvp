@@ -85,6 +85,16 @@ body::after {
   }
 }
 
+/* Shimmer para placeholders de carga de imágenes en admin */
+@keyframes adminShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 /* Logo demo Vite (si lo usas) */
 .logo {
   height: 6em;

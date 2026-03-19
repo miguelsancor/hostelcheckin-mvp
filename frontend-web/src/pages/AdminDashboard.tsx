@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
 const API_BASE = "/api";
@@ -42,6 +42,14 @@ type ReservaCobro = {
   actualizadoEn?: string;
 };
 
+type HuespedEnriquecido = Huesped & {
+  _searchText: string;
+  _thumbUrl: string | null;
+  _pasaporteUrl: string | null;
+  _cedulaUrl: string | null;
+  _firmaUrl: string | null;
+};
+
 const defaultCobro = (huesped?: Huesped | null): ReservaCobro => ({
   numeroReserva: huesped?.numeroReserva || "",
   huespedId: huesped?.id ?? null,
@@ -66,6 +74,195 @@ function formatMoney(value?: number, currency = "COP") {
   }
 }
 
+function normalizarFecha(value?: string | null) {
+  if (!value) return "";
+  const s = String(value).trim();
+  if (!s) return "";
+  if (s.includes("T")) return s.split("T")[0];
+  return s.slice(0, 10);
+}
+
+function getSecureUploadUrl(file?: string | null) {
+  if (!file) return null;
+  return `${API_BASE}/uploads/${encodeURIComponent(file)}`;
+}
+
+function ttlockText(value?: string | null) {
+  const v = String(value || "").trim();
+  return v || "-";
+}
+
+function buildSearchText(h: Huesped, cobro?: ReservaCobro) {
+  return `
+    ${h.nombre}
+    ${h.numeroDocumento}
+    ${h.telefono}
+    ${h.email}
+    ${h.numeroReserva}
+    ${h.codigoTTLock ?? ""}
+    ${cobro?.estadoPago ?? ""}
+    ${cobro?.moneda ?? ""}
+  `
+    .toLowerCase()
+    .trim();
+}
+
+const SmartImage = memo(function SmartImage({
+  src,
+  alt,
+  style,
+  onClick,
+  eager = false,
+}: {
+  src: string;
+  alt: string;
+  style: React.CSSProperties;
+  onClick?: () => void;
+  eager?: boolean;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+    setFailed(false);
+  }, [src]);
+
+  if (failed) {
+    return (
+      <div style={{ ...imageShell, ...style }}>
+        <div style={imageFallbackText}>Sin vista previa</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...imageShell, ...style }}>
+      {!loaded && <div style={imageSkeleton} />}
+      <img
+        src={src}
+        alt={alt}
+        onClick={onClick}
+        loading={eager ? "eager" : "lazy"}
+        decoding="async"
+        fetchPriority={eager ? "high" : "low"}
+        onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
+        style={{
+          ...style,
+          opacity: loaded ? 1 : 0,
+          transition: "opacity 180ms ease",
+          position: "relative",
+          zIndex: 2,
+        }}
+      />
+    </div>
+  );
+});
+
+const GalleryCard = memo(function GalleryCard({
+  h,
+  cobro,
+  onDetalle,
+  onCobro,
+  onTtlock,
+  onEliminar,
+  onZoom,
+}: {
+  h: HuespedEnriquecido;
+  cobro?: ReservaCobro;
+  onDetalle: (h: Huesped) => void;
+  onCobro: (h: Huesped) => void;
+  onTtlock: (h: Huesped) => void;
+  onEliminar: (id: number) => void;
+  onZoom: (src: string) => void;
+}) {
+  const inicial =
+    h.nombre && h.nombre.trim().length > 0
+      ? h.nombre.trim()[0].toUpperCase()
+      : "?";
+
+  return (
+    <div style={galeriaCard}>
+      {h._thumbUrl ? (
+        <SmartImage
+          src={h._thumbUrl}
+          alt="Documento"
+          style={imagenGaleria}
+          onClick={() => onZoom(h._thumbUrl as string)}
+        />
+      ) : (
+        <div style={imagenPlaceholder}>{inicial}</div>
+      )}
+
+      <h3>{h.nombre}</h3>
+      <p>
+        <b>Documento:</b> {h.tipoDocumento} {h.numeroDocumento}
+      </p>
+      <p>
+        <b>Tel:</b> {h.telefono}
+      </p>
+      <p>
+        <b>Email:</b> {h.email}
+      </p>
+      <p>
+        <b>Ingreso:</b> {h.fechaIngreso}
+      </p>
+      <p>
+        <b>Reserva:</b> {h.numeroReserva}
+      </p>
+      <p>
+        <b>TTLock:</b> {ttlockText(h.codigoTTLock)}
+      </p>
+      <p>
+        <b>Total:</b> {formatMoney(cobro?.totalHospedaje, cobro?.moneda || "COP")}
+      </p>
+      <p>
+        <b>Saldo:</b> {formatMoney(cobro?.saldoPendiente, cobro?.moneda || "COP")}
+      </p>
+      <p>
+        <b>Estado:</b>{" "}
+        <span style={paymentBadge(cobro?.estadoPago || "PENDING")}>
+          {cobro?.estadoPago || "PENDING"}
+        </span>
+      </p>
+
+      {h.checkinUrl ? (
+        <a href={h.checkinUrl} target="_blank" rel="noreferrer" style={galeriaLink}>
+          Abrir check-in
+        </a>
+      ) : (
+        <span style={{ opacity: 0.5 }}>Sin check-in</span>
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          gap: "0.5rem",
+          marginTop: "1rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <button style={btnEye} onClick={() => onDetalle(h)}>
+          👁
+        </button>
+
+        <button style={btnMoney} onClick={() => onCobro(h)} title="Editar cobro">
+          💰
+        </button>
+
+        <button style={btnTtlock} onClick={() => onTtlock(h)}>
+          ⏰
+        </button>
+
+        <button style={btnDelete} onClick={() => onEliminar(h.id)}>
+          ❌
+        </button>
+      </div>
+    </div>
+  );
+});
+
 export default function AdminDashboard() {
   const [autenticado, setAutenticado] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -77,7 +274,7 @@ export default function AdminDashboard() {
   const [huespedes, setHuespedes] = useState<Huesped[]>([]);
   const [filtro, setFiltro] = useState("");
   const [metrics, setMetrics] = useState<any>(null);
-  const [detalle, setDetalle] = useState<Huesped | null>(null);
+  const [detalle, setDetalle] = useState<HuespedEnriquecido | null>(null);
   const [vista, setVista] = useState<"tabla" | "galeria">("tabla");
   const [scope, setScope] = useState<"hoy" | "todos">("todos");
   const [imagenZoom, setImagenZoom] = useState<string | null>(null);
@@ -90,24 +287,6 @@ export default function AdminDashboard() {
   const [editCobroHuesped, setEditCobroHuesped] = useState<Huesped | null>(null);
   const [editCobro, setEditCobro] = useState<ReservaCobro>(defaultCobro());
   const [savingCobro, setSavingCobro] = useState(false);
-
-  const normalizarFecha = (value?: string | null) => {
-    if (!value) return "";
-    const s = String(value).trim();
-    if (!s) return "";
-    if (s.includes("T")) return s.split("T")[0];
-    return s.slice(0, 10);
-  };
-
-  const getSecureUploadUrl = (file?: string | null) => {
-    if (!file) return null;
-    return `${API_BASE}/uploads/${encodeURIComponent(file)}`;
-  };
-
-  const ttlockText = (value?: string | null) => {
-    const v = String(value || "").trim();
-    return v || "-";
-  };
 
   const checkSession = async () => {
     try {
@@ -274,6 +453,24 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autenticado]);
 
+  const huespedesPreparados = useMemo<HuespedEnriquecido[]>(() => {
+    return huespedes.map((h) => {
+      const cobro = cobrosMap[h.numeroReserva];
+      const pasaporteUrl = getSecureUploadUrl(h.archivoPasaporte);
+      const cedulaUrl = getSecureUploadUrl(h.archivoCedula);
+      const firmaUrl = getSecureUploadUrl(h.archivoFirma);
+
+      return {
+        ...h,
+        _searchText: buildSearchText(h, cobro),
+        _pasaporteUrl: pasaporteUrl,
+        _cedulaUrl: cedulaUrl,
+        _firmaUrl: firmaUrl,
+        _thumbUrl: pasaporteUrl || cedulaUrl || firmaUrl || null,
+      };
+    });
+  }, [huespedes, cobrosMap]);
+
   const filtrados = useMemo(() => {
     const hoy = new Date();
     const yyyy = hoy.getFullYear();
@@ -281,7 +478,7 @@ export default function AdminDashboard() {
     const dd = String(hoy.getDate()).padStart(2, "0");
     const hoyStr = `${yyyy}-${mm}-${dd}`;
 
-    let base = huespedes;
+    let base = huespedesPreparados;
 
     if (scope === "hoy") {
       base = base.filter((h) => normalizarFecha(h.fechaIngreso) === hoyStr);
@@ -290,22 +487,8 @@ export default function AdminDashboard() {
     const f = filtro.toLowerCase().trim();
     if (!f) return base;
 
-    return base.filter((h) => {
-      const cobro = cobrosMap[h.numeroReserva];
-      const texto = `
-        ${h.nombre}
-        ${h.numeroDocumento}
-        ${h.telefono}
-        ${h.email}
-        ${h.numeroReserva}
-        ${h.codigoTTLock ?? ""}
-        ${cobro?.estadoPago ?? ""}
-        ${cobro?.moneda ?? ""}
-      `.toLowerCase();
-
-      return texto.includes(f);
-    });
-  }, [huespedes, filtro, scope, cobrosMap]);
+    return base.filter((h) => h._searchText.includes(f));
+  }, [huespedesPreparados, filtro, scope]);
 
   const eliminar = async (id: number) => {
     if (!confirm("¿Eliminar huésped?")) return;
@@ -367,8 +550,7 @@ export default function AdminDashboard() {
     setEditTtlock(h);
 
     const baseDate =
-      normalizarFecha(h.fechaSalida || "") ||
-      normalizarFecha(h.fechaIngreso || "");
+      normalizarFecha(h.fechaSalida || "") || normalizarFecha(h.fechaIngreso || "");
     const defaultValue = baseDate ? `${baseDate}T12:00` : "";
 
     setNewTtlockEnd(defaultValue);
@@ -385,19 +567,16 @@ export default function AdminDashboard() {
     try {
       setSavingTtlock(true);
 
-      const res = await fetch(
-        `${API_BASE}/mcp/passcode/extend/${editTtlock.id}`,
-        {
-          method: "PUT",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            newEndDate: newTtlockEnd,
-          }),
-        }
-      );
+      const res = await fetch(`${API_BASE}/mcp/passcode/extend/${editTtlock.id}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          newEndDate: newTtlockEnd,
+        }),
+      });
 
       const json = await res.json();
 
@@ -433,9 +612,12 @@ export default function AdminDashboard() {
         return;
       }
 
-      const res = await fetch(`${API_BASE}/admin/cobros/${encodeURIComponent(h.numeroReserva)}`, {
-        credentials: "include",
-      });
+      const res = await fetch(
+        `${API_BASE}/admin/cobros/${encodeURIComponent(h.numeroReserva)}`,
+        {
+          credentials: "include",
+        }
+      );
 
       if (res.status === 401) {
         setAutenticado(false);
@@ -573,7 +755,7 @@ export default function AdminDashboard() {
   return (
     <div style={container}>
       <div style={card}>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
           <h1>Dashboard Administrativo</h1>
           <button onClick={logout} style={btnLogout}>
             Salir
@@ -632,108 +814,19 @@ export default function AdminDashboard() {
         {vista === "galeria" && (
           <div style={galeriaGrid}>
             {filtrados.map((h) => {
-              const urlPasaporte = getSecureUploadUrl(h.archivoPasaporte);
-              const urlCedula = getSecureUploadUrl(h.archivoCedula);
-              const urlFirma = getSecureUploadUrl(h.archivoFirma);
               const cobro = cobrosMap[h.numeroReserva];
 
-              const thumbUrl = urlPasaporte || urlCedula || urlFirma || null;
-
-              const inicial =
-                h.nombre && h.nombre.trim().length > 0
-                  ? h.nombre.trim()[0].toUpperCase()
-                  : "?";
-
               return (
-                <div key={h.id} style={galeriaCard}>
-                  {thumbUrl ? (
-                    <img
-                      src={thumbUrl}
-                      style={imagenGaleria}
-                      onClick={() => setImagenZoom(thumbUrl)}
-                      alt="Documento"
-                    />
-                  ) : (
-                    <div style={imagenPlaceholder}>{inicial}</div>
-                  )}
-
-                  <h3>{h.nombre}</h3>
-                  <p>
-                    <b>Documento:</b> {h.tipoDocumento} {h.numeroDocumento}
-                  </p>
-                  <p>
-                    <b>Tel:</b> {h.telefono}
-                  </p>
-                  <p>
-                    <b>Email:</b> {h.email}
-                  </p>
-                  <p>
-                    <b>Ingreso:</b> {h.fechaIngreso}
-                  </p>
-                  <p>
-                    <b>Reserva:</b> {h.numeroReserva}
-                  </p>
-                  <p>
-                    <b>TTLock:</b> {ttlockText(h.codigoTTLock)}
-                  </p>
-                  <p>
-                    <b>Total:</b> {formatMoney(cobro?.totalHospedaje, cobro?.moneda || "COP")}
-                  </p>
-                  <p>
-                    <b>Saldo:</b> {formatMoney(cobro?.saldoPendiente, cobro?.moneda || "COP")}
-                  </p>
-                  <p>
-                    <b>Estado:</b>{" "}
-                    <span style={paymentBadge(cobro?.estadoPago || "PENDING")}>
-                      {cobro?.estadoPago || "PENDING"}
-                    </span>
-                  </p>
-
-                  {h.checkinUrl ? (
-                    <a
-                      href={h.checkinUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={galeriaLink}
-                    >
-                      Abrir check-in
-                    </a>
-                  ) : (
-                    <span style={{ opacity: 0.5 }}>Sin check-in</span>
-                  )}
-
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "0.5rem",
-                      marginTop: "1rem",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <button style={btnEye} onClick={() => setDetalle(h)}>
-                      👁
-                    </button>
-
-                    <button
-                      style={btnMoney}
-                      onClick={() => abrirModalCobro(h)}
-                      title="Editar cobro"
-                    >
-                      💰
-                    </button>
-
-                    <button
-                      style={btnTtlock}
-                      onClick={() => abrirModalExtension(h)}
-                    >
-                      ⏰
-                    </button>
-
-                    <button style={btnDelete} onClick={() => eliminar(h.id)}>
-                      ❌
-                    </button>
-                  </div>
-                </div>
+                <GalleryCard
+                  key={h.id}
+                  h={h}
+                  cobro={cobro}
+                  onDetalle={(guest) => setDetalle(guest as HuespedEnriquecido)}
+                  onCobro={abrirModalCobro}
+                  onTtlock={abrirModalExtension}
+                  onEliminar={eliminar}
+                  onZoom={setImagenZoom}
+                />
               );
             })}
           </div>
@@ -789,12 +882,7 @@ export default function AdminDashboard() {
                       </td>
                       <td style={td}>
                         {h.checkinUrl ? (
-                          <a
-                            href={h.checkinUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={link}
-                          >
+                          <a href={h.checkinUrl} target="_blank" rel="noreferrer" style={link}>
                             abrir
                           </a>
                         ) : (
@@ -824,10 +912,7 @@ export default function AdminDashboard() {
                           💰
                         </button>
 
-                        <button
-                          style={btnTtlock}
-                          onClick={() => abrirModalExtension(h)}
-                        >
+                        <button style={btnTtlock} onClick={() => abrirModalExtension(h)}>
                           ⏰
                         </button>
 
@@ -926,7 +1011,11 @@ export default function AdminDashboard() {
                 </p>
                 <p>
                   <b>Estado Pago:</b>{" "}
-                  <span style={paymentBadge(cobrosMap[detalle.numeroReserva]?.estadoPago || "PENDING")}>
+                  <span
+                    style={paymentBadge(
+                      cobrosMap[detalle.numeroReserva]?.estadoPago || "PENDING"
+                    )}
+                  >
                     {cobrosMap[detalle.numeroReserva]?.estadoPago || "PENDING"}
                   </span>
                 </p>
@@ -934,40 +1023,28 @@ export default function AdminDashboard() {
             )}
 
             <div style={imagenesDetalleGrid}>
-              {detalle.archivoPasaporte && (
-                <img
-                  src={getSecureUploadUrl(detalle.archivoPasaporte) || ""}
+              {detalle._pasaporteUrl && (
+                <SmartImage
+                  src={detalle._pasaporteUrl}
                   style={imagenDetalle}
-                  onClick={() =>
-                    setImagenZoom(
-                      getSecureUploadUrl(detalle.archivoPasaporte) || null
-                    )
-                  }
                   alt="Pasaporte"
+                  onClick={() => setImagenZoom(detalle._pasaporteUrl as string)}
                 />
               )}
-              {detalle.archivoCedula && (
-                <img
-                  src={getSecureUploadUrl(detalle.archivoCedula) || ""}
+              {detalle._cedulaUrl && (
+                <SmartImage
+                  src={detalle._cedulaUrl}
                   style={imagenDetalle}
-                  onClick={() =>
-                    setImagenZoom(
-                      getSecureUploadUrl(detalle.archivoCedula) || null
-                    )
-                  }
                   alt="Cédula"
+                  onClick={() => setImagenZoom(detalle._cedulaUrl as string)}
                 />
               )}
-              {detalle.archivoFirma && (
-                <img
-                  src={getSecureUploadUrl(detalle.archivoFirma) || ""}
+              {detalle._firmaUrl && (
+                <SmartImage
+                  src={detalle._firmaUrl}
                   style={imagenDetalle}
-                  onClick={() =>
-                    setImagenZoom(
-                      getSecureUploadUrl(detalle.archivoFirma) || null
-                    )
-                  }
                   alt="Firma"
+                  onClick={() => setImagenZoom(detalle._firmaUrl as string)}
                 />
               )}
             </div>
@@ -1060,7 +1137,9 @@ export default function AdminDashboard() {
                 min="0"
                 step="0.01"
                 value={editCobro.totalHospedaje}
-                onChange={(e) => recalcularSaldo(Number(e.target.value || 0), editCobro.anticipo)}
+                onChange={(e) =>
+                  recalcularSaldo(Number(e.target.value || 0), editCobro.anticipo)
+                }
                 style={input}
               />
             </div>
@@ -1072,7 +1151,9 @@ export default function AdminDashboard() {
                 min="0"
                 step="0.01"
                 value={editCobro.anticipo}
-                onChange={(e) => recalcularSaldo(editCobro.totalHospedaje, Number(e.target.value || 0))}
+                onChange={(e) =>
+                  recalcularSaldo(editCobro.totalHospedaje, Number(e.target.value || 0))
+                }
                 style={input}
               />
             </div>
@@ -1146,9 +1227,15 @@ export default function AdminDashboard() {
             </div>
 
             <div style={summaryBox}>
-              <div><b>Total:</b> {formatMoney(editCobro.totalHospedaje, editCobro.moneda)}</div>
-              <div><b>Anticipo:</b> {formatMoney(editCobro.anticipo, editCobro.moneda)}</div>
-              <div><b>Saldo:</b> {formatMoney(editCobro.saldoPendiente, editCobro.moneda)}</div>
+              <div>
+                <b>Total:</b> {formatMoney(editCobro.totalHospedaje, editCobro.moneda)}
+              </div>
+              <div>
+                <b>Anticipo:</b> {formatMoney(editCobro.anticipo, editCobro.moneda)}
+              </div>
+              <div>
+                <b>Saldo:</b> {formatMoney(editCobro.saldoPendiente, editCobro.moneda)}
+              </div>
             </div>
 
             <div
@@ -1170,11 +1257,7 @@ export default function AdminDashboard() {
                 Cancelar
               </button>
 
-              <button
-                onClick={guardarCobro}
-                style={btnMoney}
-                disabled={savingCobro}
-              >
+              <button onClick={guardarCobro} style={btnMoney} disabled={savingCobro}>
                 {savingCobro ? "Guardando..." : "Guardar cobro"}
               </button>
             </div>
@@ -1184,7 +1267,13 @@ export default function AdminDashboard() {
 
       {imagenZoom && (
         <div style={zoomOverlay} onClick={() => setImagenZoom(null)}>
-          <img src={imagenZoom} style={zoomImage} alt="Zoom" />
+          <img
+            src={imagenZoom}
+            style={zoomImage}
+            alt="Zoom"
+            loading="eager"
+            decoding="async"
+          />
         </div>
       )}
     </div>
@@ -1566,4 +1655,31 @@ const paymentBadge = (status: string): React.CSSProperties => {
     border: "1px solid #991b1b",
     fontWeight: 700,
   };
+};
+
+const imageShell: React.CSSProperties = {
+  position: "relative",
+  overflow: "hidden",
+  background: "#020617",
+};
+
+const imageSkeleton: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  borderRadius: "inherit",
+  background:
+    "linear-gradient(90deg, rgba(15,23,42,1) 0%, rgba(30,41,59,1) 50%, rgba(15,23,42,1) 100%)",
+  backgroundSize: "200% 100%",
+  animation: "adminShimmer 1.2s ease-in-out infinite",
+  zIndex: 1,
+};
+
+const imageFallbackText: React.CSSProperties = {
+  color: "#94a3b8",
+  fontSize: "0.9rem",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  width: "100%",
+  height: "100%",
 };

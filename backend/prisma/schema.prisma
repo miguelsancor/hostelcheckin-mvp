@@ -31,8 +31,14 @@ model Huesped {
   archivoCedula    String?
   archivoFirma     String?
 
+  roomId           String?
+  roomName         String?
+
   passcodes        Passcode[]
   traRegistros     TraRegistro[]
+
+  @@index([roomId])
+  @@index([roomName])
 }
 
 model Passcode {

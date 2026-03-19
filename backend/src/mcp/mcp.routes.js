@@ -12,9 +12,6 @@ const {
   listPasscodesAll,
   deletePasscode,
   extendPasscodeByGuest,
-  getGuestLocksMatrix,
-  createPasscodeSelected,
-  deletePasscodeSelected,
   debugEnv,
 } = require("./mcp.controller");
 
@@ -28,16 +25,7 @@ router.post("/create-passcode-all", createPasscodeAll);
 router.post("/list-passcodes-all", listPasscodesAll);
 router.post("/delete-passcode", deletePasscode);
 
-// nuevo: consultar matrix de locks por huésped
-router.get("/guest-locks/:huespedId", getGuestLocksMatrix);
-
-// nuevo: crear solo locks seleccionados
-router.post("/create-passcode-selected", createPasscodeSelected);
-
-// nuevo: eliminar solo locks seleccionados
-router.post("/delete-passcode-selected", deletePasscodeSelected);
-
-// extender
+// ✅ NUEVO: extender passcodes activos de un huésped
 router.put("/passcode/extend/:huespedId", extendPasscodeByGuest);
 
 // debug env

@@ -9,6 +9,7 @@ const roomLocksMap = require("../../config/roomLocksMap.json");
    Helpers internos
    ======================================================================= */
 
+// ✅ Normaliza timestamps: si vienen en segundos -> ms
 function normalizeTs(v) {
   const n = Number(String(v).trim());
   if (!Number.isFinite(n)) return null;
@@ -16,6 +17,7 @@ function normalizeTs(v) {
   return n;
 }
 
+// ✅ Genera PIN numérico
 function genPin(digits = 4) {
   const d = Math.min(9, Math.max(4, Number(digits || 4)));
   let pin = "";
@@ -23,6 +25,7 @@ function genPin(digits = 4) {
   return pin;
 }
 
+// ✅ Recalcula codigoTTLock visible en Huesped a partir de Passcode[]
 async function syncGuestCodigoTTLock(huespedId) {
   const activos = await prisma.passcode.findMany({
     where: {
@@ -45,74 +48,6 @@ async function syncGuestCodigoTTLock(huespedId) {
   return codigo || null;
 }
 
-function normalizeAlias(s) {
-  return String(s || "").trim().toLowerCase();
-}
-
-async function getGuestOr404({ huespedId, numeroReserva }) {
-  let huesped = null;
-
-  if (huespedId) {
-    huesped = await prisma.huesped.findUnique({
-      where: { id: Number(huespedId) },
-    });
-  } else if (numeroReserva) {
-    huesped = await prisma.huesped.findUnique({
-      where: { numeroReserva: String(numeroReserva) },
-    });
-  }
-
-  return huesped;
-}
-
-function resolveGuestRoomMap(huesped) {
-  const roomId = String(huesped?.roomId || "").trim();
-  const roomName = String(huesped?.roomName || "").trim();
-
-  if (roomId && roomLocksMap[roomId]) {
-    return {
-      roomId,
-      roomName: roomLocksMap[roomId]?.room || roomName || null,
-      map: roomLocksMap[roomId],
-    };
-  }
-
-  if (roomName) {
-    const foundEntry = Object.entries(roomLocksMap).find(([, value]) => {
-      return normalizeAlias(value?.room) === normalizeAlias(roomName);
-    });
-
-    if (foundEntry) {
-      const [foundRoomId, foundMap] = foundEntry;
-      return {
-        roomId: foundRoomId,
-        roomName: foundMap?.room || roomName || null,
-        map: foundMap,
-      };
-    }
-  }
-
-  return null;
-}
-
-async function getAccessibleLocks() {
-  const accessToken = await getAccessToken();
-
-  const keysResp = await ttPost("/v3/key/list", {
-    clientId: process.env.TTLOCK_CLIENT_ID,
-    accessToken,
-    pageNo: 1,
-    pageSize: 200,
-    date: nowMs(),
-  });
-
-  return {
-    accessToken,
-    keysResp,
-    locks: Array.isArray(keysResp?.list) ? keysResp.list : [],
-  };
-}
-
 /* =======================================================================
    Enviar eKey
    ======================================================================= */
@@ -129,6 +64,7 @@ async function createKey(req, res) {
     } = req.body || {};
 
     if (!lockId || !receiverUsername || !endAt) {
+      console.log("→ /mcp/create-key FALTAN CAMPOS", { body: req.body });
       return res.status(400).json({
         ok: false,
         error: "lockId, receiverUsername y endAt son requeridos",
@@ -150,6 +86,12 @@ async function createKey(req, res) {
     });
 
     if (r?.errcode && r.errcode !== 0) {
+      console.error("TTLock key/send ERROR:", r, {
+        base: TTLOCK_BASE,
+        clientId: process.env.TTLOCK_CLIENT_ID,
+        body: req.body,
+      });
+
       return res.status(400).json({
         ok: false,
         provider: "ttlock",
@@ -160,7 +102,9 @@ async function createKey(req, res) {
     return res.json({ ok: true, provider: "ttlock", correlationId, result: r });
   } catch (e) {
     console.error("mcp/create-key exception:", e?.response?.data || e.message);
-    return res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+    return res
+      .status(500)
+      .json({ ok: false, error: e?.response?.data || e.message });
   }
 }
 
@@ -181,7 +125,9 @@ async function createPasscode(req, res) {
     } = req.body || {};
 
     if (!lockId || !endAt) {
-      return res.status(400).json({ ok: false, error: "lockId y endAt son requeridos" });
+      return res
+        .status(400)
+        .json({ ok: false, error: "lockId y endAt son requeridos" });
     }
 
     const sAt = normalizeTs(startAt ?? nowMs());
@@ -205,7 +151,9 @@ async function createPasscode(req, res) {
     if (code !== undefined && code !== null && String(code).trim() !== "") {
       pin = String(code).trim();
       if (!/^\d{4,9}$/.test(pin)) {
-        return res.status(400).json({ ok: false, error: "El code debe ser 4–9 dígitos" });
+        return res
+          .status(400)
+          .json({ ok: false, error: "El code debe ser 4–9 dígitos" });
       }
     } else {
       pin = genPin(pinDigits || 4);
@@ -229,6 +177,7 @@ async function createPasscode(req, res) {
       return res.status(400).json({ ok: false, error: r });
     }
 
+    // ✅ Si viene huésped, también persistimos
     if (huespedId || numeroReserva) {
       let huesped = null;
 
@@ -296,7 +245,9 @@ async function createPasscode(req, res) {
     return res.json({ ok: true, provider: "ttlock", pin, result: r });
   } catch (e) {
     console.error("mcp/create-passcode error:", e?.response?.data || e.message);
-    return res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+    return res
+      .status(500)
+      .json({ ok: false, error: e?.response?.data || e.message });
   }
 }
 
@@ -326,7 +277,9 @@ async function openLock(req, res) {
     return res.json({ ok: true, provider: "ttlock", correlationId, result: r });
   } catch (e) {
     console.error("mcp/open-lock error:", e?.response?.data || e.message);
-    return res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+    return res
+      .status(500)
+      .json({ ok: false, error: e?.response?.data || e.message });
   }
 }
 
@@ -357,7 +310,9 @@ async function revokeKey(req, res) {
     return res.json({ ok: true, provider: "ttlock", correlationId, result: r });
   } catch (e) {
     console.error("mcp/revoke-key error:", e?.response?.data || e.message);
-    return res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+    return res
+      .status(500)
+      .json({ ok: false, error: e?.response?.data || e.message });
   }
 }
 
@@ -378,7 +333,9 @@ async function listLocks(_req, res) {
 
     return res.json(r);
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+    return res
+      .status(500)
+      .json({ ok: false, error: e?.response?.data || e.message });
   }
 }
 
@@ -396,7 +353,9 @@ async function listKeys(_req, res) {
 
     return res.json(r);
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+    return res
+      .status(500)
+      .json({ ok: false, error: e?.response?.data || e.message });
   }
 }
 
@@ -456,6 +415,7 @@ async function createPasscodeAll(req, res) {
       });
     }
 
+    // 1) Resolver huésped
     let huesped = null;
 
     if (huespedId) {
@@ -472,9 +432,15 @@ async function createPasscodeAll(req, res) {
       return res.status(404).json({
         ok: false,
         error: "Huésped no encontrado para asociar passcodes",
+        details: {
+          huespedId: huespedId ?? null,
+          numeroReserva: numeroReserva ?? null,
+          room_id: rid,
+        },
       });
     }
 
+    // 2) Mapeo room_id -> aliases
     const map = roomLocksMap[rid];
     if (!map || !Array.isArray(map.aliases) || map.aliases.length === 0) {
       return res.status(404).json({
@@ -483,8 +449,11 @@ async function createPasscodeAll(req, res) {
       });
     }
 
-    const targetAliases = map.aliases.map((a) => String(a || "").trim()).filter(Boolean);
+    const targetAliases = map.aliases
+      .map((a) => String(a || "").trim())
+      .filter(Boolean);
 
+    // 3) PIN único
     let pin = null;
 
     if (code !== undefined && code !== null && String(code).trim() !== "") {
@@ -499,7 +468,16 @@ async function createPasscodeAll(req, res) {
       pin = genPin(pinDigits || 4);
     }
 
-    const { accessToken, keysResp } = await getAccessibleLocks();
+    const accessToken = await getAccessToken();
+
+    // 4) Obtener cerraduras accesibles
+    const keysResp = await ttPost("/v3/key/list", {
+      clientId: process.env.TTLOCK_CLIENT_ID,
+      accessToken,
+      pageNo: 1,
+      pageSize: 200,
+      date: nowMs(),
+    });
 
     if (!Array.isArray(keysResp?.list) || !keysResp.list.length) {
       return res.status(500).json({
@@ -508,21 +486,28 @@ async function createPasscodeAll(req, res) {
       });
     }
 
+    // 5) Filtrar por alias
     const targetLocks = keysResp.list.filter((k) => {
       const alias = String(k.lockAlias || "").trim().toLowerCase();
-      return targetAliases.some((a) => alias === String(a).trim().toLowerCase());
+      return targetAliases.some(
+        (a) => alias === String(a).trim().toLowerCase()
+      );
     });
 
     if (!targetLocks.length) {
       return res.status(404).json({
         ok: false,
-        error: `No se encontraron locks TTLock para aliases=${JSON.stringify(targetAliases)}`,
-        hint: "Revisa que lockAlias en TTLock sea EXACTAMENTE igual al roomLocksMap.json",
+        error: `No se encontraron locks TTLock para aliases=${JSON.stringify(
+          targetAliases
+        )}`,
+        hint:
+          "Revisa que lockAlias en TTLock sea EXACTAMENTE igual al roomLocksMap.json",
       });
     }
 
     const resultados = [];
 
+    // 6) Crear el mismo PIN en todas las puertas del room
     for (const key of targetLocks) {
       const r = await ttPost("/v3/keyboardPwd/add", {
         clientId: process.env.TTLOCK_CLIENT_ID,
@@ -544,6 +529,7 @@ async function createPasscodeAll(req, res) {
       });
     }
 
+    // 7) Persistir en BD
     const startBig = BigInt(String(sAt));
     const endBig = BigInt(String(eAt));
 
@@ -596,12 +582,11 @@ async function createPasscodeAll(req, res) {
       }
     }
 
+    // ✅ Esto es lo que te faltaba para que AdminDashboard lo vea directo
     await prisma.huesped.update({
       where: { id: huesped.id },
       data: {
         codigoTTLock: String(pin),
-        roomId: rid,
-        roomName: map.room || null,
       },
     });
 
@@ -620,7 +605,10 @@ async function createPasscodeAll(req, res) {
       resultados,
     });
   } catch (err) {
-    console.error("ERROR /create-passcode-all:", err?.response?.data || err.message);
+    console.error(
+      "ERROR /create-passcode-all:",
+      err?.response?.data || err.message
+    );
 
     return res.status(500).json({
       ok: false,
@@ -699,7 +687,10 @@ async function listPasscodesAll(req, res) {
       resultados,
     });
   } catch (err) {
-    console.error("ERROR /list-passcodes-all:", err?.response?.data || err.message);
+    console.error(
+      "ERROR /list-passcodes-all:",
+      err?.response?.data || err.message
+    );
 
     return res.status(500).json({
       ok: false,
@@ -770,413 +761,6 @@ async function deletePasscode(req, res) {
     return res.status(500).json({
       ok: false,
       error: e?.response?.data || e.message,
-    });
-  }
-}
-
-/* =======================================================================
-   Consultar matrix de locks por huésped
-   ======================================================================= */
-async function getGuestLocksMatrix(req, res) {
-  try {
-    const huespedId = Number(req.params?.huespedId || req.query?.huespedId || req.body?.huespedId || 0);
-    const numeroReserva = req.query?.numeroReserva || req.body?.numeroReserva || null;
-
-    if (!huespedId && !numeroReserva) {
-      return res.status(400).json({
-        ok: false,
-        error: "huespedId o numeroReserva son requeridos",
-      });
-    }
-
-    const huesped = await getGuestOr404({ huespedId, numeroReserva });
-
-    if (!huesped) {
-      return res.status(404).json({
-        ok: false,
-        error: "Huésped no encontrado",
-      });
-    }
-
-    const resolved = resolveGuestRoomMap(huesped);
-
-    if (!resolved) {
-      return res.status(400).json({
-        ok: false,
-        error: "El huésped no tiene roomId/roomName configurado para resolver la matrix",
-        hint: "Debes guardar roomId y roomName al crear la reserva/check-in",
-        huesped: {
-          id: huesped.id,
-          nombre: huesped.nombre,
-          numeroReserva: huesped.numeroReserva,
-          roomId: huesped.roomId || null,
-          roomName: huesped.roomName || null,
-        },
-      });
-    }
-
-    const { roomId, roomName, map } = resolved;
-
-    const { locks } = await getAccessibleLocks();
-
-    const expectedAliases = Array.isArray(map?.aliases) ? map.aliases : [];
-
-    const matchedLocks = locks.filter((k) =>
-      expectedAliases.some((a) => normalizeAlias(a) === normalizeAlias(k?.lockAlias))
-    );
-
-    const activePasscodes = await prisma.passcode.findMany({
-      where: {
-        huespedId: huesped.id,
-        estado: "ACTIVO",
-      },
-      orderBy: [{ creadoEn: "desc" }, { id: "desc" }],
-    });
-
-    const passcodeByLockId = new Map();
-    for (const pc of activePasscodes) {
-      if (!passcodeByLockId.has(Number(pc.lockId))) {
-        passcodeByLockId.set(Number(pc.lockId), pc);
-      }
-    }
-
-    const locksResponse = expectedAliases.map((alias) => {
-      const match = matchedLocks.find((l) => normalizeAlias(l?.lockAlias) === normalizeAlias(alias));
-      const activePc = match ? passcodeByLockId.get(Number(match.lockId)) : null;
-
-      return {
-        alias,
-        mapped: true,
-        existsInTtlock: !!match,
-        lockId: match ? Number(match.lockId) : null,
-        lockAlias: match?.lockAlias || alias,
-        selectedByDefault: true,
-        hasActivePasscode: !!activePc,
-        keyboardPwdId: activePc?.keyboardPwdId ?? null,
-        codigo: activePc?.codigo ?? null,
-        estado: activePc?.estado ?? null,
-        ttlockOk: activePc?.ttlockOk ?? null,
-        ttlockMessage: activePc?.ttlockMessage ?? null,
-        passcodeId: activePc?.id ?? null,
-      };
-    });
-
-    return res.json({
-      ok: true,
-      huesped: {
-        id: huesped.id,
-        nombre: huesped.nombre,
-        numeroReserva: huesped.numeroReserva,
-        fechaIngreso: huesped.fechaIngreso,
-        fechaSalida: huesped.fechaSalida,
-      },
-      room: {
-        roomId,
-        roomName: roomName || null,
-      },
-      locks: locksResponse,
-    });
-  } catch (err) {
-    console.error("ERROR /guest-locks-matrix:", err?.response?.data || err.message);
-    return res.status(500).json({
-      ok: false,
-      error: "Error consultando matrix de locks del huésped",
-      details: err?.response?.data || err.message,
-    });
-  }
-}
-
-/* =======================================================================
-   Crear PASSCODE(s) seleccionados
-   ======================================================================= */
-async function createPasscodeSelected(req, res) {
-  try {
-    const {
-      huespedId,
-      numeroReserva,
-      selectedLocks,
-      code,
-      pinDigits,
-      name,
-      startAt,
-      endAt,
-    } = req.body || {};
-
-    if (!huespedId && !numeroReserva) {
-      return res.status(400).json({
-        ok: false,
-        error: "huespedId o numeroReserva son requeridos",
-      });
-    }
-
-    if (!Array.isArray(selectedLocks) || !selectedLocks.length) {
-      return res.status(400).json({
-        ok: false,
-        error: "selectedLocks es obligatorio",
-      });
-    }
-
-    const huesped = await getGuestOr404({ huespedId, numeroReserva });
-
-    if (!huesped) {
-      return res.status(404).json({
-        ok: false,
-        error: "Huésped no encontrado",
-      });
-    }
-
-    const sAt = normalizeTs(startAt ?? nowMs());
-    const eAt = normalizeTs(endAt);
-
-    if (!sAt || !eAt) {
-      return res.status(400).json({
-        ok: false,
-        error: "startAt/endAt inválidos",
-      });
-    }
-
-    if (eAt <= sAt) {
-      return res.status(400).json({
-        ok: false,
-        error: "endAt debe ser mayor que startAt",
-      });
-    }
-
-    let pin = null;
-    if (code !== undefined && code !== null && String(code).trim() !== "") {
-      pin = String(code).trim();
-      if (!/^\d{4,9}$/.test(pin)) {
-        return res.status(400).json({
-          ok: false,
-          error: "El code debe ser 4–9 dígitos",
-        });
-      }
-    } else {
-      pin = genPin(pinDigits || 4);
-    }
-
-    const accessToken = await getAccessToken();
-    const startBig = BigInt(String(sAt));
-    const endBig = BigInt(String(eAt));
-    const resultados = [];
-
-    for (const item of selectedLocks) {
-      const lockId = Number(item?.lockId || 0);
-      const lockAlias = String(item?.lockAlias || "").trim() || null;
-
-      if (!lockId) {
-        resultados.push({
-          lockId: null,
-          lockAlias,
-          ok: false,
-          error: "lockId inválido",
-        });
-        continue;
-      }
-
-      const existeActivo = await prisma.passcode.findFirst({
-        where: {
-          huespedId: huesped.id,
-          lockId,
-          estado: "ACTIVO",
-        },
-        orderBy: [{ creadoEn: "desc" }, { id: "desc" }],
-      });
-
-      if (existeActivo) {
-        resultados.push({
-          lockId,
-          lockAlias,
-          keyboardPwdId: existeActivo.keyboardPwdId ?? null,
-          codigo: existeActivo.codigo ?? null,
-          ok: true,
-          skipped: true,
-          message: "Ya existe passcode activo para esta cerradura",
-        });
-        continue;
-      }
-
-      const r = await ttPost("/v3/keyboardPwd/add", {
-        clientId: process.env.TTLOCK_CLIENT_ID,
-        accessToken,
-        lockId,
-        keyboardPwd: String(pin),
-        keyboardPwdName: name || `RES-${huesped.numeroReserva || huesped.id}`,
-        startDate: sAt,
-        endDate: eAt,
-        addType: 2,
-        date: nowMs(),
-      });
-
-      const ok = parseInt(r?.errcode ?? -1, 10) === 0;
-      const keyboardPwdId = r?.keyboardPwdId ?? null;
-
-      if (ok) {
-        const row = {
-          huespedId: huesped.id,
-          lockId,
-          lockAlias,
-          codigo: String(pin),
-          keyboardPwdId: keyboardPwdId !== null ? Number(keyboardPwdId) : null,
-          tipo: "ADD",
-          startDate: startBig,
-          endDate: endBig,
-          estado: "ACTIVO",
-          ttlockOk: true,
-          ttlockMessage: "CREADO",
-        };
-
-        if (row.keyboardPwdId !== null) {
-          await prisma.passcode.upsert({
-            where: {
-              lockId_keyboardPwdId: {
-                lockId: row.lockId,
-                keyboardPwdId: row.keyboardPwdId,
-              },
-            },
-            create: row,
-            update: {
-              huespedId: row.huespedId,
-              lockAlias: row.lockAlias,
-              codigo: row.codigo,
-              tipo: row.tipo,
-              startDate: row.startDate,
-              endDate: row.endDate,
-              estado: row.estado,
-              ttlockOk: row.ttlockOk,
-              ttlockMessage: row.ttlockMessage,
-            },
-          });
-        } else {
-          await prisma.passcode.create({ data: row });
-        }
-      }
-
-      resultados.push({
-        lockId,
-        lockAlias,
-        ok,
-        result: r,
-      });
-    }
-
-    await prisma.huesped.update({
-      where: { id: huesped.id },
-      data: {
-        codigoTTLock: String(pin),
-      },
-    });
-
-    return res.json({
-      ok: resultados.some((x) => x.ok),
-      pin,
-      total: resultados.length,
-      created: resultados.filter((x) => x.ok && !x.skipped).length,
-      skipped: resultados.filter((x) => x.skipped).length,
-      huesped: {
-        id: huesped.id,
-        nombre: huesped.nombre,
-        numeroReserva: huesped.numeroReserva,
-      },
-      resultados,
-    });
-  } catch (err) {
-    console.error("ERROR /create-passcode-selected:", err?.response?.data || err.message);
-    return res.status(500).json({
-      ok: false,
-      error: "Error creando passcodes seleccionados",
-      details: err?.response?.data || err.message,
-    });
-  }
-}
-
-/* =======================================================================
-   Eliminar PASSCODE(s) seleccionados
-   ======================================================================= */
-async function deletePasscodeSelected(req, res) {
-  try {
-    const { selectedPasscodes } = req.body || {};
-
-    if (!Array.isArray(selectedPasscodes) || !selectedPasscodes.length) {
-      return res.status(400).json({
-        ok: false,
-        error: "selectedPasscodes es obligatorio",
-      });
-    }
-
-    const accessToken = await getAccessToken();
-    const resultados = [];
-    const affectedGuestIds = new Set();
-
-    for (const item of selectedPasscodes) {
-      const lockId = Number(item?.lockId || 0);
-      const keyboardPwdId = Number(item?.keyboardPwdId || 0);
-
-      if (!lockId || !keyboardPwdId) {
-        resultados.push({
-          lockId: lockId || null,
-          keyboardPwdId: keyboardPwdId || null,
-          ok: false,
-          error: "lockId o keyboardPwdId inválidos",
-        });
-        continue;
-      }
-
-      const dbPasscode = await prisma.passcode.findFirst({
-        where: {
-          lockId,
-          keyboardPwdId,
-          estado: "ACTIVO",
-        },
-      });
-
-      const r = await ttPost("/v3/keyboardPwd/delete", {
-        clientId: process.env.TTLOCK_CLIENT_ID,
-        accessToken,
-        lockId,
-        keyboardPwdId,
-        date: nowMs(),
-      });
-
-      const ok = parseInt(r?.errcode ?? -1, 10) === 0;
-
-      if (ok && dbPasscode) {
-        await prisma.passcode.update({
-          where: { id: dbPasscode.id },
-          data: {
-            estado: "ELIMINADO",
-            ttlockOk: true,
-            ttlockMessage: "ELIMINADO",
-          },
-        });
-
-        affectedGuestIds.add(dbPasscode.huespedId);
-      }
-
-      resultados.push({
-        lockId,
-        keyboardPwdId,
-        ok,
-        result: r,
-      });
-    }
-
-    for (const guestId of affectedGuestIds) {
-      await syncGuestCodigoTTLock(guestId);
-    }
-
-    return res.json({
-      ok: resultados.some((x) => x.ok),
-      total: resultados.length,
-      deleted: resultados.filter((x) => x.ok).length,
-      resultados,
-    });
-  } catch (err) {
-    console.error("ERROR /delete-passcode-selected:", err?.response?.data || err.message);
-    return res.status(500).json({
-      ok: false,
-      error: "Error eliminando passcodes seleccionados",
-      details: err?.response?.data || err.message,
     });
   }
 }
@@ -1343,7 +927,10 @@ async function extendPasscodeByGuest(req, res) {
       resultados,
     });
   } catch (err) {
-    console.error("ERROR /extend-passcode-by-guest:", err?.response?.data || err.message);
+    console.error(
+      "ERROR /extend-passcode-by-guest:",
+      err?.response?.data || err.message
+    );
 
     return res.status(500).json({
       ok: false,
@@ -1380,8 +967,5 @@ module.exports = {
   listPasscodesAll,
   deletePasscode,
   extendPasscodeByGuest,
-  getGuestLocksMatrix,
-  createPasscodeSelected,
-  deletePasscodeSelected,
   debugEnv,
 };

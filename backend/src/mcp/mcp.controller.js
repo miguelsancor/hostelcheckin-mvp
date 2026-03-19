@@ -1,4 +1,3 @@
-// backend/src/mcp/mcp.controller.js
 const { nowMs } = require("../utils/helpers");
 const { TTLOCK_BASE, getAccessToken, ttPost } = require("./ttlock.service");
 const prisma = require("../utils/prismaClient");
@@ -9,7 +8,6 @@ const roomLocksMap = require("../../config/roomLocksMap.json");
    Helpers internos
    ======================================================================= */
 
-// ✅ Normaliza timestamps: si vienen en segundos -> ms
 function normalizeTs(v) {
   const n = Number(String(v).trim());
   if (!Number.isFinite(n)) return null;
@@ -17,7 +15,6 @@ function normalizeTs(v) {
   return n;
 }
 
-// ✅ Genera PIN numérico
 function genPin(digits = 4) {
   const d = Math.min(9, Math.max(4, Number(digits || 4)));
   let pin = "";
@@ -25,7 +22,6 @@ function genPin(digits = 4) {
   return pin;
 }
 
-// ✅ Recalcula codigoTTLock visible en Huesped a partir de Passcode[]
 async function syncGuestCodigoTTLock(huespedId) {
   const activos = await prisma.passcode.findMany({
     where: {
@@ -64,7 +60,6 @@ async function createKey(req, res) {
     } = req.body || {};
 
     if (!lockId || !receiverUsername || !endAt) {
-      console.log("→ /mcp/create-key FALTAN CAMPOS", { body: req.body });
       return res.status(400).json({
         ok: false,
         error: "lockId, receiverUsername y endAt son requeridos",
@@ -86,12 +81,6 @@ async function createKey(req, res) {
     });
 
     if (r?.errcode && r.errcode !== 0) {
-      console.error("TTLock key/send ERROR:", r, {
-        base: TTLOCK_BASE,
-        clientId: process.env.TTLOCK_CLIENT_ID,
-        body: req.body,
-      });
-
       return res.status(400).json({
         ok: false,
         provider: "ttlock",
@@ -102,9 +91,10 @@ async function createKey(req, res) {
     return res.json({ ok: true, provider: "ttlock", correlationId, result: r });
   } catch (e) {
     console.error("mcp/create-key exception:", e?.response?.data || e.message);
-    return res
-      .status(500)
-      .json({ ok: false, error: e?.response?.data || e.message });
+    return res.status(500).json({
+      ok: false,
+      error: e?.response?.data || e.message,
+    });
   }
 }
 
@@ -125,9 +115,10 @@ async function createPasscode(req, res) {
     } = req.body || {};
 
     if (!lockId || !endAt) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "lockId y endAt son requeridos" });
+      return res.status(400).json({
+        ok: false,
+        error: "lockId y endAt son requeridos",
+      });
     }
 
     const sAt = normalizeTs(startAt ?? nowMs());
@@ -151,9 +142,10 @@ async function createPasscode(req, res) {
     if (code !== undefined && code !== null && String(code).trim() !== "") {
       pin = String(code).trim();
       if (!/^\d{4,9}$/.test(pin)) {
-        return res
-          .status(400)
-          .json({ ok: false, error: "El code debe ser 4–9 dígitos" });
+        return res.status(400).json({
+          ok: false,
+          error: "El code debe ser 4–9 dígitos",
+        });
       }
     } else {
       pin = genPin(pinDigits || 4);
@@ -177,7 +169,6 @@ async function createPasscode(req, res) {
       return res.status(400).json({ ok: false, error: r });
     }
 
-    // ✅ Si viene huésped, también persistimos
     if (huespedId || numeroReserva) {
       let huesped = null;
 
@@ -245,9 +236,10 @@ async function createPasscode(req, res) {
     return res.json({ ok: true, provider: "ttlock", pin, result: r });
   } catch (e) {
     console.error("mcp/create-passcode error:", e?.response?.data || e.message);
-    return res
-      .status(500)
-      .json({ ok: false, error: e?.response?.data || e.message });
+    return res.status(500).json({
+      ok: false,
+      error: e?.response?.data || e.message,
+    });
   }
 }
 
@@ -277,9 +269,10 @@ async function openLock(req, res) {
     return res.json({ ok: true, provider: "ttlock", correlationId, result: r });
   } catch (e) {
     console.error("mcp/open-lock error:", e?.response?.data || e.message);
-    return res
-      .status(500)
-      .json({ ok: false, error: e?.response?.data || e.message });
+    return res.status(500).json({
+      ok: false,
+      error: e?.response?.data || e.message,
+    });
   }
 }
 
@@ -310,14 +303,15 @@ async function revokeKey(req, res) {
     return res.json({ ok: true, provider: "ttlock", correlationId, result: r });
   } catch (e) {
     console.error("mcp/revoke-key error:", e?.response?.data || e.message);
-    return res
-      .status(500)
-      .json({ ok: false, error: e?.response?.data || e.message });
+    return res.status(500).json({
+      ok: false,
+      error: e?.response?.data || e.message,
+    });
   }
 }
 
 /* =======================================================================
-   Listados
+   Listados generales
    ======================================================================= */
 async function listLocks(_req, res) {
   try {
@@ -333,9 +327,10 @@ async function listLocks(_req, res) {
 
     return res.json(r);
   } catch (e) {
-    return res
-      .status(500)
-      .json({ ok: false, error: e?.response?.data || e.message });
+    return res.status(500).json({
+      ok: false,
+      error: e?.response?.data || e.message,
+    });
   }
 }
 
@@ -353,9 +348,10 @@ async function listKeys(_req, res) {
 
     return res.json(r);
   } catch (e) {
-    return res
-      .status(500)
-      .json({ ok: false, error: e?.response?.data || e.message });
+    return res.status(500).json({
+      ok: false,
+      error: e?.response?.data || e.message,
+    });
   }
 }
 
@@ -415,7 +411,6 @@ async function createPasscodeAll(req, res) {
       });
     }
 
-    // 1) Resolver huésped
     let huesped = null;
 
     if (huespedId) {
@@ -440,7 +435,6 @@ async function createPasscodeAll(req, res) {
       });
     }
 
-    // 2) Mapeo room_id -> aliases
     const map = roomLocksMap[rid];
     if (!map || !Array.isArray(map.aliases) || map.aliases.length === 0) {
       return res.status(404).json({
@@ -453,7 +447,6 @@ async function createPasscodeAll(req, res) {
       .map((a) => String(a || "").trim())
       .filter(Boolean);
 
-    // 3) PIN único
     let pin = null;
 
     if (code !== undefined && code !== null && String(code).trim() !== "") {
@@ -470,7 +463,6 @@ async function createPasscodeAll(req, res) {
 
     const accessToken = await getAccessToken();
 
-    // 4) Obtener cerraduras accesibles
     const keysResp = await ttPost("/v3/key/list", {
       clientId: process.env.TTLOCK_CLIENT_ID,
       accessToken,
@@ -486,7 +478,6 @@ async function createPasscodeAll(req, res) {
       });
     }
 
-    // 5) Filtrar por alias
     const targetLocks = keysResp.list.filter((k) => {
       const alias = String(k.lockAlias || "").trim().toLowerCase();
       return targetAliases.some(
@@ -497,17 +488,13 @@ async function createPasscodeAll(req, res) {
     if (!targetLocks.length) {
       return res.status(404).json({
         ok: false,
-        error: `No se encontraron locks TTLock para aliases=${JSON.stringify(
-          targetAliases
-        )}`,
-        hint:
-          "Revisa que lockAlias en TTLock sea EXACTAMENTE igual al roomLocksMap.json",
+        error: `No se encontraron locks TTLock para aliases=${JSON.stringify(targetAliases)}`,
+        hint: "Revisa que lockAlias en TTLock sea EXACTAMENTE igual al roomLocksMap.json",
       });
     }
 
     const resultados = [];
 
-    // 6) Crear el mismo PIN en todas las puertas del room
     for (const key of targetLocks) {
       const r = await ttPost("/v3/keyboardPwd/add", {
         clientId: process.env.TTLOCK_CLIENT_ID,
@@ -529,7 +516,6 @@ async function createPasscodeAll(req, res) {
       });
     }
 
-    // 7) Persistir en BD
     const startBig = BigInt(String(sAt));
     const endBig = BigInt(String(eAt));
 
@@ -582,7 +568,6 @@ async function createPasscodeAll(req, res) {
       }
     }
 
-    // ✅ Esto es lo que te faltaba para que AdminDashboard lo vea directo
     await prisma.huesped.update({
       where: { id: huesped.id },
       data: {
@@ -700,6 +685,80 @@ async function listPasscodesAll(req, res) {
 }
 
 /* =======================================================================
+   ✅ Listar PASSCODES activos por huésped
+   ======================================================================= */
+async function listGuestPasscodes(req, res) {
+  try {
+    const huespedId = Number(req.params?.huespedId);
+
+    if (!huespedId) {
+      return res.status(400).json({
+        ok: false,
+        error: "huespedId es requerido",
+      });
+    }
+
+    const huesped = await prisma.huesped.findUnique({
+      where: { id: huespedId },
+      include: {
+        passcodes: {
+          orderBy: [{ creadoEn: "desc" }, { id: "desc" }],
+        },
+      },
+    });
+
+    if (!huesped) {
+      return res.status(404).json({
+        ok: false,
+        error: "Huésped no encontrado",
+      });
+    }
+
+    const activos = (huesped.passcodes || []).filter(
+      (p) => p.estado === "ACTIVO"
+    );
+
+    const data = activos.map((p) => ({
+      id: p.id,
+      lockId: p.lockId,
+      lockAlias: p.lockAlias || null,
+      codigo: p.codigo || null,
+      keyboardPwdId: p.keyboardPwdId || null,
+      tipo: p.tipo,
+      estado: p.estado,
+      ttlockOk: p.ttlockOk,
+      ttlockMessage: p.ttlockMessage || null,
+      startDate: p.startDate ? Number(p.startDate) : null,
+      endDate: p.endDate ? Number(p.endDate) : null,
+      creadoEn: p.creadoEn,
+    }));
+
+    return res.json({
+      ok: true,
+      huesped: {
+        id: huesped.id,
+        nombre: huesped.nombre,
+        numeroReserva: huesped.numeroReserva,
+        codigoTTLock: huesped.codigoTTLock || null,
+      },
+      total: data.length,
+      passcodes: data,
+    });
+  } catch (err) {
+    console.error(
+      "ERROR /guest-passcodes/:huespedId:",
+      err?.response?.data || err.message
+    );
+
+    return res.status(500).json({
+      ok: false,
+      error: "Error consultando passcodes del huésped",
+      details: err?.response?.data || err.message,
+    });
+  }
+}
+
+/* =======================================================================
    Borrar PASSCODE (TTLock + BD + sync Huesped)
    ======================================================================= */
 async function deletePasscode(req, res) {
@@ -761,6 +820,156 @@ async function deletePasscode(req, res) {
     return res.status(500).json({
       ok: false,
       error: e?.response?.data || e.message,
+    });
+  }
+}
+
+/* =======================================================================
+   ✅ Borrar PASSCODES seleccionados por checklist
+   ======================================================================= */
+async function deleteSelectedPasscodes(req, res) {
+  try {
+    const huespedId = Number(req.body?.huespedId);
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+
+    if (!huespedId) {
+      return res.status(400).json({
+        ok: false,
+        error: "huespedId es requerido",
+      });
+    }
+
+    if (!items.length) {
+      return res.status(400).json({
+        ok: false,
+        error: "Debes enviar al menos un passcode a eliminar",
+      });
+    }
+
+    const huesped = await prisma.huesped.findUnique({
+      where: { id: huespedId },
+    });
+
+    if (!huesped) {
+      return res.status(404).json({
+        ok: false,
+        error: "Huésped no encontrado",
+      });
+    }
+
+    const accessToken = await getAccessToken();
+    const resultados = [];
+
+    for (const item of items) {
+      const lockId = Number(item?.lockId);
+      const keyboardPwdId = Number(item?.keyboardPwdId);
+
+      if (!lockId || !keyboardPwdId) {
+        resultados.push({
+          lockId: item?.lockId ?? null,
+          keyboardPwdId: item?.keyboardPwdId ?? null,
+          ok: false,
+          error: "lockId o keyboardPwdId inválido",
+        });
+        continue;
+      }
+
+      const dbPasscode = await prisma.passcode.findFirst({
+        where: {
+          huespedId,
+          lockId,
+          keyboardPwdId,
+          estado: "ACTIVO",
+        },
+      });
+
+      if (!dbPasscode) {
+        resultados.push({
+          lockId,
+          keyboardPwdId,
+          ok: false,
+          error: "Passcode activo no encontrado para este huésped",
+        });
+        continue;
+      }
+
+      try {
+        const r = await ttPost("/v3/keyboardPwd/delete", {
+          clientId: process.env.TTLOCK_CLIENT_ID,
+          accessToken,
+          lockId,
+          keyboardPwdId,
+          date: nowMs(),
+        });
+
+        const ok = parseInt(r?.errcode ?? -1, 10) === 0;
+
+        if (ok) {
+          await prisma.passcode.update({
+            where: { id: dbPasscode.id },
+            data: {
+              estado: "ELIMINADO",
+              ttlockOk: true,
+              ttlockMessage: "ELIMINADO_CHECKLIST",
+            },
+          });
+        } else {
+          await prisma.passcode.update({
+            where: { id: dbPasscode.id },
+            data: {
+              ttlockOk: false,
+              ttlockMessage: `ERROR_DELETE: ${JSON.stringify(r)}`,
+            },
+          });
+        }
+
+        resultados.push({
+          passcodeId: dbPasscode.id,
+          lockId,
+          lockAlias: dbPasscode.lockAlias || null,
+          keyboardPwdId,
+          codigo: dbPasscode.codigo || null,
+          ok,
+          result: r,
+        });
+      } catch (err) {
+        resultados.push({
+          passcodeId: dbPasscode.id,
+          lockId,
+          lockAlias: dbPasscode.lockAlias || null,
+          keyboardPwdId,
+          codigo: dbPasscode.codigo || null,
+          ok: false,
+          error: err?.response?.data || err.message,
+        });
+      }
+    }
+
+    await syncGuestCodigoTTLock(huespedId);
+
+    const deleted = resultados.filter((x) => x.ok).length;
+
+    return res.json({
+      ok: deleted > 0,
+      deleted,
+      total: resultados.length,
+      huesped: {
+        id: huesped.id,
+        nombre: huesped.nombre,
+        numeroReserva: huesped.numeroReserva,
+      },
+      resultados,
+    });
+  } catch (err) {
+    console.error(
+      "ERROR /delete-passcodes-selected:",
+      err?.response?.data || err.message
+    );
+
+    return res.status(500).json({
+      ok: false,
+      error: "Error eliminando passcodes seleccionados",
+      details: err?.response?.data || err.message,
     });
   }
 }
@@ -965,7 +1174,9 @@ module.exports = {
   listKeys,
   createPasscodeAll,
   listPasscodesAll,
+  listGuestPasscodes,
   deletePasscode,
+  deleteSelectedPasscodes,
   extendPasscodeByGuest,
   debugEnv,
 };

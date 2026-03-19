@@ -19,10 +19,8 @@ type Huesped = {
   fechaSalida: string;
   numeroReserva: string;
   creadoEn: string;
-
   checkinUrl?: string | null;
   codigoTTLock?: string | null;
-
   archivoPasaporte?: string | null;
   archivoCedula?: string | null;
   archivoFirma?: string | null;
@@ -48,6 +46,21 @@ type HuespedEnriquecido = Huesped & {
   _pasaporteUrl: string | null;
   _cedulaUrl: string | null;
   _firmaUrl: string | null;
+};
+
+type GuestPasscode = {
+  id: number;
+  lockId: number;
+  lockAlias?: string | null;
+  codigo?: string | null;
+  keyboardPwdId?: number | null;
+  tipo?: string;
+  estado?: string;
+  ttlockOk?: boolean;
+  ttlockMessage?: string | null;
+  startDate?: number | null;
+  endDate?: number | null;
+  creadoEn?: string;
 };
 
 const defaultCobro = (huesped?: Huesped | null): ReservaCobro => ({
@@ -80,6 +93,13 @@ function normalizarFecha(value?: string | null) {
   if (!s) return "";
   if (s.includes("T")) return s.split("T")[0];
   return s.slice(0, 10);
+}
+
+function formatDateTimeLocal(value?: number | null) {
+  if (!value) return "-";
+  const d = new Date(Number(value));
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleString("es-CO");
 }
 
 function getSecureUploadUrl(file?: string | null) {
@@ -251,8 +271,8 @@ const GalleryCard = memo(function GalleryCard({
           💰
         </button>
 
-        <button style={btnTtlock} onClick={() => onTtlock(h)}>
-          ⏰
+        <button style={btnTtlock} onClick={() => onTtlock(h)} title="Gestionar TTLock">
+          🔐
         </button>
 
         <button style={btnDelete} onClick={() => onEliminar(h.id)}>
@@ -282,6 +302,11 @@ export default function AdminDashboard() {
   const [editTtlock, setEditTtlock] = useState<Huesped | null>(null);
   const [newTtlockEnd, setNewTtlockEnd] = useState("");
   const [savingTtlock, setSavingTtlock] = useState(false);
+
+  const [guestPasscodes, setGuestPasscodes] = useState<GuestPasscode[]>([]);
+  const [loadingGuestPasscodes, setLoadingGuestPasscodes] = useState(false);
+  const [selectedPasscodes, setSelectedPasscodes] = useState<string[]>([]);
+  const [deletingSelectedPasscodes, setDeletingSelectedPasscodes] = useState(false);
 
   const [cobrosMap, setCobrosMap] = useState<Record<string, ReservaCobro>>({});
   const [editCobroHuesped, setEditCobroHuesped] = useState<Huesped | null>(null);
@@ -364,6 +389,9 @@ export default function AdminDashboard() {
       setMetrics(null);
       setDetalle(null);
       setCobrosMap({});
+      setGuestPasscodes([]);
+      setSelectedPasscodes([]);
+      setEditTtlock(null);
     }
   };
 
@@ -440,6 +468,32 @@ export default function AdminDashboard() {
     }
   };
 
+  const cargarPasscodesGuest = async (huespedId: number) => {
+    try {
+      setLoadingGuestPasscodes(true);
+
+      const res = await fetch(`${API_BASE}/mcp/guest-passcodes/${huespedId}`, {
+        credentials: "include",
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json?.ok) {
+        setGuestPasscodes([]);
+        alert(json?.error || "No se pudieron cargar los passcodes del huésped.");
+        return;
+      }
+
+      setGuestPasscodes(Array.isArray(json?.passcodes) ? json.passcodes : []);
+    } catch (e) {
+      console.error(e);
+      setGuestPasscodes([]);
+      alert("Error cargando passcodes del huésped.");
+    } finally {
+      setLoadingGuestPasscodes(false);
+    }
+  };
+
   useEffect(() => {
     checkSession();
   }, []);
@@ -450,7 +504,6 @@ export default function AdminDashboard() {
       cargarMetrics();
       cargarCobros();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autenticado]);
 
   const huespedesPreparados = useMemo<HuespedEnriquecido[]>(() => {
@@ -546,14 +599,42 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, `huespedes_${Date.now()}.xlsx`);
   };
 
-  const abrirModalExtension = (h: Huesped) => {
+  const abrirModalExtension = async (h: Huesped) => {
     setEditTtlock(h);
+    setGuestPasscodes([]);
+    setSelectedPasscodes([]);
 
     const baseDate =
       normalizarFecha(h.fechaSalida || "") || normalizarFecha(h.fechaIngreso || "");
     const defaultValue = baseDate ? `${baseDate}T12:00` : "";
 
     setNewTtlockEnd(defaultValue);
+    await cargarPasscodesGuest(h.id);
+  };
+
+  const closeTtlockModal = () => {
+    setEditTtlock(null);
+    setNewTtlockEnd("");
+    setGuestPasscodes([]);
+    setSelectedPasscodes([]);
+  };
+
+  const togglePasscodeSelected = (pc: GuestPasscode) => {
+    const key = `${pc.lockId}_${pc.keyboardPwdId}`;
+    setSelectedPasscodes((prev) =>
+      prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]
+    );
+  };
+
+  const selectAllPasscodes = () => {
+    const all = guestPasscodes
+      .filter((pc) => pc.lockId && pc.keyboardPwdId)
+      .map((pc) => `${pc.lockId}_${pc.keyboardPwdId}`);
+    setSelectedPasscodes(all);
+  };
+
+  const unselectAllPasscodes = () => {
+    setSelectedPasscodes([]);
   };
 
   const guardarExtensionTtlock = async () => {
@@ -585,15 +666,70 @@ export default function AdminDashboard() {
         return;
       }
 
-      alert("Código TTLock extendido correctamente.");
-      setEditTtlock(null);
-      setNewTtlockEnd("");
+      alert(`TTLock actualizado. Cerraduras actualizadas: ${json?.updated || 0}`);
+      await cargarPasscodesGuest(editTtlock.id);
       await cargarHuespedes();
     } catch (e) {
       console.error(e);
       alert("Error actualizando TTLock.");
     } finally {
       setSavingTtlock(false);
+    }
+  };
+
+  const eliminarPasscodesSeleccionados = async () => {
+    if (!editTtlock) return;
+
+    const items = selectedPasscodes
+      .map((key) => {
+        const [lockId, keyboardPwdId] = key.split("_");
+        return {
+          lockId: Number(lockId),
+          keyboardPwdId: Number(keyboardPwdId),
+        };
+      })
+      .filter((x) => x.lockId && x.keyboardPwdId);
+
+    if (!items.length) {
+      alert("Debes seleccionar al menos una cerradura/passcode.");
+      return;
+    }
+
+    if (!confirm(`¿Eliminar ${items.length} passcode(s) seleccionados de TTLock?`)) {
+      return;
+    }
+
+    try {
+      setDeletingSelectedPasscodes(true);
+
+      const res = await fetch(`${API_BASE}/mcp/delete-passcodes-selected`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          huespedId: editTtlock.id,
+          items,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json?.ok) {
+        alert(json?.error || "No se pudieron eliminar los passcodes seleccionados.");
+        return;
+      }
+
+      alert(`Passcodes eliminados correctamente: ${json?.deleted || 0}`);
+      setSelectedPasscodes([]);
+      await cargarPasscodesGuest(editTtlock.id);
+      await cargarHuespedes();
+    } catch (e) {
+      console.error(e);
+      alert("Error eliminando passcodes seleccionados.");
+    } finally {
+      setDeletingSelectedPasscodes(false);
     }
   };
 
@@ -912,8 +1048,8 @@ export default function AdminDashboard() {
                           💰
                         </button>
 
-                        <button style={btnTtlock} onClick={() => abrirModalExtension(h)}>
-                          ⏰
+                        <button style={btnTtlock} onClick={() => abrirModalExtension(h)} title="Gestionar TTLock">
+                          🔐
                         </button>
 
                         <button style={btnDelete} onClick={() => eliminar(h.id)}>
@@ -942,45 +1078,19 @@ export default function AdminDashboard() {
           <div style={modalBox}>
             <h3>Detalle del Huésped</h3>
 
-            <p>
-              <b>Nombre:</b> {detalle.nombre}
-            </p>
-            <p>
-              <b>Documento:</b> {detalle.tipoDocumento} {detalle.numeroDocumento}
-            </p>
-            <p>
-              <b>Nacionalidad:</b> {detalle.nacionalidad}
-            </p>
-            <p>
-              <b>Dirección:</b> {detalle.direccion}
-            </p>
-            <p>
-              <b>Procedencia:</b> {detalle.lugarProcedencia}
-            </p>
-            <p>
-              <b>Destino:</b> {detalle.lugarDestino}
-            </p>
-            <p>
-              <b>Motivo:</b> {detalle.motivoViaje}
-            </p>
-            <p>
-              <b>Email:</b> {detalle.email}
-            </p>
-            <p>
-              <b>Teléfono:</b> {detalle.telefono}
-            </p>
-            <p>
-              <b>Ingreso:</b> {detalle.fechaIngreso}
-            </p>
-            <p>
-              <b>Salida:</b> {detalle.fechaSalida}
-            </p>
-            <p>
-              <b>Reserva:</b> {detalle.numeroReserva}
-            </p>
-            <p>
-              <b>Checkin URL:</b> {detalle.checkinUrl ?? "-"}
-            </p>
+            <p><b>Nombre:</b> {detalle.nombre}</p>
+            <p><b>Documento:</b> {detalle.tipoDocumento} {detalle.numeroDocumento}</p>
+            <p><b>Nacionalidad:</b> {detalle.nacionalidad}</p>
+            <p><b>Dirección:</b> {detalle.direccion}</p>
+            <p><b>Procedencia:</b> {detalle.lugarProcedencia}</p>
+            <p><b>Destino:</b> {detalle.lugarDestino}</p>
+            <p><b>Motivo:</b> {detalle.motivoViaje}</p>
+            <p><b>Email:</b> {detalle.email}</p>
+            <p><b>Teléfono:</b> {detalle.telefono}</p>
+            <p><b>Ingreso:</b> {detalle.fechaIngreso}</p>
+            <p><b>Salida:</b> {detalle.fechaSalida}</p>
+            <p><b>Reserva:</b> {detalle.numeroReserva}</p>
+            <p><b>Checkin URL:</b> {detalle.checkinUrl ?? "-"}</p>
             <p>
               <b>Código TTLock:</b>{" "}
               <span style={ttlockBadge}>{ttlockText(detalle.codigoTTLock)}</span>
@@ -1058,60 +1168,152 @@ export default function AdminDashboard() {
 
       {editTtlock && (
         <div style={modal}>
-          <div style={modalBox}>
-            <h3>Extender código TTLock</h3>
+          <div style={{ ...modalBox, maxWidth: "860px" }}>
+            <h3>Gestión TTLock</h3>
 
-            <p>
-              <b>Huésped:</b> {editTtlock.nombre}
-            </p>
-            <p>
-              <b>Reserva:</b> {editTtlock.numeroReserva}
-            </p>
-            <p>
-              <b>Código TTLock:</b>{" "}
-              <span style={ttlockBadge}>{ttlockText(editTtlock.codigoTTLock)}</span>
-            </p>
-            <p>
-              <b>Salida actual:</b> {editTtlock.fechaSalida ?? "-"}
-            </p>
+            <div style={ttlockInfoGrid}>
+              <div style={infoCard}>
+                <div style={infoLabel}>Huésped</div>
+                <div style={infoValue}>{editTtlock.nombre}</div>
+              </div>
 
-            <div style={{ marginTop: "1rem" }}>
-              <label style={{ display: "block", marginBottom: "0.5rem" }}>
-                Nueva fecha / hora fin
-              </label>
-              <input
-                type="datetime-local"
-                value={newTtlockEnd}
-                onChange={(e) => setNewTtlockEnd(e.target.value)}
-                style={input}
-              />
+              <div style={infoCard}>
+                <div style={infoLabel}>Reserva</div>
+                <div style={infoValue}>{editTtlock.numeroReserva}</div>
+              </div>
+
+              <div style={infoCard}>
+                <div style={infoLabel}>Código visible</div>
+                <div style={infoValue}>
+                  <span style={ttlockBadge}>{ttlockText(editTtlock.codigoTTLock)}</span>
+                </div>
+              </div>
+
+              <div style={infoCard}>
+                <div style={infoLabel}>Salida actual</div>
+                <div style={infoValue}>{editTtlock.fechaSalida ?? "-"}</div>
+              </div>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: "0.75rem",
-                marginTop: "1rem",
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                onClick={() => {
-                  setEditTtlock(null);
-                  setNewTtlockEnd("");
-                }}
-                style={btnToggle}
-                disabled={savingTtlock}
-              >
-                Cancelar
-              </button>
+            <div style={sectionBox}>
+              <h4 style={{ marginTop: 0 }}>Extender vigencia de passcodes activos</h4>
 
-              <button
-                onClick={guardarExtensionTtlock}
-                style={btnTtlock}
-                disabled={savingTtlock}
-              >
-                {savingTtlock ? "Guardando..." : "Guardar extensión"}
+              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "end" }}>
+                <div style={{ flex: 1, minWidth: "260px" }}>
+                  <label style={{ display: "block", marginBottom: "0.5rem" }}>
+                    Nueva fecha / hora fin
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={newTtlockEnd}
+                    onChange={(e) => setNewTtlockEnd(e.target.value)}
+                    style={input}
+                  />
+                </div>
+
+                <button
+                  onClick={guardarExtensionTtlock}
+                  style={btnTtlock}
+                  disabled={savingTtlock}
+                >
+                  {savingTtlock ? "Guardando..." : "Extender todos"}
+                </button>
+              </div>
+            </div>
+
+            <div style={sectionBox}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+                <h4 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
+                  Cerraduras / passcodes activos del huésped
+                </h4>
+
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <button type="button" style={btnScope} onClick={selectAllPasscodes}>
+                    Seleccionar todos
+                  </button>
+                  <button type="button" style={btnToggle} onClick={unselectAllPasscodes}>
+                    Limpiar selección
+                  </button>
+                </div>
+              </div>
+
+              {loadingGuestPasscodes ? (
+                <div style={emptyPasscodesBox}>Cargando cerraduras...</div>
+              ) : guestPasscodes.length === 0 ? (
+                <div style={emptyPasscodesBox}>
+                  Este huésped no tiene passcodes activos asociados.
+                </div>
+              ) : (
+                <div style={passcodesList}>
+                  {guestPasscodes.map((pc) => {
+                    const key = `${pc.lockId}_${pc.keyboardPwdId}`;
+                    const checked = selectedPasscodes.includes(key);
+
+                    return (
+                      <label key={key} style={passcodeRow}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", flex: 1 }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => togglePasscodeSelected(pc)}
+                            style={{ marginTop: "0.25rem" }}
+                          />
+
+                          <div style={{ flex: 1 }}>
+                            <div style={passcodeTitle}>
+                              {pc.lockAlias || `Lock ${pc.lockId}`}
+                            </div>
+
+                            <div style={passcodeMeta}>
+                              <span><b>lockId:</b> {pc.lockId}</span>
+                              <span><b>keyboardPwdId:</b> {pc.keyboardPwdId ?? "-"}</span>
+                              <span><b>código:</b> {pc.codigo || "-"}</span>
+                            </div>
+
+                            <div style={passcodeMeta}>
+                              <span><b>inicio:</b> {formatDateTimeLocal(pc.startDate)}</span>
+                              <span><b>fin:</b> {formatDateTimeLocal(pc.endDate)}</span>
+                            </div>
+
+                            <div style={passcodeMeta}>
+                              <span>
+                                <b>estado:</b>{" "}
+                                <span style={pc.estado === "ACTIVO" ? okMiniBadge : warnMiniBadge}>
+                                  {pc.estado || "-"}
+                                </span>
+                              </span>
+                              <span>
+                                <b>TTLock:</b>{" "}
+                                <span style={pc.ttlockOk ? okMiniBadge : errorMiniBadge}>
+                                  {pc.ttlockOk ? "OK" : "ERROR"}
+                                </span>
+                              </span>
+                              <span><b>mensaje:</b> {pc.ttlockMessage || "-"}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem", flexWrap: "wrap" }}>
+                <button
+                  onClick={eliminarPasscodesSeleccionados}
+                  style={btnDeleteLarge}
+                  disabled={deletingSelectedPasscodes || loadingGuestPasscodes || selectedPasscodes.length === 0}
+                >
+                  {deletingSelectedPasscodes
+                    ? "Eliminando..."
+                    : `Eliminar seleccionados (${selectedPasscodes.length})`}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem", flexWrap: "wrap" }}>
+              <button onClick={closeTtlockModal} style={btnCloseSecondary}>
+                Cerrar
               </button>
             </div>
           </div>
@@ -1123,12 +1325,8 @@ export default function AdminDashboard() {
           <div style={modalBox}>
             <h3>Configurar cobro de hospedaje</h3>
 
-            <p>
-              <b>Huésped:</b> {editCobroHuesped.nombre}
-            </p>
-            <p>
-              <b>Reserva:</b> {editCobroHuesped.numeroReserva}
-            </p>
+            <p><b>Huésped:</b> {editCobroHuesped.nombre}</p>
+            <p><b>Reserva:</b> {editCobroHuesped.numeroReserva}</p>
 
             <div style={{ marginTop: "1rem" }}>
               <label style={label}>Total hospedaje</label>
@@ -1227,25 +1425,12 @@ export default function AdminDashboard() {
             </div>
 
             <div style={summaryBox}>
-              <div>
-                <b>Total:</b> {formatMoney(editCobro.totalHospedaje, editCobro.moneda)}
-              </div>
-              <div>
-                <b>Anticipo:</b> {formatMoney(editCobro.anticipo, editCobro.moneda)}
-              </div>
-              <div>
-                <b>Saldo:</b> {formatMoney(editCobro.saldoPendiente, editCobro.moneda)}
-              </div>
+              <div><b>Total:</b> {formatMoney(editCobro.totalHospedaje, editCobro.moneda)}</div>
+              <div><b>Anticipo:</b> {formatMoney(editCobro.anticipo, editCobro.moneda)}</div>
+              <div><b>Saldo:</b> {formatMoney(editCobro.saldoPendiente, editCobro.moneda)}</div>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: "0.75rem",
-                marginTop: "1rem",
-                flexWrap: "wrap",
-              }}
-            >
+            <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem", flexWrap: "wrap" }}>
               <button
                 onClick={() => {
                   setEditCobroHuesped(null);
@@ -1431,6 +1616,15 @@ const btnDelete: React.CSSProperties = {
   cursor: "pointer",
 };
 
+const btnDeleteLarge: React.CSSProperties = {
+  background: "#dc2626",
+  color: "white",
+  border: "none",
+  padding: "0.7rem 1rem",
+  borderRadius: "0.6rem",
+  cursor: "pointer",
+};
+
 const btnEye: React.CSSProperties = {
   background: "#2563eb",
   color: "white",
@@ -1444,8 +1638,8 @@ const btnTtlock: React.CSSProperties = {
   background: "#f59e0b",
   color: "white",
   border: "none",
-  padding: "0.3rem 0.6rem",
-  borderRadius: "0.4rem",
+  padding: "0.6rem 0.9rem",
+  borderRadius: "0.5rem",
   cursor: "pointer",
 };
 
@@ -1490,6 +1684,15 @@ const btnScope: React.CSSProperties = {
   color: "white",
   border: "1px solid #1f2937",
   padding: "0.5rem 1rem",
+  borderRadius: "0.6rem",
+  cursor: "pointer",
+};
+
+const btnCloseSecondary: React.CSSProperties = {
+  background: "#1e293b",
+  color: "#fff",
+  border: "1px solid #334155",
+  padding: "0.75rem 1rem",
   borderRadius: "0.6rem",
   cursor: "pointer",
 };
@@ -1682,4 +1885,112 @@ const imageFallbackText: React.CSSProperties = {
   alignItems: "center",
   width: "100%",
   height: "100%",
+};
+
+const sectionBox: React.CSSProperties = {
+  marginTop: "1rem",
+  padding: "1rem",
+  borderRadius: "0.85rem",
+  background: "#0b1220",
+  border: "1px solid #1f2937",
+};
+
+const ttlockInfoGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "0.75rem",
+};
+
+const infoCard: React.CSSProperties = {
+  background: "#0f172a",
+  border: "1px solid #1f2937",
+  borderRadius: "0.75rem",
+  padding: "0.9rem",
+};
+
+const infoLabel: React.CSSProperties = {
+  fontSize: "0.8rem",
+  color: "#94a3b8",
+  marginBottom: "0.35rem",
+};
+
+const infoValue: React.CSSProperties = {
+  fontSize: "0.95rem",
+  fontWeight: 700,
+  color: "#fff",
+  wordBreak: "break-word",
+};
+
+const passcodesList: React.CSSProperties = {
+  display: "grid",
+  gap: "0.75rem",
+  marginTop: "0.75rem",
+};
+
+const passcodeRow: React.CSSProperties = {
+  display: "flex",
+  gap: "0.75rem",
+  padding: "0.9rem",
+  borderRadius: "0.75rem",
+  background: "#020617",
+  border: "1px solid #1f2937",
+  cursor: "pointer",
+};
+
+const passcodeTitle: React.CSSProperties = {
+  fontWeight: 700,
+  fontSize: "1rem",
+  color: "#fff",
+  marginBottom: "0.35rem",
+};
+
+const passcodeMeta: React.CSSProperties = {
+  display: "flex",
+  gap: "1rem",
+  flexWrap: "wrap",
+  fontSize: "0.88rem",
+  color: "#cbd5e1",
+  marginTop: "0.2rem",
+};
+
+const emptyPasscodesBox: React.CSSProperties = {
+  marginTop: "0.75rem",
+  padding: "1rem",
+  borderRadius: "0.75rem",
+  background: "#020617",
+  border: "1px dashed #334155",
+  color: "#94a3b8",
+};
+
+const okMiniBadge: React.CSSProperties = {
+  display: "inline-block",
+  padding: "0.15rem 0.45rem",
+  borderRadius: "999px",
+  background: "#052e16",
+  color: "#86efac",
+  border: "1px solid #166534",
+  fontWeight: 700,
+  fontSize: "0.75rem",
+};
+
+const warnMiniBadge: React.CSSProperties = {
+  display: "inline-block",
+  padding: "0.15rem 0.45rem",
+  borderRadius: "999px",
+  background: "#3f2a00",
+  color: "#facc15",
+  border: "1px solid #a16207",
+  fontWeight: 700,
+  fontSize: "0.75rem",
+};
+
+const errorMiniBadge: React.CSSProperties = {
+  display: "inline-block",
+  padding: "0.15rem 0.45rem",
+  borderRadius: "999px",
+  background: "#3f0d0d",
+  color: "#fca5a5",
+  border: "1px solid #991b1b",
+  fontWeight: 700,
+  fontSize: "0.75rem",
 };

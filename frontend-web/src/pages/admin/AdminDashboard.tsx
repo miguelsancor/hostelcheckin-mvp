@@ -1,16 +1,19 @@
 import React from "react";
 import { useAdminAuth } from "./hooks/useAdminAuth";
 import { useAdminDashboard } from "./hooks/useAdminDashboard";
-import { btnLogout, card, container, galeriaGrid, loginBox, loginContainer } from "./admin.styles";
+import {
+  btnLogout,
+  card,
+  container,
+  loginBox,
+  loginContainer,
+} from "./admin.styles";
 import { LoginView } from "./components/LoginView";
 import { MetricsPanel } from "./components/MetricsPanel";
 import { AdminToolbar } from "./components/AdminToolbar";
-import { GalleryCard } from "./components/GalleryCard";
 import { GuestsTable } from "./components/GuestsTable";
 import { GuestDetailModal } from "./modals/GuestDetailModal";
 import { TtlockModal } from "./modals/TtlockModal";
-import { CobroModal } from "./modals/CobroModal";
-import { ImageZoomModal } from "./modals/ImageZoomModal";
 import { defaultCobro } from "./admin.utils";
 
 export default function AdminDashboard() {
@@ -51,9 +54,18 @@ export default function AdminDashboard() {
   return (
     <div style={container}>
       <div style={card}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "1rem",
+            flexWrap: "wrap",
+          }}
+        >
           <h1>Dashboard Administrativo</h1>
-          <button onClick={handleLogout} style={btnLogout}>Salir</button>
+          <button onClick={handleLogout} style={btnLogout}>
+            Salir
+          </button>
         </div>
 
         <MetricsPanel metrics={dashboard.metrics} />
@@ -72,38 +84,16 @@ export default function AdminDashboard() {
           onFiltroChange={dashboard.setFiltro}
         />
 
-        {dashboard.vista === "galeria" && (
-          <div style={galeriaGrid}>
-            {dashboard.filtrados.map((h) => {
-              const cobro = dashboard.cobrosMap[h.numeroReserva];
-
-              return (
-                <GalleryCard
-                  key={h.id}
-                  h={h}
-                  cobro={cobro}
-                  onDetalle={(guest) => dashboard.setDetalle(guest as any)}
-                  onCobro={dashboard.abrirModalCobro}
-                  onTtlock={dashboard.abrirModalExtension}
-                  onEliminar={dashboard.eliminar}
-                  onZoom={dashboard.setImagenZoom}
-                />
-              );
-            })}
-          </div>
-        )}
-
-        {dashboard.vista === "tabla" && (
-          <GuestsTable
-            filtrados={dashboard.filtrados}
-            cobrosMap={dashboard.cobrosMap}
-            scope={dashboard.scope}
-            onDetalle={dashboard.setDetalle}
-            onCobro={dashboard.abrirModalCobro}
-            onTtlock={dashboard.abrirModalExtension}
-            onEliminar={dashboard.eliminar}
-          />
-        )}
+        {/* Temporalmente dejamos solo la tabla, porque GalleryCard.tsx no existe aún */}
+        <GuestsTable
+          filtrados={dashboard.filtrados}
+          cobrosMap={dashboard.cobrosMap}
+          scope={dashboard.scope}
+          onDetalle={dashboard.setDetalle}
+          onCobro={dashboard.abrirModalCobro}
+          onTtlock={dashboard.abrirModalExtension}
+          onEliminar={dashboard.eliminar}
+        />
       </div>
 
       <GuestDetailModal
@@ -135,23 +125,84 @@ export default function AdminDashboard() {
         onAsignarLocks={dashboard.asignarLocksSeleccionadas}
       />
 
-      <CobroModal
-        huesped={dashboard.editCobroHuesped}
-        cobro={dashboard.editCobro}
-        savingCobro={dashboard.savingCobro}
-        setCobro={dashboard.setEditCobro}
-        onClose={() => {
-          dashboard.setEditCobroHuesped(null);
-          dashboard.setEditCobro(defaultCobro());
-        }}
-        onRecalcularSaldo={dashboard.recalcularSaldo}
-        onGuardar={dashboard.guardarCobro}
-      />
+      {/* Temporalmente desactivados porque esos archivos no existen todavía */}
+      {dashboard.editCobroHuesped && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.8)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 10000,
+          }}
+        >
+          <div
+            style={{
+              background: "#020617",
+              padding: "2rem",
+              borderRadius: "1rem",
+              color: "white",
+              maxWidth: "600px",
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+          >
+            <h3>Configurar cobro de hospedaje</h3>
 
-      <ImageZoomModal
-        imagenZoom={dashboard.imagenZoom}
-        onClose={() => dashboard.setImagenZoom(null)}
-      />
+            <p><b>Huésped:</b> {dashboard.editCobroHuesped.nombre}</p>
+            <p><b>Reserva:</b> {dashboard.editCobroHuesped.numeroReserva}</p>
+
+            <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem", flexWrap: "wrap" }}>
+              <button
+                onClick={() => {
+                  dashboard.setEditCobroHuesped(null);
+                  dashboard.setEditCobro(defaultCobro());
+                }}
+                style={{
+                  background: "#334155",
+                  color: "white",
+                  border: "none",
+                  padding: "0.5rem 1rem",
+                  borderRadius: "0.6rem",
+                  cursor: "pointer",
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {dashboard.imagenZoom && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.9)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 11000,
+          }}
+          onClick={() => dashboard.setImagenZoom(null)}
+        >
+          <img
+            src={dashboard.imagenZoom}
+            alt="Zoom"
+            style={{
+              maxWidth: "90vw",
+              maxHeight: "90vh",
+              borderRadius: "1rem",
+              border: "2px solid #1d4ed8",
+              objectFit: "contain",
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

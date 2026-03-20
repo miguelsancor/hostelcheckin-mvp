@@ -18,7 +18,7 @@ import {
   zoomOverlay,
   zoomImage,
   ttlockBadge,
-  formatPaymentBadgeFallback,
+  paymentBadge,
 } from "./admin.styles";
 import { LoginView } from "./components/LoginView";
 import { MetricsPanel } from "./components/MetricsPanel";
@@ -200,7 +200,7 @@ export default function AdminDashboard() {
                   </p>
                   <p style={{ margin: 0 }}>
                     <b>Estado:</b>{" "}
-                    <span style={formatPaymentBadgeFallback(cobro?.estadoPago || "PENDING")}>
+                    <span style={paymentBadge(cobro?.estadoPago || "PENDING")}>
                       {cobro?.estadoPago || "PENDING"}
                     </span>
                   </p>

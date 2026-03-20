@@ -5,7 +5,7 @@ import CheckinForm from "./pages/CheckinForm";
 import InstructorDashboard from "./pages/InstructorDashboard";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import TestMCP from "./pages/TestMCP";
-import AdminDashboard from "./pages/AdminDashboard"; // ✅ NUEVO
+import AdminDashboard from "./pages/admin/AdminDashboard"; // ✅ NUEVO
 
 function App() {
   return (

@@ -11,6 +11,7 @@ const {
   createPasscodeAll,
   listPasscodesAll,
   listGuestPasscodes,
+  assignSelectedLocksToGuest,
   deletePasscode,
   deleteSelectedPasscodes,
   extendPasscodeByGuest,
@@ -28,19 +29,16 @@ router.get("/keys", listKeys);
 router.post("/create-passcode-all", createPasscodeAll);
 router.post("/list-passcodes-all", listPasscodesAll);
 
-// ✅ NUEVO: listar passcodes de un huésped
 router.get("/guest-passcodes/:huespedId", listGuestPasscodes);
 
-// ✅ NUEVO: borrar uno
-router.post("/delete-passcode", deletePasscode);
+// ✅ NUEVO: asignar cerraduras existentes al huésped
+router.post("/assign-locks-to-guest", assignSelectedLocksToGuest);
 
-// ✅ NUEVO: borrar varios seleccionados
+router.post("/delete-passcode", deletePasscode);
 router.post("/delete-passcodes-selected", deleteSelectedPasscodes);
 
-// ✅ EXTENDER por huésped
 router.put("/passcode/extend/:huespedId", extendPasscodeByGuest);
 
-// debug env
 router.get("/debug/env", debugEnv);
 
 module.exports = router;

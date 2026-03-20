@@ -63,6 +63,14 @@ type GuestPasscode = {
   creadoEn?: string;
 };
 
+type LockItem = {
+  lockId: number;
+  lockAlias?: string | null;
+  electricQuantity?: number;
+  keyboardPwdVersion?: number;
+  specialValue?: number;
+};
+
 const defaultCobro = (huesped?: Huesped | null): ReservaCobro => ({
   numeroReserva: huesped?.numeroReserva || "",
   huespedId: huesped?.id ?? null,
@@ -216,30 +224,14 @@ const GalleryCard = memo(function GalleryCard({
       )}
 
       <h3>{h.nombre}</h3>
-      <p>
-        <b>Documento:</b> {h.tipoDocumento} {h.numeroDocumento}
-      </p>
-      <p>
-        <b>Tel:</b> {h.telefono}
-      </p>
-      <p>
-        <b>Email:</b> {h.email}
-      </p>
-      <p>
-        <b>Ingreso:</b> {h.fechaIngreso}
-      </p>
-      <p>
-        <b>Reserva:</b> {h.numeroReserva}
-      </p>
-      <p>
-        <b>TTLock:</b> {ttlockText(h.codigoTTLock)}
-      </p>
-      <p>
-        <b>Total:</b> {formatMoney(cobro?.totalHospedaje, cobro?.moneda || "COP")}
-      </p>
-      <p>
-        <b>Saldo:</b> {formatMoney(cobro?.saldoPendiente, cobro?.moneda || "COP")}
-      </p>
+      <p><b>Documento:</b> {h.tipoDocumento} {h.numeroDocumento}</p>
+      <p><b>Tel:</b> {h.telefono}</p>
+      <p><b>Email:</b> {h.email}</p>
+      <p><b>Ingreso:</b> {h.fechaIngreso}</p>
+      <p><b>Reserva:</b> {h.numeroReserva}</p>
+      <p><b>TTLock:</b> {ttlockText(h.codigoTTLock)}</p>
+      <p><b>Total:</b> {formatMoney(cobro?.totalHospedaje, cobro?.moneda || "COP")}</p>
+      <p><b>Saldo:</b> {formatMoney(cobro?.saldoPendiente, cobro?.moneda || "COP")}</p>
       <p>
         <b>Estado:</b>{" "}
         <span style={paymentBadge(cobro?.estadoPago || "PENDING")}>
@@ -255,29 +247,11 @@ const GalleryCard = memo(function GalleryCard({
         <span style={{ opacity: 0.5 }}>Sin check-in</span>
       )}
 
-      <div
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          marginTop: "1rem",
-          flexWrap: "wrap",
-        }}
-      >
-        <button style={btnEye} onClick={() => onDetalle(h)}>
-          👁
-        </button>
-
-        <button style={btnMoney} onClick={() => onCobro(h)} title="Editar cobro">
-          💰
-        </button>
-
-        <button style={btnTtlock} onClick={() => onTtlock(h)} title="Gestionar TTLock">
-          🔐
-        </button>
-
-        <button style={btnDelete} onClick={() => onEliminar(h.id)}>
-          ❌
-        </button>
+      <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem", flexWrap: "wrap" }}>
+        <button style={btnEye} onClick={() => onDetalle(h)}>👁</button>
+        <button style={btnMoney} onClick={() => onCobro(h)} title="Editar cobro">💰</button>
+        <button style={btnTtlock} onClick={() => onTtlock(h)} title="Gestionar TTLock">🔐</button>
+        <button style={btnDelete} onClick={() => onEliminar(h.id)}>❌</button>
       </div>
     </div>
   );
@@ -307,6 +281,12 @@ export default function AdminDashboard() {
   const [loadingGuestPasscodes, setLoadingGuestPasscodes] = useState(false);
   const [selectedPasscodes, setSelectedPasscodes] = useState<string[]>([]);
   const [deletingSelectedPasscodes, setDeletingSelectedPasscodes] = useState(false);
+
+  const [allLocks, setAllLocks] = useState<LockItem[]>([]);
+  const [loadingAllLocks, setLoadingAllLocks] = useState(false);
+  const [selectedNewLocks, setSelectedNewLocks] = useState<number[]>([]);
+  const [assigningLocks, setAssigningLocks] = useState(false);
+  const [newPinCode, setNewPinCode] = useState("");
 
   const [cobrosMap, setCobrosMap] = useState<Record<string, ReservaCobro>>({});
   const [editCobroHuesped, setEditCobroHuesped] = useState<Huesped | null>(null);
@@ -349,9 +329,7 @@ export default function AdminDashboard() {
       const res = await fetch(`${API_BASE}/admin/auth/login`, {
         method: "POST",
         credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: username.trim(),
           password,
@@ -391,6 +369,8 @@ export default function AdminDashboard() {
       setCobrosMap({});
       setGuestPasscodes([]);
       setSelectedPasscodes([]);
+      setAllLocks([]);
+      setSelectedNewLocks([]);
       setEditTtlock(null);
     }
   };
@@ -494,6 +474,35 @@ export default function AdminDashboard() {
     }
   };
 
+  const cargarTodasLasLocks = async () => {
+    try {
+      setLoadingAllLocks(true);
+
+      const res = await fetch(`${API_BASE}/mcp/locks`, {
+        credentials: "include",
+      });
+
+      const json = await res.json();
+
+      const lista = Array.isArray(json?.list) ? json.list : [];
+      const mapped: LockItem[] = lista.map((x: any) => ({
+        lockId: Number(x.lockId),
+        lockAlias: x.lockAlias || null,
+        electricQuantity: x.electricQuantity,
+        keyboardPwdVersion: x.keyboardPwdVersion,
+        specialValue: x.specialValue,
+      }));
+
+      setAllLocks(mapped);
+    } catch (e) {
+      console.error(e);
+      setAllLocks([]);
+      alert("Error cargando cerraduras TTLock.");
+    } finally {
+      setLoadingAllLocks(false);
+    }
+  };
+
   useEffect(() => {
     checkSession();
   }, []);
@@ -542,6 +551,14 @@ export default function AdminDashboard() {
 
     return base.filter((h) => h._searchText.includes(f));
   }, [huespedesPreparados, filtro, scope]);
+
+  const activeLockIds = useMemo(() => {
+    return new Set(guestPasscodes.map((x) => Number(x.lockId)));
+  }, [guestPasscodes]);
+
+  const locksDisponiblesParaAgregar = useMemo(() => {
+    return allLocks.filter((lock) => !activeLockIds.has(Number(lock.lockId)));
+  }, [allLocks, activeLockIds]);
 
   const eliminar = async (id: number) => {
     if (!confirm("¿Eliminar huésped?")) return;
@@ -603,13 +620,19 @@ export default function AdminDashboard() {
     setEditTtlock(h);
     setGuestPasscodes([]);
     setSelectedPasscodes([]);
+    setSelectedNewLocks([]);
+    setNewPinCode(h.codigoTTLock || "");
 
     const baseDate =
       normalizarFecha(h.fechaSalida || "") || normalizarFecha(h.fechaIngreso || "");
     const defaultValue = baseDate ? `${baseDate}T12:00` : "";
 
     setNewTtlockEnd(defaultValue);
-    await cargarPasscodesGuest(h.id);
+
+    await Promise.all([
+      cargarPasscodesGuest(h.id),
+      cargarTodasLasLocks(),
+    ]);
   };
 
   const closeTtlockModal = () => {
@@ -617,6 +640,9 @@ export default function AdminDashboard() {
     setNewTtlockEnd("");
     setGuestPasscodes([]);
     setSelectedPasscodes([]);
+    setAllLocks([]);
+    setSelectedNewLocks([]);
+    setNewPinCode("");
   };
 
   const togglePasscodeSelected = (pc: GuestPasscode) => {
@@ -626,15 +652,10 @@ export default function AdminDashboard() {
     );
   };
 
-  const selectAllPasscodes = () => {
-    const all = guestPasscodes
-      .filter((pc) => pc.lockId && pc.keyboardPwdId)
-      .map((pc) => `${pc.lockId}_${pc.keyboardPwdId}`);
-    setSelectedPasscodes(all);
-  };
-
-  const unselectAllPasscodes = () => {
-    setSelectedPasscodes([]);
+  const toggleNewLockSelected = (lockId: number) => {
+    setSelectedNewLocks((prev) =>
+      prev.includes(lockId) ? prev.filter((x) => x !== lockId) : [...prev, lockId]
+    );
   };
 
   const guardarExtensionTtlock = async () => {
@@ -651,9 +672,7 @@ export default function AdminDashboard() {
       const res = await fetch(`${API_BASE}/mcp/passcode/extend/${editTtlock.id}`, {
         method: "PUT",
         credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           newEndDate: newTtlockEnd,
         }),
@@ -674,6 +693,71 @@ export default function AdminDashboard() {
       alert("Error actualizando TTLock.");
     } finally {
       setSavingTtlock(false);
+    }
+  };
+
+  const asignarLocksSeleccionadas = async () => {
+    if (!editTtlock) return;
+
+    if (!selectedNewLocks.length) {
+      alert("Debes seleccionar al menos una cerradura para asignar.");
+      return;
+    }
+
+    if (!newTtlockEnd || !newTtlockEnd.trim()) {
+      alert("Debes indicar la fecha fin del código.");
+      return;
+    }
+
+    try {
+      setAssigningLocks(true);
+
+      const startAt = Date.now();
+      const endAt = new Date(newTtlockEnd).getTime();
+
+      if (!Number.isFinite(endAt) || endAt <= startAt) {
+        alert("La fecha fin debe ser mayor a la fecha actual.");
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/mcp/assign-locks-to-guest`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          huespedId: editTtlock.id,
+          lockIds: selectedNewLocks,
+          startAt,
+          endAt,
+          code: newPinCode?.trim() || undefined,
+          name: `RES-${editTtlock.numeroReserva}`,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json?.ok) {
+        alert(json?.error || "No se pudieron asignar las cerraduras.");
+        return;
+      }
+
+      alert(
+        `Proceso completado. Asignadas: ${json?.asignadas || 0}. Ya existentes: ${json?.yaExistian || 0}. PIN: ${json?.pin || "-"}`
+      );
+
+      setNewPinCode(json?.pin || "");
+      setSelectedNewLocks([]);
+
+      await Promise.all([
+        cargarPasscodesGuest(editTtlock.id),
+        cargarTodasLasLocks(),
+        cargarHuespedes(),
+      ]);
+    } catch (e) {
+      console.error(e);
+      alert("Error asignando cerraduras.");
+    } finally {
+      setAssigningLocks(false);
     }
   };
 
@@ -705,9 +789,7 @@ export default function AdminDashboard() {
       const res = await fetch(`${API_BASE}/mcp/delete-passcodes-selected`, {
         method: "POST",
         credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           huespedId: editTtlock.id,
           items,
@@ -723,8 +805,12 @@ export default function AdminDashboard() {
 
       alert(`Passcodes eliminados correctamente: ${json?.deleted || 0}`);
       setSelectedPasscodes([]);
-      await cargarPasscodesGuest(editTtlock.id);
-      await cargarHuespedes();
+
+      await Promise.all([
+        cargarPasscodesGuest(editTtlock.id),
+        cargarTodasLasLocks(),
+        cargarHuespedes(),
+      ]);
     } catch (e) {
       console.error(e);
       alert("Error eliminando passcodes seleccionados.");
@@ -750,9 +836,7 @@ export default function AdminDashboard() {
 
       const res = await fetch(
         `${API_BASE}/admin/cobros/${encodeURIComponent(h.numeroReserva)}`,
-        {
-          credentials: "include",
-        }
+        { credentials: "include" }
       );
 
       if (res.status === 401) {
@@ -814,9 +898,7 @@ export default function AdminDashboard() {
       const res = await fetch(`${API_BASE}/admin/cobros`, {
         method: "POST",
         credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
@@ -893,36 +975,20 @@ export default function AdminDashboard() {
       <div style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
           <h1>Dashboard Administrativo</h1>
-          <button onClick={logout} style={btnLogout}>
-            Salir
-          </button>
+          <button onClick={logout} style={btnLogout}>Salir</button>
         </div>
 
         {metrics && (
           <div style={metricsGrid}>
-            <div style={metricCard}>
-              <h4>Total</h4>
-              <p>{metrics.total}</p>
-            </div>
-            <div style={metricCard}>
-              <h4>Hoy</h4>
-              <p>{metrics.hoy}</p>
-            </div>
-            <div style={metricCard}>
-              <h4>Este mes</h4>
-              <p>{metrics.mes}</p>
-            </div>
-            <div style={metricCard}>
-              <h4>Última reserva</h4>
-              <p>{metrics.ultimaReserva}</p>
-            </div>
+            <div style={metricCard}><h4>Total</h4><p>{metrics.total}</p></div>
+            <div style={metricCard}><h4>Hoy</h4><p>{metrics.hoy}</p></div>
+            <div style={metricCard}><h4>Este mes</h4><p>{metrics.mes}</p></div>
+            <div style={metricCard}><h4>Última reserva</h4><p>{metrics.ultimaReserva}</p></div>
           </div>
         )}
 
         <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", flexWrap: "wrap" }}>
-          <button onClick={exportarExcel} style={btnExcel}>
-            📥 Excel
-          </button>
+          <button onClick={exportarExcel} style={btnExcel}>📥 Excel</button>
 
           <button
             onClick={() => setVista(vista === "tabla" ? "galeria" : "tabla")}
@@ -997,20 +1063,14 @@ export default function AdminDashboard() {
                     <tr key={h.id} style={idx % 2 === 0 ? trEven : trOdd}>
                       <td style={td}>{h.id}</td>
                       <td style={td}>{h.nombre}</td>
-                      <td style={td}>
-                        {h.tipoDocumento} - {h.numeroDocumento}
-                      </td>
+                      <td style={td}>{h.tipoDocumento} - {h.numeroDocumento}</td>
                       <td style={td}>{h.telefono}</td>
                       <td style={td}>{h.email}</td>
                       <td style={td}>{h.fechaIngreso}</td>
                       <td style={td}>{h.fechaSalida}</td>
                       <td style={td}>{h.numeroReserva}</td>
-                      <td style={td}>
-                        {formatMoney(cobro?.totalHospedaje, cobro?.moneda || "COP")}
-                      </td>
-                      <td style={td}>
-                        {formatMoney(cobro?.saldoPendiente, cobro?.moneda || "COP")}
-                      </td>
+                      <td style={td}>{formatMoney(cobro?.totalHospedaje, cobro?.moneda || "COP")}</td>
+                      <td style={td}>{formatMoney(cobro?.saldoPendiente, cobro?.moneda || "COP")}</td>
                       <td style={td}>
                         <span style={paymentBadge(cobro?.estadoPago || "PENDING")}>
                           {cobro?.estadoPago || "PENDING"}
@@ -1021,40 +1081,16 @@ export default function AdminDashboard() {
                           <a href={h.checkinUrl} target="_blank" rel="noreferrer" style={link}>
                             abrir
                           </a>
-                        ) : (
-                          "-"
-                        )}
+                        ) : "-"}
                       </td>
                       <td style={{ ...td, fontWeight: 700, color: "#facc15" }}>
                         {ttlockText(h.codigoTTLock)}
                       </td>
-                      <td
-                        style={{
-                          ...td,
-                          display: "flex",
-                          gap: "0.5rem",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <button style={btnEye} onClick={() => setDetalle(h)}>
-                          👁
-                        </button>
-
-                        <button
-                          style={btnMoney}
-                          onClick={() => abrirModalCobro(h)}
-                          title="Editar cobro"
-                        >
-                          💰
-                        </button>
-
-                        <button style={btnTtlock} onClick={() => abrirModalExtension(h)} title="Gestionar TTLock">
-                          🔐
-                        </button>
-
-                        <button style={btnDelete} onClick={() => eliminar(h.id)}>
-                          ❌
-                        </button>
+                      <td style={{ ...td, display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                        <button style={btnEye} onClick={() => setDetalle(h)}>👁</button>
+                        <button style={btnMoney} onClick={() => abrirModalCobro(h)} title="Editar cobro">💰</button>
+                        <button style={btnTtlock} onClick={() => abrirModalExtension(h)} title="Gestionar TTLock">🔐</button>
+                        <button style={btnDelete} onClick={() => eliminar(h.id)}>❌</button>
                       </td>
                     </tr>
                   );
@@ -1096,42 +1132,6 @@ export default function AdminDashboard() {
               <span style={ttlockBadge}>{ttlockText(detalle.codigoTTLock)}</span>
             </p>
 
-            {cobrosMap[detalle.numeroReserva] && (
-              <>
-                <p>
-                  <b>Total Hospedaje:</b>{" "}
-                  {formatMoney(
-                    cobrosMap[detalle.numeroReserva]?.totalHospedaje,
-                    cobrosMap[detalle.numeroReserva]?.moneda || "COP"
-                  )}
-                </p>
-                <p>
-                  <b>Anticipo:</b>{" "}
-                  {formatMoney(
-                    cobrosMap[detalle.numeroReserva]?.anticipo,
-                    cobrosMap[detalle.numeroReserva]?.moneda || "COP"
-                  )}
-                </p>
-                <p>
-                  <b>Saldo Pendiente:</b>{" "}
-                  {formatMoney(
-                    cobrosMap[detalle.numeroReserva]?.saldoPendiente,
-                    cobrosMap[detalle.numeroReserva]?.moneda || "COP"
-                  )}
-                </p>
-                <p>
-                  <b>Estado Pago:</b>{" "}
-                  <span
-                    style={paymentBadge(
-                      cobrosMap[detalle.numeroReserva]?.estadoPago || "PENDING"
-                    )}
-                  >
-                    {cobrosMap[detalle.numeroReserva]?.estadoPago || "PENDING"}
-                  </span>
-                </p>
-              </>
-            )}
-
             <div style={imagenesDetalleGrid}>
               {detalle._pasaporteUrl && (
                 <SmartImage
@@ -1159,16 +1159,14 @@ export default function AdminDashboard() {
               )}
             </div>
 
-            <button onClick={() => setDetalle(null)} style={btnClose}>
-              Cerrar
-            </button>
+            <button onClick={() => setDetalle(null)} style={btnClose}>Cerrar</button>
           </div>
         </div>
       )}
 
       {editTtlock && (
         <div style={modal}>
-          <div style={{ ...modalBox, maxWidth: "860px" }}>
+          <div style={{ ...modalBox, maxWidth: "980px" }}>
             <h3>Gestión TTLock</h3>
 
             <div style={ttlockInfoGrid}>
@@ -1176,19 +1174,16 @@ export default function AdminDashboard() {
                 <div style={infoLabel}>Huésped</div>
                 <div style={infoValue}>{editTtlock.nombre}</div>
               </div>
-
               <div style={infoCard}>
                 <div style={infoLabel}>Reserva</div>
                 <div style={infoValue}>{editTtlock.numeroReserva}</div>
               </div>
-
               <div style={infoCard}>
                 <div style={infoLabel}>Código visible</div>
                 <div style={infoValue}>
                   <span style={ttlockBadge}>{ttlockText(editTtlock.codigoTTLock)}</span>
                 </div>
               </div>
-
               <div style={infoCard}>
                 <div style={infoLabel}>Salida actual</div>
                 <div style={infoValue}>{editTtlock.fechaSalida ?? "-"}</div>
@@ -1196,13 +1191,22 @@ export default function AdminDashboard() {
             </div>
 
             <div style={sectionBox}>
-              <h4 style={{ marginTop: 0 }}>Extender vigencia de passcodes activos</h4>
+              <h4 style={{ marginTop: 0 }}>Configuración de PIN y vigencia</h4>
 
-              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "end" }}>
-                <div style={{ flex: 1, minWidth: "260px" }}>
-                  <label style={{ display: "block", marginBottom: "0.5rem" }}>
-                    Nueva fecha / hora fin
-                  </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                <div>
+                  <label style={label}>PIN a usar</label>
+                  <input
+                    type="text"
+                    value={newPinCode}
+                    onChange={(e) => setNewPinCode(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                    style={input}
+                    placeholder="Ej: 2462"
+                  />
+                </div>
+
+                <div>
+                  <label style={label}>Fecha / hora fin</label>
                   <input
                     type="datetime-local"
                     value={newTtlockEnd}
@@ -1210,39 +1214,26 @@ export default function AdminDashboard() {
                     style={input}
                   />
                 </div>
+              </div>
 
+              <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem", flexWrap: "wrap" }}>
                 <button
                   onClick={guardarExtensionTtlock}
                   style={btnTtlock}
                   disabled={savingTtlock}
                 >
-                  {savingTtlock ? "Guardando..." : "Extender todos"}
+                  {savingTtlock ? "Guardando..." : "Extender activas"}
                 </button>
               </div>
             </div>
 
             <div style={sectionBox}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
-                <h4 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
-                  Cerraduras / passcodes activos del huésped
-                </h4>
-
-                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                  <button type="button" style={btnScope} onClick={selectAllPasscodes}>
-                    Seleccionar todos
-                  </button>
-                  <button type="button" style={btnToggle} onClick={unselectAllPasscodes}>
-                    Limpiar selección
-                  </button>
-                </div>
-              </div>
+              <h4 style={{ marginTop: 0 }}>Cerraduras activas del huésped</h4>
 
               {loadingGuestPasscodes ? (
-                <div style={emptyPasscodesBox}>Cargando cerraduras...</div>
+                <div style={emptyPasscodesBox}>Cargando cerraduras activas...</div>
               ) : guestPasscodes.length === 0 ? (
-                <div style={emptyPasscodesBox}>
-                  Este huésped no tiene passcodes activos asociados.
-                </div>
+                <div style={emptyPasscodesBox}>Este huésped no tiene cerraduras activas.</div>
               ) : (
                 <div style={passcodesList}>
                   {guestPasscodes.map((pc) => {
@@ -1260,35 +1251,15 @@ export default function AdminDashboard() {
                           />
 
                           <div style={{ flex: 1 }}>
-                            <div style={passcodeTitle}>
-                              {pc.lockAlias || `Lock ${pc.lockId}`}
-                            </div>
-
+                            <div style={passcodeTitle}>{pc.lockAlias || `Lock ${pc.lockId}`}</div>
                             <div style={passcodeMeta}>
                               <span><b>lockId:</b> {pc.lockId}</span>
                               <span><b>keyboardPwdId:</b> {pc.keyboardPwdId ?? "-"}</span>
                               <span><b>código:</b> {pc.codigo || "-"}</span>
                             </div>
-
                             <div style={passcodeMeta}>
                               <span><b>inicio:</b> {formatDateTimeLocal(pc.startDate)}</span>
                               <span><b>fin:</b> {formatDateTimeLocal(pc.endDate)}</span>
-                            </div>
-
-                            <div style={passcodeMeta}>
-                              <span>
-                                <b>estado:</b>{" "}
-                                <span style={pc.estado === "ACTIVO" ? okMiniBadge : warnMiniBadge}>
-                                  {pc.estado || "-"}
-                                </span>
-                              </span>
-                              <span>
-                                <b>TTLock:</b>{" "}
-                                <span style={pc.ttlockOk ? okMiniBadge : errorMiniBadge}>
-                                  {pc.ttlockOk ? "OK" : "ERROR"}
-                                </span>
-                              </span>
-                              <span><b>mensaje:</b> {pc.ttlockMessage || "-"}</span>
                             </div>
                           </div>
                         </div>
@@ -1302,11 +1273,63 @@ export default function AdminDashboard() {
                 <button
                   onClick={eliminarPasscodesSeleccionados}
                   style={btnDeleteLarge}
-                  disabled={deletingSelectedPasscodes || loadingGuestPasscodes || selectedPasscodes.length === 0}
+                  disabled={deletingSelectedPasscodes || selectedPasscodes.length === 0}
                 >
                   {deletingSelectedPasscodes
                     ? "Eliminando..."
-                    : `Eliminar seleccionados (${selectedPasscodes.length})`}
+                    : `Eliminar activas seleccionadas (${selectedPasscodes.length})`}
+                </button>
+              </div>
+            </div>
+
+            <div style={sectionBox}>
+              <h4 style={{ marginTop: 0 }}>Todas las cerraduras disponibles para agregar</h4>
+
+              {loadingAllLocks ? (
+                <div style={emptyPasscodesBox}>Cargando todas las cerraduras...</div>
+              ) : locksDisponiblesParaAgregar.length === 0 ? (
+                <div style={emptyPasscodesBox}>
+                  No hay más cerraduras disponibles para agregar a este huésped.
+                </div>
+              ) : (
+                <div style={passcodesList}>
+                  {locksDisponiblesParaAgregar.map((lock) => {
+                    const checked = selectedNewLocks.includes(lock.lockId);
+
+                    return (
+                      <label key={lock.lockId} style={passcodeRow}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", flex: 1 }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleNewLockSelected(lock.lockId)}
+                            style={{ marginTop: "0.25rem" }}
+                          />
+
+                          <div style={{ flex: 1 }}>
+                            <div style={passcodeTitle}>{lock.lockAlias || `Lock ${lock.lockId}`}</div>
+                            <div style={passcodeMeta}>
+                              <span><b>lockId:</b> {lock.lockId}</span>
+                              <span><b>batería:</b> {lock.electricQuantity ?? "-"}</span>
+                              <span><b>kbdVersion:</b> {lock.keyboardPwdVersion ?? "-"}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem", flexWrap: "wrap" }}>
+                <button
+                  onClick={asignarLocksSeleccionadas}
+                  style={btnAssign}
+                  disabled={assigningLocks || selectedNewLocks.length === 0}
+                >
+                  {assigningLocks
+                    ? "Asignando..."
+                    : `Asignar cerraduras seleccionadas (${selectedNewLocks.length})`}
                 </button>
               </div>
             </div>
@@ -1643,6 +1666,15 @@ const btnTtlock: React.CSSProperties = {
   cursor: "pointer",
 };
 
+const btnAssign: React.CSSProperties = {
+  background: "#16a34a",
+  color: "white",
+  border: "none",
+  padding: "0.7rem 1rem",
+  borderRadius: "0.6rem",
+  cursor: "pointer",
+};
+
 const btnMoney: React.CSSProperties = {
   background: "#16a34a",
   color: "white",
@@ -1960,37 +1992,4 @@ const emptyPasscodesBox: React.CSSProperties = {
   background: "#020617",
   border: "1px dashed #334155",
   color: "#94a3b8",
-};
-
-const okMiniBadge: React.CSSProperties = {
-  display: "inline-block",
-  padding: "0.15rem 0.45rem",
-  borderRadius: "999px",
-  background: "#052e16",
-  color: "#86efac",
-  border: "1px solid #166534",
-  fontWeight: 700,
-  fontSize: "0.75rem",
-};
-
-const warnMiniBadge: React.CSSProperties = {
-  display: "inline-block",
-  padding: "0.15rem 0.45rem",
-  borderRadius: "999px",
-  background: "#3f2a00",
-  color: "#facc15",
-  border: "1px solid #a16207",
-  fontWeight: 700,
-  fontSize: "0.75rem",
-};
-
-const errorMiniBadge: React.CSSProperties = {
-  display: "inline-block",
-  padding: "0.15rem 0.45rem",
-  borderRadius: "999px",
-  background: "#3f0d0d",
-  color: "#fca5a5",
-  border: "1px solid #991b1b",
-  fontWeight: 700,
-  fontSize: "0.75rem",
 };

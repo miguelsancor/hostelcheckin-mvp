@@ -56,6 +56,14 @@ export type GuestPasscode = {
   startDate?: number | null;
   endDate?: number | null;
   creadoEn?: string;
+  ttlockVerified?: boolean | null;
+  ttlockLiveData?: {
+    keyboardPwd?: string | null;
+    keyboardPwdName?: string | null;
+    startDate?: number | null;
+    endDate?: number | null;
+    status?: number;
+  } | null;
 };
 
 export type LockItem = {

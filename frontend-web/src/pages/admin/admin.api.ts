@@ -146,6 +146,7 @@ export async function apiAssignLocks(payload: {
   endAt: number;
   code?: string;
   name: string;
+  reassign?: boolean;
 }) {
   const res = await fetch(`${API_BASE}/mcp/assign-locks-to-guest`, {
     method: "POST",

@@ -48,6 +48,7 @@ Objetivo:
 - conservar el mismo PIN
 - evitar duplicados
 - devolver respuesta clara por cerradura asignada / no asignada
+- debe traer la cerradura tanto el servicio que consulta la base de datos y directamente tambien del ttlock asociada al codigo asignado
 
 Reglas para trabajar:
 - reutiliza esta misma arquitectura

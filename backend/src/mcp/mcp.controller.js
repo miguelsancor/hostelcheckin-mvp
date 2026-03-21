@@ -697,20 +697,65 @@ async function listGuestPasscodes(req, res) {
 
     const activos = (huesped.passcodes || []).filter((p) => p.estado === "ACTIVO");
 
-    const data = activos.map((p) => ({
-      id: p.id,
-      lockId: p.lockId,
-      lockAlias: p.lockAlias || null,
-      codigo: p.codigo || null,
-      keyboardPwdId: p.keyboardPwdId || null,
-      tipo: p.tipo,
-      estado: p.estado,
-      ttlockOk: p.ttlockOk,
-      ttlockMessage: p.ttlockMessage || null,
-      startDate: p.startDate ? Number(p.startDate) : null,
-      endDate: p.endDate ? Number(p.endDate) : null,
-      creadoEn: p.creadoEn,
-    }));
+    // Verify each passcode against TTLock API
+    let ttlockPasscodesByLock = {};
+    try {
+      const accessToken = await getAccessToken();
+      const lockIdsUnique = [...new Set(activos.map((p) => p.lockId))];
+
+      for (const lockId of lockIdsUnique) {
+        try {
+          const r = await ttPost("/v3/keyboardPwd/list", {
+            clientId: process.env.TTLOCK_CLIENT_ID,
+            accessToken,
+            lockId,
+            pageNo: 1,
+            pageSize: 200,
+            date: nowMs(),
+          });
+          if (Array.isArray(r?.list)) {
+            ttlockPasscodesByLock[lockId] = r.list;
+          }
+        } catch (_) {
+          // Lock may not support passcodes
+        }
+      }
+    } catch (_) {
+      // TTLock API unavailable, continue with DB data only
+    }
+
+    const data = activos.map((p) => {
+      const ttlockList = ttlockPasscodesByLock[p.lockId] || [];
+      const ttlockMatch = p.keyboardPwdId
+        ? ttlockList.find((t) => t.keyboardPwdId === p.keyboardPwdId)
+        : null;
+
+      return {
+        id: p.id,
+        lockId: p.lockId,
+        lockAlias: p.lockAlias || null,
+        codigo: p.codigo || null,
+        keyboardPwdId: p.keyboardPwdId || null,
+        tipo: p.tipo,
+        estado: p.estado,
+        ttlockOk: p.ttlockOk,
+        ttlockMessage: p.ttlockMessage || null,
+        startDate: p.startDate ? Number(p.startDate) : null,
+        endDate: p.endDate ? Number(p.endDate) : null,
+        creadoEn: p.creadoEn,
+        // TTLock verification
+        ttlockVerified: ttlockMatch ? true : (p.keyboardPwdId ? false : null),
+        ttlockLiveData: ttlockMatch
+          ? {
+              keyboardPwd: ttlockMatch.keyboardPwd || null,
+              keyboardPwdName: ttlockMatch.keyboardPwdName || null,
+              startDate: ttlockMatch.startDate || null,
+              endDate: ttlockMatch.endDate || null,
+              status: ttlockMatch.status,
+            }
+          : null,
+      };
+    });
 
     return res.json({
       ok: true,
@@ -748,6 +793,7 @@ async function assignSelectedLocksToGuest(req, res) {
       code,
       pinDigits,
       name,
+      reassign,
     } = req.body || {};
 
     const normalizedLockIds = Array.isArray(lockIds)
@@ -855,6 +901,27 @@ async function assignSelectedLocksToGuest(req, res) {
       });
     }
 
+    // Check for duplicate: same lockId+pin assigned to ANOTHER guest
+    for (const lock of selectedLocks) {
+      const lockId = Number(lock.lockId);
+      const duplicateOtherGuest = await prisma.passcode.findFirst({
+        where: {
+          lockId,
+          codigo: pin,
+          estado: "ACTIVO",
+          huespedId: { not: huesped.id },
+        },
+      });
+      if (duplicateOtherGuest) {
+        return res.status(409).json({
+          ok: false,
+          error: `El PIN ${pin} ya está asignado a otro huésped en la cerradura ${lock.lockAlias || lockId}. Usa un PIN diferente.`,
+          lockId,
+          lockAlias: lock.lockAlias || null,
+        });
+      }
+    }
+
     const resultados = [];
     const startBig = BigInt(String(sAt));
     const endBig = BigInt(String(eAt));
@@ -872,12 +939,14 @@ async function assignSelectedLocksToGuest(req, res) {
         orderBy: { id: "desc" },
       });
 
-      if (existingActive) {
+      // --- Already assigned, no reassign requested ---
+      if (existingActive && !reassign) {
         resultados.push({
           lockId,
           lockAlias,
           ok: true,
           skipped: true,
+          status: "ya_existia",
           message: "Ya existe passcode activo para esta cerradura",
           keyboardPwdId: existingActive.keyboardPwdId || null,
           codigo: existingActive.codigo || pin,
@@ -885,6 +954,51 @@ async function assignSelectedLocksToGuest(req, res) {
         continue;
       }
 
+      // --- Reassign: delete old on TTLock + BD, then create new ---
+      if (existingActive && reassign) {
+        let deleteOk = false;
+        if (existingActive.keyboardPwdId) {
+          try {
+            const delR = await ttPost("/v3/keyboardPwd/delete", {
+              clientId: process.env.TTLOCK_CLIENT_ID,
+              accessToken,
+              lockId,
+              keyboardPwdId: existingActive.keyboardPwdId,
+              date: nowMs(),
+            });
+            deleteOk = parseInt(delR?.errcode ?? -1, 10) === 0;
+          } catch (delErr) {
+            console.error("Error deleting old passcode on reassign:", delErr?.message);
+          }
+        } else {
+          deleteOk = true; // no TTLock record to delete
+        }
+
+        if (!deleteOk) {
+          resultados.push({
+            lockId,
+            lockAlias,
+            ok: false,
+            skipped: false,
+            status: "error_reasignar",
+            message: "No se pudo eliminar el passcode anterior en TTLock",
+            codigo: existingActive.codigo || pin,
+          });
+          continue;
+        }
+
+        // Mark old as REASIGNADO in DB
+        await prisma.passcode.update({
+          where: { id: existingActive.id },
+          data: {
+            estado: "REASIGNADO",
+            ttlockOk: true,
+            ttlockMessage: "REASIGNADO",
+          },
+        });
+      }
+
+      // --- Create new passcode on TTLock ---
       const r = await ttPost("/v3/keyboardPwd/add", {
         clientId: process.env.TTLOCK_CLIENT_ID,
         accessToken,
@@ -912,7 +1026,7 @@ async function assignSelectedLocksToGuest(req, res) {
           endDate: endBig,
           estado: "ACTIVO",
           ttlockOk: true,
-          ttlockMessage: "CREADO_MANUAL",
+          ttlockMessage: existingActive ? "REASIGNADO_NUEVO" : "CREADO_MANUAL",
         };
 
         if (row.keyboardPwdId !== null) {
@@ -946,8 +1060,14 @@ async function assignSelectedLocksToGuest(req, res) {
         lockAlias,
         ok,
         skipped: false,
+        status: ok
+          ? (existingActive ? "reasignada" : "asignada")
+          : "error",
         keyboardPwdId: keyboardPwdId !== null ? Number(keyboardPwdId) : null,
         codigo: String(pin),
+        message: ok
+          ? (existingActive ? "Reasignada con mismo PIN" : "Asignada correctamente")
+          : `Error TTLock: ${JSON.stringify(r)}`,
         result: r,
       });
     }
@@ -965,8 +1085,10 @@ async function assignSelectedLocksToGuest(req, res) {
       ok: resultados.some((x) => x.ok),
       pin,
       total: resultados.length,
-      asignadas: resultados.filter((x) => x.ok && !x.skipped).length,
+      asignadas: resultados.filter((x) => x.ok && !x.skipped && x.status === "asignada").length,
+      reasignadas: resultados.filter((x) => x.ok && x.status === "reasignada").length,
       yaExistian: resultados.filter((x) => x.skipped).length,
+      errores: resultados.filter((x) => !x.ok).length,
       huesped: {
         id: huesped.id,
         nombre: huesped.nombre,

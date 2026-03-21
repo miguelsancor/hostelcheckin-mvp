@@ -1,4 +1,5 @@
 export type Huesped = {
+  _id?: string;
   // ============================
   // DATOS PERSONALES
   // ============================

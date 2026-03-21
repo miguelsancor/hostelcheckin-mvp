@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCheckinForm } from "./CheckinForm.hook";
 import { GuestCard } from "./CheckinForm.guest";
 import { ResultModal, GuestsTodayModal } from "./CheckinForm.modal";
@@ -211,12 +211,13 @@ export default function CheckinForm() {
   }, []);
 
   const paymentAmount = useMemo(() => {
+    const r = reserva as any;
     const raw =
-      reserva?.saldoPendiente ??
-      reserva?.saldo ??
-      reserva?.montoPendiente ??
-      reserva?.totalPendiente ??
-      reserva?.total ??
+      r?.saldoPendiente ??
+      r?.saldo ??
+      r?.montoPendiente ??
+      r?.totalPendiente ??
+      r?.total ??
       50000;
 
     const parsed = Number(raw);
@@ -224,17 +225,18 @@ export default function CheckinForm() {
   }, [reserva]);
 
   const paymentDescription = useMemo(() => {
+    const r = reserva as any;
     const room =
-      reserva?.room ||
-      reserva?.roomName ||
-      reserva?.habitacion ||
-      reserva?.nombreHabitacion ||
+      r?.room ||
+      r?.roomName ||
+      r?.habitacion ||
+      r?.nombreHabitacion ||
       "Reserva de hospedaje";
 
     const nr =
-      reserva?.numeroReserva ||
-      reserva?.numero_reserva ||
-      reserva?.codigoReserva ||
+      r?.numeroReserva ||
+      r?.numero_reserva ||
+      r?.codigoReserva ||
       "SIN-RESERVA";
 
     return `${room} · ${nr}`;
@@ -499,7 +501,7 @@ export default function CheckinForm() {
 
         {formList.map((formData, index) => (
           <GuestCard
-            key={formData._id ?? index}
+            key={(formData as any)._id ?? index}
             data={formData}
             index={index}
             onChange={handleChange}

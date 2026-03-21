@@ -1,4 +1,4 @@
-import React from "react";
+import { } from "react";
 import type { AssignLockResult, GuestPasscode, Huesped, LockItem } from "../admin.types";
 import { formatDateTimeLocal, ttlockText } from "../admin.utils";
 import {
@@ -163,9 +163,21 @@ export function TtlockModal({
               {guestPasscodes.map((pc) => {
                 const key = `${pc.lockId}_${pc.keyboardPwdId}`;
                 const checked = selectedPasscodes.includes(key);
+                const verified = pc.ttlockVerified;
 
                 return (
-                  <label key={key} style={passcodeRow}>
+                  <label
+                    key={key}
+                    style={{
+                      ...passcodeRow,
+                      borderColor: verified === true
+                        ? "#16a34a"
+                        : verified === false
+                        ? "#dc2626"
+                        : undefined,
+                      borderWidth: verified !== null && verified !== undefined ? "2px" : undefined,
+                    }}
+                  >
                     <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", flex: 1 }}>
                       <input
                         type="checkbox"
@@ -175,7 +187,37 @@ export function TtlockModal({
                       />
 
                       <div style={{ flex: 1 }}>
-                        <div style={passcodeTitle}>{pc.lockAlias || `Lock ${pc.lockId}`}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <span style={passcodeTitle}>{pc.lockAlias || `Lock ${pc.lockId}`}</span>
+                          {verified === true && (
+                            <span
+                              style={{
+                                background: "#16a34a",
+                                color: "#fff",
+                                fontSize: "0.65rem",
+                                padding: "0.1rem 0.4rem",
+                                borderRadius: "0.3rem",
+                                fontWeight: 700,
+                              }}
+                            >
+                              ✓ VERIFICADA EN TTLOCK
+                            </span>
+                          )}
+                          {verified === false && (
+                            <span
+                              style={{
+                                background: "#dc2626",
+                                color: "#fff",
+                                fontSize: "0.65rem",
+                                padding: "0.1rem 0.4rem",
+                                borderRadius: "0.3rem",
+                                fontWeight: 700,
+                              }}
+                            >
+                              ✗ NO ENCONTRADA EN TTLOCK
+                            </span>
+                          )}
+                        </div>
                         <div style={passcodeMeta}>
                           <span><b>lockId:</b> {pc.lockId}</span>
                           <span><b>keyboardPwdId:</b> {pc.keyboardPwdId ?? "-"}</span>
@@ -185,6 +227,12 @@ export function TtlockModal({
                           <span><b>inicio:</b> {formatDateTimeLocal(pc.startDate)}</span>
                           <span><b>fin:</b> {formatDateTimeLocal(pc.endDate)}</span>
                         </div>
+                        {pc.ttlockLiveData && (
+                          <div style={{ ...passcodeMeta, color: "#6b7280", fontSize: "0.75rem" }}>
+                            <span><b>TTLock PIN:</b> {pc.ttlockLiveData.keyboardPwd || "-"}</span>
+                            <span><b>TTLock fin:</b> {formatDateTimeLocal(pc.ttlockLiveData.endDate)}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </label>

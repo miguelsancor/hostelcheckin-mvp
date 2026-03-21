@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Huesped, Reserva, LockItem, HuespedBD } from "./CheckinForm.types";
-import { roomMapping } from "./roomMapping";
+// roomMapping available if needed
+// import { roomMapping } from "./roomMapping";
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
 
@@ -45,9 +46,9 @@ function nuevoHuesped(): Huesped {
     motivoViaje: "",
     fechaIngreso: "",
     fechaSalida: "",
-    archivoCedula: null,
-    archivoFirma: null,
-    archivoPasaporte: null,
+    archivoCedula: undefined,
+    archivoFirma: undefined,
+    archivoPasaporte: undefined,
   };
 }
 

@@ -919,15 +919,54 @@ async function assignSelectedLocksToGuest(req, res) {
 
     const accessToken = await getAccessToken();
 
-    const locksResp = await ttPost("/v3/lock/list", {
-      clientId: process.env.TTLOCK_CLIENT_ID,
-      accessToken,
-      pageNo: 1,
-      pageSize: 200,
-      date: nowMs(),
-    });
+    // Combinar cerraduras directas + eKeys (misma lógica que listLocks)
+    const lockMap = new Map();
 
-    const availableLocks = Array.isArray(locksResp?.list) ? locksResp.list : [];
+    try {
+      const locksResp = await ttPost("/v3/lock/list", {
+        clientId: process.env.TTLOCK_CLIENT_ID,
+        accessToken,
+        pageNo: 1,
+        pageSize: 200,
+        date: nowMs(),
+      });
+      if (Array.isArray(locksResp?.list)) {
+        for (const l of locksResp.list) {
+          lockMap.set(Number(l.lockId), l);
+        }
+      }
+    } catch (e) {
+      console.warn("assign: /v3/lock/list falló, continuando con eKeys:", e?.message);
+    }
+
+    try {
+      const keysResp = await ttPost("/v3/key/list", {
+        clientId: process.env.TTLOCK_CLIENT_ID,
+        accessToken,
+        pageNo: 1,
+        pageSize: 200,
+        date: nowMs(),
+      });
+      if (Array.isArray(keysResp?.list)) {
+        for (const k of keysResp.list) {
+          const lid = Number(k.lockId);
+          if (!lockMap.has(lid)) {
+            lockMap.set(lid, {
+              lockId: lid,
+              lockAlias: k.lockAlias || k.lockName || `Lock-${lid}`,
+              lockName: k.lockName || k.lockAlias || `Lock-${lid}`,
+              electricQuantity: k.electricQuantity ?? null,
+              keyboardPwdVersion: k.keyboardPwdVersion ?? null,
+              _source: "eKey",
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("assign: /v3/key/list falló:", e?.message);
+    }
+
+    const availableLocks = Array.from(lockMap.values());
     if (!availableLocks.length) {
       return res.status(500).json({
         ok: false,

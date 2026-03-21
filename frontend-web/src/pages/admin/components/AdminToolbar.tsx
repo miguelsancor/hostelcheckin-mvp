@@ -1,4 +1,4 @@
-import React from "react";
+import { } from "react";
 import { btnExcel, btnScope, btnToggle, input } from "../admin.styles";
 import type { ScopeDashboard, VistaDashboard } from "../admin.types";
 

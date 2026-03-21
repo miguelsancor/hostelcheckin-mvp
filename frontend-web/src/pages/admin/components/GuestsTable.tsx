@@ -1,4 +1,4 @@
-import React from "react";
+import { } from "react";
 import type { Huesped, HuespedEnriquecido, ReservaCobro, ScopeDashboard } from "../admin.types";
 import { formatMoney, ttlockText } from "../admin.utils";
 import {

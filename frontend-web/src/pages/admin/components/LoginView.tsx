@@ -1,4 +1,4 @@
-import React from "react";
+import { } from "react";
 import { btnLogin, input, loginBox, loginContainer } from "../admin.styles";
 
 type Props = {

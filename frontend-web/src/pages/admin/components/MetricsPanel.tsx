@@ -1,4 +1,4 @@
-import React from "react";
+import { } from "react";
 import { metricCard, metricsGrid } from "../admin.styles";
 
 export function MetricsPanel({ metrics }: { metrics: any }) {

@@ -1,0 +1,94 @@
+
+
+Arquitectura actual del proyecto que debes respetar:
+
+Proyecto dividido en:
+- backend/
+- frontend-web/
+
+Backend:
+- Express modular por feature
+- Cada módulo usa controller / routes / service según aplique
+- Módulos actuales: admin, checkin, mcp, nobeds, payments, tra
+- TTLock/MCP vive en backend/src/mcp con mcp.controller.js, mcp.routes.js, mcpRouter.js, ttlock.service.js y ttlockAdapter.js
+- Utilidades compartidas en backend/src/utils
+- Prisma centralizado en backend/src/utils/prismaClient.js
+- No cambiar arquitectura backend salvo que yo lo pida
+
+Frontend:
+- React + TypeScript
+- Arquitectura modular por feature
+- El módulo admin vive en frontend-web/src/pages/admin
+- Dentro de admin ya existe separación por:
+  - components/
+  - hooks/
+  - modals/
+  - admin.api.ts
+  - admin.styles.ts
+  - admin.types.ts
+  - admin.utils.ts
+  - AdminDashboard.tsx
+- Hooks actuales:
+  - useAdminAuth.ts
+  - useAdminDashboard.ts
+- Modals actuales:
+  - GuestDetailModal.tsx
+  - TtlockModal.tsx
+- Componentes actuales:
+  - AdminToolbar.tsx
+  - GuestsTable.tsx
+  - LoginView.tsx
+  - MetricsPanel.tsx
+  - SmartImage.tsx
+
+Objetivo:
+- marcar visualmente las cerraduras ya asignadas
+- validar cuáles no fueron asignadas
+- permitir mover al huésped a otra cerradura
+- conservar el mismo PIN
+- evitar duplicados
+- devolver respuesta clara por cerradura asignada / no asignada
+
+Reglas para trabajar:
+- reutiliza esta misma arquitectura
+- no muevas archivos de lugar
+- no conviertas todo otra vez en un solo archivo gigante
+- no inventes nuevos archivos si no son estrictamente necesarios
+- si necesitas tocar backend y frontend, sepáralos por archivo
+- dame siempre código completo listo para copiar y pegar
+- explica primero qué archivos vas a tocar y por qué
+- no alucines rutas, tipos ni endpoints
+
+
+
+
+Trabajemos sobre la arquitectura actual ya definida del proyecto Kuyay y respétala sin mover archivos ni volver a un archivo gigante.
+Quiero implementar la mejora de TTLock dentro del módulo admin existente.
+
+Objetivo funcional:
+
+marcar visualmente las cerraduras ya asignadas al huésped
+listar correctamente cuáles cerraduras no están asignadas
+permitir mover al huésped a otra cerradura
+conservar el mismo PIN visible al asignar nuevas cerraduras
+evitar duplicados por lockId
+devolver una respuesta clara separando asignadas, ya asignadas, removidas y fallidas
+
+Arquitectura a reutilizar:
+
+backend/src/mcp/mcp.controller.js
+backend/src/mcp/ttlock.service.js
+backend/src/mcp/mcp.routes.js o mcpRouter.js si aplica
+frontend-web/src/pages/admin/admin.api.ts
+frontend-web/src/pages/admin/admin.types.ts
+frontend-web/src/pages/admin/modals/TtlockModal.tsx
+frontend-web/src/pages/admin/AdminDashboard.tsx solo si se requiere refresh o integración
+frontend-web/src/pages/admin/hooks/useAdminDashboard.ts solo si el flujo actual ya depende de él
+
+Reglas:
+
+dame código completo por archivo, listo para copiar y pegar
+separa backend y frontend por archivo
+no inventes rutas, tipos ni endpoints
+antes de dar código, dime qué archivos exactos vas a tocar y por qué
+si detectas que un archivo no necesita cambio, dilo explícitamente

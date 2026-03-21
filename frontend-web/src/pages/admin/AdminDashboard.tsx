@@ -334,6 +334,8 @@ export default function AdminDashboard() {
         assigningLocks={dashboard.assigningLocks}
         newPinCode={dashboard.newPinCode}
         setNewPinCode={dashboard.setNewPinCode}
+        activeLockIds={dashboard.activeLockIds}
+        lastAssignResults={dashboard.lastAssignResults}
         onClose={dashboard.closeTtlockModal}
         onTogglePasscodeSelected={dashboard.togglePasscodeSelected}
         onToggleNewLockSelected={dashboard.toggleNewLockSelected}

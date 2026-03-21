@@ -14,6 +14,7 @@ import {
   apiSaveCobro,
 } from "../admin.api";
 import type {
+  AssignLockResult,
   GuestPasscode,
   Huesped,
   HuespedEnriquecido,
@@ -54,6 +55,8 @@ export function useAdminDashboard(autenticado: boolean, onUnauthorized: () => vo
   const [assigningLocks, setAssigningLocks] = useState(false);
   const [newPinCode, setNewPinCode] = useState("");
 
+  const [lastAssignResults, setLastAssignResults] = useState<AssignLockResult[]>([]);
+
   const [cobrosMap, setCobrosMap] = useState<Record<string, ReservaCobro>>({});
   const [editCobroHuesped, setEditCobroHuesped] = useState<Huesped | null>(null);
   const [editCobro, setEditCobro] = useState<ReservaCobro>(defaultCobro());
@@ -72,6 +75,7 @@ export function useAdminDashboard(autenticado: boolean, onUnauthorized: () => vo
     setEditCobroHuesped(null);
     setEditCobro(defaultCobro());
     setImagenZoom(null);
+    setLastAssignResults([]);
   };
 
   const cargarHuespedes = async () => {
@@ -200,8 +204,8 @@ export function useAdminDashboard(autenticado: boolean, onUnauthorized: () => vo
   }, [guestPasscodes]);
 
   const locksDisponiblesParaAgregar = useMemo(() => {
-    return allLocks.filter((lock) => !activeLockIds.has(Number(lock.lockId)));
-  }, [allLocks, activeLockIds]);
+    return allLocks;
+  }, [allLocks]);
 
   const eliminar = async (id: number) => {
     if (!confirm("¿Eliminar huésped?")) return;
@@ -259,6 +263,7 @@ export function useAdminDashboard(autenticado: boolean, onUnauthorized: () => vo
     setSelectedPasscodes([]);
     setSelectedNewLocks([]);
     setNewPinCode(h.codigoTTLock || "");
+    setLastAssignResults([]);
 
     const baseDate = normalizarFecha(h.fechaSalida || "") || normalizarFecha(h.fechaIngreso || "");
     const defaultValue = baseDate ? `${baseDate}T12:00` : "";
@@ -275,6 +280,7 @@ export function useAdminDashboard(autenticado: boolean, onUnauthorized: () => vo
     setAllLocks([]);
     setSelectedNewLocks([]);
     setNewPinCode("");
+    setLastAssignResults([]);
   };
 
   const togglePasscodeSelected = (pc: GuestPasscode) => {
@@ -319,7 +325,7 @@ export function useAdminDashboard(autenticado: boolean, onUnauthorized: () => vo
     }
   };
 
-  const asignarLocksSeleccionadas = async () => {
+  const asignarLocksSeleccionadas = async (reassign = false) => {
     if (!editTtlock) return;
 
     if (!selectedNewLocks.length) {
@@ -334,6 +340,7 @@ export function useAdminDashboard(autenticado: boolean, onUnauthorized: () => vo
 
     try {
       setAssigningLocks(true);
+      setLastAssignResults([]);
 
       const startAt = Date.now();
       const endAt = new Date(newTtlockEnd).getTime();
@@ -350,6 +357,7 @@ export function useAdminDashboard(autenticado: boolean, onUnauthorized: () => vo
         endAt,
         code: newPinCode?.trim() || undefined,
         name: `RES-${editTtlock.numeroReserva}`,
+        reassign,
       });
 
       if (!res.ok || !json?.ok) {
@@ -357,8 +365,22 @@ export function useAdminDashboard(autenticado: boolean, onUnauthorized: () => vo
         return;
       }
 
+      const results: AssignLockResult[] = Array.isArray(json?.resultados)
+        ? json.resultados.map((r: any) => ({
+            lockId: r.lockId,
+            lockAlias: r.lockAlias || null,
+            ok: !!r.ok,
+            skipped: !!r.skipped,
+            status: r.status || (r.skipped ? "ya_existia" : r.ok ? "asignada" : "error"),
+            message: r.message || "",
+            codigo: r.codigo || json.pin || "",
+          }))
+        : [];
+
+      setLastAssignResults(results);
+
       alert(
-        `Proceso completado. Asignadas: ${json?.asignadas || 0}. Ya existentes: ${json?.yaExistian || 0}. PIN: ${json?.pin || "-"}`
+        `Proceso completado. Asignadas: ${json?.asignadas || 0}. Reasignadas: ${json?.reasignadas || 0}. Ya existentes: ${json?.yaExistian || 0}. PIN: ${json?.pin || "-"}`
       );
 
       setNewPinCode(json?.pin || "");
@@ -558,6 +580,8 @@ export function useAdminDashboard(autenticado: boolean, onUnauthorized: () => vo
     newPinCode,
     setNewPinCode,
     locksDisponiblesParaAgregar,
+    activeLockIds,
+    lastAssignResults,
     abrirModalExtension,
     closeTtlockModal,
     togglePasscodeSelected,

@@ -1,5 +1,5 @@
 import React from "react";
-import type { GuestPasscode, Huesped, LockItem } from "../admin.types";
+import type { AssignLockResult, GuestPasscode, Huesped, LockItem } from "../admin.types";
 import { formatDateTimeLocal, ttlockText } from "../admin.utils";
 import {
   btnAssign,
@@ -38,12 +38,30 @@ type Props = {
   assigningLocks: boolean;
   newPinCode: string;
   setNewPinCode: (value: string) => void;
+  activeLockIds: Set<number>;
+  lastAssignResults: AssignLockResult[];
   onClose: () => void;
   onTogglePasscodeSelected: (pc: GuestPasscode) => void;
   onToggleNewLockSelected: (lockId: number) => void;
   onGuardarExtension: () => void;
   onEliminarSeleccionados: () => void;
-  onAsignarLocks: () => void;
+  onAsignarLocks: (reassign?: boolean) => void;
+};
+
+const statusColors: Record<string, string> = {
+  asignada: "#16a34a",
+  reasignada: "#2563eb",
+  ya_existia: "#f59e0b",
+  error_reasignar: "#dc2626",
+  error: "#dc2626",
+};
+
+const statusLabels: Record<string, string> = {
+  asignada: "✅ Asignada",
+  reasignada: "🔄 Reasignada",
+  ya_existia: "⚠️ Ya existía",
+  error_reasignar: "❌ Error reasignar",
+  error: "❌ Error",
 };
 
 export function TtlockModal({
@@ -61,6 +79,8 @@ export function TtlockModal({
   assigningLocks,
   newPinCode,
   setNewPinCode,
+  activeLockIds,
+  lastAssignResults,
   onClose,
   onTogglePasscodeSelected,
   onToggleNewLockSelected,
@@ -69,6 +89,8 @@ export function TtlockModal({
   onAsignarLocks,
 }: Props) {
   if (!huesped) return null;
+
+  const hasActiveSelected = selectedNewLocks.some((id) => activeLockIds.has(id));
 
   return (
     <div style={modal}>
@@ -191,15 +213,24 @@ export function TtlockModal({
             <div style={emptyPasscodesBox}>Cargando todas las cerraduras...</div>
           ) : locksDisponiblesParaAgregar.length === 0 ? (
             <div style={emptyPasscodesBox}>
-              No hay más cerraduras disponibles para agregar a este huésped.
+              No hay cerraduras disponibles.
             </div>
           ) : (
             <div style={passcodesList}>
               {locksDisponiblesParaAgregar.map((lock) => {
                 const checked = selectedNewLocks.includes(lock.lockId);
+                const isActive = activeLockIds.has(lock.lockId);
 
                 return (
-                  <label key={lock.lockId} style={passcodeRow}>
+                  <label
+                    key={lock.lockId}
+                    style={{
+                      ...passcodeRow,
+                      borderColor: isActive ? "#16a34a" : undefined,
+                      borderWidth: isActive ? "2px" : undefined,
+                      position: "relative" as const,
+                    }}
+                  >
                     <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", flex: 1 }}>
                       <input
                         type="checkbox"
@@ -209,7 +240,23 @@ export function TtlockModal({
                       />
 
                       <div style={{ flex: 1 }}>
-                        <div style={passcodeTitle}>{lock.lockAlias || `Lock ${lock.lockId}`}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <span style={passcodeTitle}>{lock.lockAlias || `Lock ${lock.lockId}`}</span>
+                          {isActive && (
+                            <span
+                              style={{
+                                background: "#16a34a",
+                                color: "#fff",
+                                fontSize: "0.7rem",
+                                padding: "0.15rem 0.5rem",
+                                borderRadius: "0.35rem",
+                                fontWeight: 700,
+                              }}
+                            >
+                              ASIGNADA
+                            </span>
+                          )}
+                        </div>
                         <div style={passcodeMeta}>
                           <span><b>lockId:</b> {lock.lockId}</span>
                           <span><b>batería:</b> {lock.electricQuantity ?? "-"}</span>
@@ -225,16 +272,77 @@ export function TtlockModal({
 
           <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem", flexWrap: "wrap" }}>
             <button
-              onClick={onAsignarLocks}
+              onClick={() => onAsignarLocks(false)}
               style={btnAssign}
               disabled={assigningLocks || selectedNewLocks.length === 0}
             >
               {assigningLocks
                 ? "Asignando..."
-                : `Asignar cerraduras seleccionadas (${selectedNewLocks.length})`}
+                : `Asignar cerraduras (${selectedNewLocks.length})`}
             </button>
+
+            {hasActiveSelected && (
+              <button
+                onClick={() => onAsignarLocks(true)}
+                style={{
+                  ...btnAssign,
+                  background: "#2563eb",
+                }}
+                disabled={assigningLocks}
+              >
+                {assigningLocks ? "Reasignando..." : `Mover / Reasignar (${selectedNewLocks.filter((id) => activeLockIds.has(id)).length})`}
+              </button>
+            )}
           </div>
         </div>
+
+        {lastAssignResults.length > 0 && (
+          <div style={sectionBox}>
+            <h4 style={{ marginTop: 0 }}>Resultado última asignación</h4>
+            <div style={passcodesList}>
+              {lastAssignResults.map((r, idx) => (
+                <div
+                  key={`result-${idx}`}
+                  style={{
+                    ...passcodeRow,
+                    borderColor: statusColors[r.status] || "#334155",
+                    borderWidth: "2px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flex: 1 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <span style={passcodeTitle}>{r.lockAlias || `Lock ${r.lockId}`}</span>
+                        <span
+                          style={{
+                            background: statusColors[r.status] || "#334155",
+                            color: "#fff",
+                            fontSize: "0.7rem",
+                            padding: "0.15rem 0.5rem",
+                            borderRadius: "0.35rem",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {statusLabels[r.status] || r.status}
+                        </span>
+                      </div>
+                      {r.message && (
+                        <div style={passcodeMeta}>
+                          <span>{r.message}</span>
+                        </div>
+                      )}
+                      {r.codigo && (
+                        <div style={passcodeMeta}>
+                          <span><b>PIN:</b> {r.codigo}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem", flexWrap: "wrap" }}>
           <button onClick={onClose} style={btnCloseSecondary}>

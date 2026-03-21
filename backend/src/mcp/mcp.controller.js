@@ -771,8 +771,9 @@ async function listGuestPasscodes(req, res) {
 
     const data = activos.map((p) => {
       const ttlockList = ttlockPasscodesByLock[p.lockId] || [];
-      const ttlockMatch = p.keyboardPwdId
-        ? ttlockList.find((t) => t.keyboardPwdId === p.keyboardPwdId)
+      const pKbdId = p.keyboardPwdId ? Number(p.keyboardPwdId) : null;
+      const ttlockMatch = pKbdId
+        ? ttlockList.find((t) => Number(t.keyboardPwdId) === pKbdId)
         : null;
 
       return {

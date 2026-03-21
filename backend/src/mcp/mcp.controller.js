@@ -317,15 +317,60 @@ async function listLocks(_req, res) {
   try {
     const accessToken = await getAccessToken();
 
-    const r = await ttPost("/v3/lock/list", {
-      clientId: process.env.TTLOCK_CLIENT_ID,
-      accessToken,
-      pageNo: 1,
-      pageSize: 200,
-      date: nowMs(),
-    });
+    // 1) Intentar /v3/lock/list (fuente primaria)
+    let locksFromLockList = [];
+    try {
+      const r = await ttPost("/v3/lock/list", {
+        clientId: process.env.TTLOCK_CLIENT_ID,
+        accessToken,
+        pageNo: 1,
+        pageSize: 200,
+        date: nowMs(),
+      });
+      locksFromLockList = Array.isArray(r?.list) ? r.list : [];
+    } catch (_) {
+      // endpoint puede no funcionar en todas las cuentas
+    }
 
-    return res.json(r);
+    // 2) Siempre consultar /v3/key/list para obtener cerraduras vía eKeys
+    let locksFromKeyList = [];
+    try {
+      const r2 = await ttPost("/v3/key/list", {
+        clientId: process.env.TTLOCK_CLIENT_ID,
+        accessToken,
+        pageNo: 1,
+        pageSize: 200,
+        date: nowMs(),
+      });
+      if (Array.isArray(r2?.list)) {
+        locksFromKeyList = r2.list.map((k) => ({
+          lockId: k.lockId,
+          lockAlias: k.lockAlias || null,
+          electricQuantity: k.electricQuantity ?? null,
+          keyboardPwdVersion: k.keyboardPwdVersion ?? null,
+          specialValue: k.specialValue ?? null,
+          _source: "key",
+        }));
+      }
+    } catch (_) {
+      // fallback silencioso
+    }
+
+    // 3) Mergear: lock/list tiene prioridad, key/list agrega los que faltan
+    const merged = new Map();
+    for (const l of locksFromLockList) {
+      merged.set(Number(l.lockId), l);
+    }
+    for (const l of locksFromKeyList) {
+      const lid = Number(l.lockId);
+      if (!merged.has(lid)) {
+        merged.set(lid, l);
+      }
+    }
+
+    const list = Array.from(merged.values());
+
+    return res.json({ list, total: list.length });
   } catch (e) {
     return res.status(500).json({
       ok: false,

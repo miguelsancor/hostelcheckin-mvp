@@ -1,39 +1,78 @@
 const prisma = require("../utils/prismaClient");
 
-async function createBoldPayment({ numeroReserva, monto, descripcion }) {
-  const payment = await prisma.pago.create({
+/**
+ * Create a payment intent (supports any channel: BOLD, BILLETERO, DATAFONO)
+ */
+async function createPaymentIntent({ numeroReserva, monto, canal, descripcion, metadata }) {
+  return prisma.pago.create({
     data: {
       numeroReserva,
-      metodo: "BOLD",
+      metodo: canal || "BOLD",
       estado: "PENDING",
       monto,
-      descripcion,
-      canal: "WEB",
-      metadata: {}
-    }
+      moneda: "COP",
+      canal: canal || "BOLD",
+      descripcion: descripcion || null,
+      metadata: metadata || {},
+    },
   });
-
-  return payment;
 }
 
-async function markPaymentApproved({ referencia }) {
-  return prisma.pago.updateMany({
-    where: { referencia },
+/**
+ * Confirm a payment by its ID
+ */
+async function confirmPayment({ paymentId, referencia, metadata }) {
+  return prisma.pago.update({
+    where: { id: paymentId },
     data: {
-      estado: "APPROVED"
-    }
+      estado: "APPROVED",
+      referencia: referencia || null,
+      metadata: metadata || {},
+    },
   });
 }
 
+/**
+ * Get payment status by ID
+ */
+async function getPaymentById(id) {
+  return prisma.pago.findUnique({ where: { id } });
+}
+
+/**
+ * Get latest payment for a reservation
+ */
 async function getPaymentByReserva(numeroReserva) {
   return prisma.pago.findFirst({
     where: { numeroReserva },
-    orderBy: { createdAt: "desc" }
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+/**
+ * Mark payment via webhook (external provider callback)
+ */
+async function handleWebhook({ referencia, estado, metadata }) {
+  const existing = await prisma.pago.findFirst({
+    where: { referencia },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!existing) return null;
+
+  return prisma.pago.update({
+    where: { id: existing.id },
+    data: {
+      estado: estado || "APPROVED",
+      metadata: { ...(existing.metadata || {}), ...(metadata || {}), webhookAt: new Date().toISOString() },
+    },
   });
 }
 
 module.exports = {
-  createBoldPayment,
-  markPaymentApproved,
-  getPaymentByReserva
+  createPaymentIntent,
+  confirmPayment,
+  getPaymentById,
+  getPaymentByReserva,
+  handleWebhook,
 };

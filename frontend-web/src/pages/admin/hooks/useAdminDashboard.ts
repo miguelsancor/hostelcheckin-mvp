@@ -356,12 +356,12 @@ export function useAdminDashboard(autenticado: boolean, onUnauthorized: () => vo
         startAt,
         endAt,
         code: newPinCode?.trim() || undefined,
-        name: `RES-${editTtlock.numeroReserva}`,
+        name: `Reserva - ${editTtlock.nombre || editTtlock.numeroReserva}`,
         reassign,
       });
 
-      if (!res.ok || !json?.ok) {
-        alert(json?.error || "No se pudieron asignar las cerraduras.");
+      if (!res.ok) {
+        alert(json?.error || "Error de conexión al asignar cerraduras.");
         return;
       }
 

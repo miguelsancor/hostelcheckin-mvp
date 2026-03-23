@@ -540,7 +540,7 @@ async function createPasscodeAll(req, res) {
         accessToken,
         lockId: key.lockId,
         keyboardPwd: String(pin),
-        keyboardPwdName: name || `RES-${huesped.numeroReserva || huesped.id}`,
+        keyboardPwdName: name || `Reserva - ${huesped.nombre || huesped.numeroReserva || huesped.id}`,
         startDate: sAt,
         endDate: eAt,
         addType: 2,
@@ -806,6 +806,22 @@ async function listGuestPasscodes(req, res) {
         }
       }
 
+      // Determine verification status:
+      // - If we found a live match in TTLock API → verified
+      // - If DB says ttlockOk=true (was created successfully) → trust the DB
+      // - Only mark as NOT found if DB says ttlockOk=false or we have no data at all
+      let ttlockVerified;
+      if (ttlockMatch) {
+        ttlockVerified = true;
+      } else if (p.ttlockOk === true) {
+        // DB confirms it was created successfully — trust that
+        ttlockVerified = true;
+      } else if (pKbdId || pCodigo) {
+        ttlockVerified = false;
+      } else {
+        ttlockVerified = null;
+      }
+
       return {
         id: p.id,
         lockId: p.lockId,
@@ -820,7 +836,7 @@ async function listGuestPasscodes(req, res) {
         endDate: p.endDate ? Number(p.endDate) : null,
         creadoEn: p.creadoEn,
         // TTLock verification
-        ttlockVerified: ttlockMatch ? true : (pKbdId || pCodigo ? false : null),
+        ttlockVerified,
         ttlockLiveData: ttlockMatch
           ? {
               keyboardPwd: ttlockMatch.keyboardPwd || null,
@@ -1119,7 +1135,7 @@ async function assignSelectedLocksToGuest(req, res) {
         accessToken,
         lockId,
         keyboardPwd: String(pin),
-        keyboardPwdName: name || `RES-${huesped.numeroReserva || huesped.id}`,
+        keyboardPwdName: name || `Reserva - ${huesped.nombre || huesped.numeroReserva || huesped.id}`,
         startDate: sAt,
         endDate: eAt,
         addType: 2,

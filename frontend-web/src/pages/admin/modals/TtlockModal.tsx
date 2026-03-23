@@ -192,7 +192,7 @@ export function TtlockModal({
                           {verified === true && (
                             <span
                               style={{
-                                background: "#16a34a",
+                                background: pc.ttlockLiveData ? "#16a34a" : "#2563eb",
                                 color: "#fff",
                                 fontSize: "0.65rem",
                                 padding: "0.1rem 0.4rem",
@@ -200,7 +200,7 @@ export function TtlockModal({
                                 fontWeight: 700,
                               }}
                             >
-                              ✓ VERIFICADA EN TTLOCK
+                              {pc.ttlockLiveData ? "✓ VERIFICADA EN TTLOCK" : `✓ ASIGNADA`}
                             </span>
                           )}
                           {verified === false && (

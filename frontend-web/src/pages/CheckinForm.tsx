@@ -89,8 +89,13 @@ export default function CheckinForm() {
     handleSubmit(titular?.motivoViaje || "");
   };
 
-  /* ── Payment gate: show full-screen modal if enabled and not yet passed ── */
-  const showPaymentGate = payment.config.enabled && !paymentGatePassed && !loading;
+  /* ── Payment gate: show full-screen modal if any payment channel exists and not yet passed ── */
+  const showPaymentGate = !paymentGatePassed && !loading && (
+    payment.config.enabled ||
+    payment.config.channels.bold.enabled ||
+    payment.config.channels.billetero.enabled ||
+    payment.config.channels.datafono.enabled
+  );
 
   return (
     <>

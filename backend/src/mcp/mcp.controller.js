@@ -742,7 +742,7 @@ async function listGuestPasscodes(req, res) {
 
     const activos = (huesped.passcodes || []).filter((p) => p.estado === "ACTIVO");
 
-    // Verify each passcode against TTLock API
+    // Fetch ALL passcodes from TTLock with pagination
     let ttlockPasscodesByLock = {};
     try {
       const accessToken = await getAccessToken();
@@ -750,17 +750,30 @@ async function listGuestPasscodes(req, res) {
 
       for (const lockId of lockIdsUnique) {
         try {
-          const r = await ttPost("/v3/keyboardPwd/list", {
-            clientId: process.env.TTLOCK_CLIENT_ID,
-            accessToken,
-            lockId,
-            pageNo: 1,
-            pageSize: 200,
-            date: nowMs(),
-          });
-          if (Array.isArray(r?.list)) {
-            ttlockPasscodesByLock[lockId] = r.list;
+          let allPasscodes = [];
+          let pageNo = 1;
+          const pageSize = 100;
+          let hasMore = true;
+
+          while (hasMore && pageNo <= 10) {
+            const r = await ttPost("/v3/keyboardPwd/list", {
+              clientId: process.env.TTLOCK_CLIENT_ID,
+              accessToken,
+              lockId,
+              pageNo,
+              pageSize,
+              date: nowMs(),
+            });
+            if (Array.isArray(r?.list)) {
+              allPasscodes = allPasscodes.concat(r.list);
+              hasMore = r.list.length >= pageSize;
+            } else {
+              hasMore = false;
+            }
+            pageNo++;
           }
+
+          ttlockPasscodesByLock[lockId] = allPasscodes;
         } catch (_) {
           // Lock may not support passcodes
         }
@@ -772,9 +785,26 @@ async function listGuestPasscodes(req, res) {
     const data = activos.map((p) => {
       const ttlockList = ttlockPasscodesByLock[p.lockId] || [];
       const pKbdId = p.keyboardPwdId ? Number(p.keyboardPwdId) : null;
-      const ttlockMatch = pKbdId
+      const pCodigo = p.codigo ? String(p.codigo).trim() : null;
+
+      // 1) Match by keyboardPwdId
+      let ttlockMatch = pKbdId
         ? ttlockList.find((t) => Number(t.keyboardPwdId) === pKbdId)
         : null;
+
+      // 2) Fallback: match by PIN code value on same lock
+      if (!ttlockMatch && pCodigo) {
+        ttlockMatch = ttlockList.find(
+          (t) => String(t.keyboardPwd || "").trim() === pCodigo
+        );
+        // If found by PIN, update the keyboardPwdId in DB for future matches
+        if (ttlockMatch && ttlockMatch.keyboardPwdId) {
+          prisma.passcode.update({
+            where: { id: p.id },
+            data: { keyboardPwdId: Number(ttlockMatch.keyboardPwdId) },
+          }).catch(() => {});
+        }
+      }
 
       return {
         id: p.id,
@@ -790,7 +820,7 @@ async function listGuestPasscodes(req, res) {
         endDate: p.endDate ? Number(p.endDate) : null,
         creadoEn: p.creadoEn,
         // TTLock verification
-        ttlockVerified: ttlockMatch ? true : (p.keyboardPwdId ? false : null),
+        ttlockVerified: ttlockMatch ? true : (pKbdId || pCodigo ? false : null),
         ttlockLiveData: ttlockMatch
           ? {
               keyboardPwd: ttlockMatch.keyboardPwd || null,
@@ -1099,6 +1129,77 @@ async function assignSelectedLocksToGuest(req, res) {
       const ok = parseInt(r?.errcode ?? -1, 10) === 0;
       const keyboardPwdId = r?.keyboardPwdId ?? null;
 
+      // Handle duplicate PIN error from TTLock (PIN already exists in cloud)
+      // errcode -3 or specific duplicate errors: sync from TTLock instead of failing
+      if (!ok && r?.errcode) {
+        // Try to find the existing passcode in TTLock by PIN
+        let existingInTtlock = null;
+        try {
+          const pwdListResp = await ttPost("/v3/keyboardPwd/list", {
+            clientId: process.env.TTLOCK_CLIENT_ID,
+            accessToken,
+            lockId,
+            pageNo: 1,
+            pageSize: 200,
+            date: nowMs(),
+          });
+          if (Array.isArray(pwdListResp?.list)) {
+            existingInTtlock = pwdListResp.list.find(
+              (t) => String(t.keyboardPwd || "").trim() === String(pin).trim()
+            );
+          }
+        } catch (_) {}
+
+        if (existingInTtlock) {
+          // PIN exists in TTLock — sync to DB
+          const syncRow = {
+            huespedId: huesped.id,
+            lockId,
+            lockAlias,
+            codigo: String(pin),
+            keyboardPwdId: Number(existingInTtlock.keyboardPwdId),
+            tipo: "ADD",
+            startDate: startBig,
+            endDate: endBig,
+            estado: "ACTIVO",
+            ttlockOk: true,
+            ttlockMessage: "SINCRONIZADO_TTLOCK",
+          };
+
+          await prisma.passcode.upsert({
+            where: {
+              lockId_keyboardPwdId: {
+                lockId: syncRow.lockId,
+                keyboardPwdId: syncRow.keyboardPwdId,
+              },
+            },
+            create: syncRow,
+            update: {
+              huespedId: syncRow.huespedId,
+              lockAlias: syncRow.lockAlias,
+              codigo: syncRow.codigo,
+              startDate: syncRow.startDate,
+              endDate: syncRow.endDate,
+              estado: syncRow.estado,
+              ttlockOk: syncRow.ttlockOk,
+              ttlockMessage: syncRow.ttlockMessage,
+            },
+          });
+
+          resultados.push({
+            lockId,
+            lockAlias,
+            ok: true,
+            skipped: false,
+            status: "asignada",
+            keyboardPwdId: Number(existingInTtlock.keyboardPwdId),
+            codigo: String(pin),
+            message: "PIN ya existía en TTLock, sincronizado a BD",
+          });
+          continue;
+        }
+      }
+
       if (ok) {
         const row = {
           huespedId: huesped.id,
@@ -1153,7 +1254,7 @@ async function assignSelectedLocksToGuest(req, res) {
         message: ok
           ? (existingActive ? "Reasignada con mismo PIN" : "Asignada correctamente")
           : `Error TTLock: ${JSON.stringify(r)}`,
-        result: r,
+        result: ok ? r : undefined,
       });
     }
 

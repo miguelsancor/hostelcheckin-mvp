@@ -51,6 +51,16 @@ function normalizeText(value) {
     .toLowerCase();
 }
 
+function ttlockPasscodeCreated(response) {
+  if (!response || typeof response !== "object") return false;
+
+  const errcode = response?.errcode;
+  if (errcode === 0 || errcode === "0") return true;
+
+  const keyboardPwdId = response?.keyboardPwdId;
+  return Number.isFinite(Number(keyboardPwdId)) && Number(keyboardPwdId) > 0;
+}
+
 function timestampsClose(a, b, toleranceMs = 5 * 60 * 1000) {
   const left = normalizeTs(a);
   const right = normalizeTs(b);
@@ -347,7 +357,7 @@ async function createPasscode(req, res) {
       date: nowMs(),
     });
 
-    if (parseInt(r?.errcode ?? 0, 10) !== 0) {
+    if (!ttlockPasscodeCreated(r)) {
       return res.status(400).json({ ok: false, error: r });
     }
 
@@ -1375,7 +1385,7 @@ async function assignSelectedLocksToGuest(req, res) {
         date: nowMs(),
       });
 
-      const ok = parseInt(r?.errcode ?? -1, 10) === 0;
+      const ok = ttlockPasscodeCreated(r);
       const keyboardPwdId = r?.keyboardPwdId ?? null;
 
       // Handle duplicate PIN error from TTLock (PIN already exists in cloud)

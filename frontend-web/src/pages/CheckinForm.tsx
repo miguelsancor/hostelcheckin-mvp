@@ -4,7 +4,7 @@ import { GuestCard } from "./CheckinForm.guest";
 import { ResultModal, GuestsTodayModal } from "./CheckinForm.modal";
 import { styles } from "./CheckinForm.styles";
 import TERMS_TEXT from "./terminoscondiciones.txt?raw";
-import { PaymentStep, PaymentDemoModal } from "./CheckinForm.payment";
+import { PaymentStep, PaymentDemoModal, PaymentGateModal } from "./CheckinForm.payment";
 import { usePayment } from "./CheckinForm.payment.hook";
 
 /* ── Icons ── */
@@ -42,6 +42,7 @@ export default function CheckinForm() {
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [termsError, setTermsError] = useState("");
   const [isMobile, setIsMobile] = useState(false);
+  const [paymentGatePassed, setPaymentGatePassed] = useState(false);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= 768);
@@ -88,8 +89,29 @@ export default function CheckinForm() {
     handleSubmit(titular?.motivoViaje || "");
   };
 
+  /* ── Payment gate: show full-screen modal if enabled and not yet passed ── */
+  const showPaymentGate = payment.config.enabled && !paymentGatePassed && !loading;
+
   return (
     <>
+      {showPaymentGate && (
+        <PaymentGateModal
+          config={payment.config}
+          status={payment.status}
+          error={payment.error}
+          intent={payment.intent}
+          selectedCanal={payment.selectedCanal}
+          processing={payment.processing}
+          amount={paymentAmount}
+          description={paymentDescription}
+          isMobile={isMobile}
+          onSelectCanal={payment.setSelectedCanal}
+          onPayBold={payment.openBoldPayment}
+          onReset={payment.reset}
+          onSkip={() => setPaymentGatePassed(true)}
+          requirePayment={payment.config.requirePayment}
+        />
+      )}
       <ResultModal
         show={showModal}
         message={modalMessage}
@@ -243,21 +265,18 @@ export default function CheckinForm() {
           </button>
         </div>
 
-        {/* ── Payment Step (decoupled component) ── */}
-        <PaymentStep
-          config={payment.config}
-          status={payment.status}
-          error={payment.error}
-          intent={payment.intent}
-          selectedCanal={payment.selectedCanal}
-          processing={payment.processing}
-          amount={paymentAmount}
-          description={paymentDescription}
-          isMobile={isMobile}
-          onSelectCanal={payment.setSelectedCanal}
-          onPayBold={payment.openBoldPayment}
-          onReset={payment.reset}
-        />
+        {/* Payment inline summary (only if gate was passed with approved payment) */}
+        {payment.status === "APPROVED" && (
+          <div style={{
+            marginTop: "1.5rem", padding: "0.9rem 1rem",
+            background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.30)",
+            borderRadius: "0.85rem", display: "flex", alignItems: "center", gap: "0.7rem",
+            color: "#86efac", fontWeight: 800, fontSize: "0.92rem",
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/><path d="M8.7 12.3L10.8 14.4L15.5 9.7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            Pago confirmado — {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(paymentAmount)}
+          </div>
+        )}
 
         {/* Terms */}
         <div

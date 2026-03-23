@@ -551,3 +551,138 @@ export function PaymentDemoModal({
     </div>
   );
 }
+
+/* ── Full-Screen Payment Gate Modal ── */
+export function PaymentGateModal({
+  config,
+  status,
+  error,
+  intent,
+  selectedCanal,
+  processing,
+  amount,
+  description,
+  isMobile,
+  onSelectCanal,
+  onPayBold,
+  onReset,
+  onSkip,
+  requirePayment,
+}: PaymentStepProps & { onSkip: () => void; requirePayment: boolean }) {
+  const statusLabel = useMemo(() => {
+    if (status === "APPROVED") return "Pago confirmado";
+    if (status === "PROCESSING") return "Procesando";
+    if (status === "REDIRECTED") return "Pendiente de confirmación";
+    return "Pendiente";
+  }, [status]);
+
+  const statusColor = useMemo(() => {
+    if (status === "APPROVED") return "#10b981";
+    if (status === "PROCESSING") return "#f59e0b";
+    if (status === "REDIRECTED") return "#38bdf8";
+    return "#ef4444";
+  }, [status]);
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 99999,
+        background: "linear-gradient(135deg, #0b1120 0%, #111827 40%, #0f172a 100%)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: isMobile ? "1rem" : "2rem",
+        overflow: "auto",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 720,
+          animation: "fadeInUp 0.5s ease-out",
+        }}
+      >
+        <PaymentStep
+          config={config}
+          status={status}
+          error={error}
+          intent={intent}
+          selectedCanal={selectedCanal}
+          processing={processing}
+          amount={amount}
+          description={description}
+          isMobile={isMobile}
+          onSelectCanal={onSelectCanal}
+          onPayBold={onPayBold}
+          onReset={onReset}
+        />
+
+        {/* Action buttons below payment step */}
+        <div style={{
+          marginTop: "1.2rem",
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          gap: "0.75rem",
+          justifyContent: "center",
+        }}>
+          {status === "APPROVED" && (
+            <button
+              type="button"
+              onClick={onSkip}
+              style={{
+                flex: isMobile ? undefined : "0 0 auto",
+                width: isMobile ? "100%" : undefined,
+                background: "linear-gradient(135deg, #059669, #10b981)",
+                border: "none",
+                color: "white",
+                borderRadius: "0.75rem",
+                padding: "1rem 2.5rem",
+                cursor: "pointer",
+                fontWeight: 900,
+                fontSize: "1.05rem",
+                boxShadow: "0 14px 30px rgba(16,185,129,0.30)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.6rem",
+              }}
+            >
+              <CheckCircleIcon /> Continuar al registro
+            </button>
+          )}
+
+          {!requirePayment && status !== "APPROVED" && (
+            <button
+              type="button"
+              onClick={onSkip}
+              style={{
+                flex: isMobile ? undefined : "0 0 auto",
+                width: isMobile ? "100%" : undefined,
+                background: "transparent",
+                border: "1px solid rgba(255,255,255,0.18)",
+                color: "#94a3b8",
+                borderRadius: "0.75rem",
+                padding: "0.9rem 2rem",
+                cursor: "pointer",
+                fontWeight: 700,
+                fontSize: "0.95rem",
+              }}
+            >
+              Saltar pago y continuar al registro →
+            </button>
+          )}
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+    </div>
+  );
+}

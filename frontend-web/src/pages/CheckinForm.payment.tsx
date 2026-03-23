@@ -569,19 +569,7 @@ export function PaymentGateModal({
   onSkip,
   requirePayment,
 }: PaymentStepProps & { onSkip: () => void; requirePayment: boolean }) {
-  const statusLabel = useMemo(() => {
-    if (status === "APPROVED") return "Pago confirmado";
-    if (status === "PROCESSING") return "Procesando";
-    if (status === "REDIRECTED") return "Pendiente de confirmación";
-    return "Pendiente";
-  }, [status]);
-
-  const statusColor = useMemo(() => {
-    if (status === "APPROVED") return "#10b981";
-    if (status === "PROCESSING") return "#f59e0b";
-    if (status === "REDIRECTED") return "#38bdf8";
-    return "#ef4444";
-  }, [status]);
+  // statusLabel and statusColor are handled by PaymentStep internally
 
   return (
     <div

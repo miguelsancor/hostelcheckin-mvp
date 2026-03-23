@@ -4,7 +4,7 @@ import { GuestCard } from "./CheckinForm.guest";
 import { ResultModal, GuestsTodayModal } from "./CheckinForm.modal";
 import { styles } from "./CheckinForm.styles";
 import TERMS_TEXT from "./terminoscondiciones.txt?raw";
-import { PaymentStep, PaymentDemoModal, PaymentGateModal } from "./CheckinForm.payment";
+import { PaymentDemoModal, PaymentGateModal } from "./CheckinForm.payment";
 import { usePayment } from "./CheckinForm.payment.hook";
 
 /* ── Icons ── */

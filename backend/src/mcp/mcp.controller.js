@@ -44,6 +44,188 @@ async function syncGuestCodigoTTLock(huespedId) {
   return codigo || null;
 }
 
+function normalizeText(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function timestampsClose(a, b, toleranceMs = 5 * 60 * 1000) {
+  const left = normalizeTs(a);
+  const right = normalizeTs(b);
+  if (!left || !right) return false;
+  return Math.abs(left - right) <= toleranceMs;
+}
+
+async function fetchPaginatedTtlockList(path, payload, options = {}) {
+  const {
+    listKey = "list",
+    pageSize = 100,
+    maxPages = 20,
+  } = options;
+
+  const all = [];
+
+  for (let pageNo = 1; pageNo <= maxPages; pageNo++) {
+    const response = await ttPost(path, {
+      ...payload,
+      pageNo,
+      pageSize,
+      date: nowMs(),
+    });
+
+    const pageItems = Array.isArray(response?.[listKey]) ? response[listKey] : [];
+    if (!pageItems.length) break;
+
+    all.push(...pageItems);
+
+    if (pageItems.length < pageSize) break;
+  }
+
+  return all;
+}
+
+async function fetchAvailableLocks(accessToken) {
+  const merged = new Map();
+
+  try {
+    const lockList = await fetchPaginatedTtlockList(
+      "/v3/lock/list",
+      {
+        clientId: process.env.TTLOCK_CLIENT_ID,
+        accessToken,
+      },
+      { pageSize: 100, maxPages: 10 }
+    );
+
+    for (const lock of lockList) {
+      merged.set(Number(lock.lockId), lock);
+    }
+  } catch (_) {}
+
+  try {
+    const keyList = await fetchPaginatedTtlockList(
+      "/v3/key/list",
+      {
+        clientId: process.env.TTLOCK_CLIENT_ID,
+        accessToken,
+      },
+      { pageSize: 100, maxPages: 10 }
+    );
+
+    for (const key of keyList) {
+      const lockId = Number(key.lockId);
+      if (!merged.has(lockId)) {
+        merged.set(lockId, {
+          lockId,
+          lockAlias: key.lockAlias || key.lockName || null,
+          lockName: key.lockName || key.lockAlias || null,
+          electricQuantity: key.electricQuantity ?? null,
+          keyboardPwdVersion: key.keyboardPwdVersion ?? null,
+        });
+      }
+    }
+  } catch (_) {}
+
+  return Array.from(merged.values());
+}
+
+function buildExpectedPasscodeNames(huesped) {
+  const values = [
+    huesped?.nombre ? `Reserva - ${huesped.nombre}` : null,
+    huesped?.numeroReserva ? `Reserva - ${huesped.numeroReserva}` : null,
+  ].filter(Boolean);
+
+  return new Set(values.map((value) => normalizeText(value)));
+}
+
+function findMatchingTtlockPasscode(ttlockList, dbPasscode, expectedNames) {
+  const dbKeyboardPwdId = dbPasscode?.keyboardPwdId ? Number(dbPasscode.keyboardPwdId) : null;
+  const dbCode = String(dbPasscode?.codigo || "").trim();
+
+  if (dbKeyboardPwdId) {
+    const byId = ttlockList.find((item) => Number(item.keyboardPwdId) === dbKeyboardPwdId);
+    if (byId) return byId;
+  }
+
+  if (dbCode) {
+    const byPinAndWindow = ttlockList.find((item) => {
+      const samePin = String(item.keyboardPwd || "").trim() === dbCode;
+      if (!samePin) return false;
+
+      const sameStart = timestampsClose(item.startDate, dbPasscode.startDate);
+      const sameEnd = timestampsClose(item.endDate, dbPasscode.endDate);
+      return sameStart || sameEnd;
+    });
+    if (byPinAndWindow) return byPinAndWindow;
+
+    const byPinAndName = ttlockList.find((item) => {
+      const samePin = String(item.keyboardPwd || "").trim() === dbCode;
+      const sameName = expectedNames.has(normalizeText(item.keyboardPwdName));
+      return samePin && sameName;
+    });
+    if (byPinAndName) return byPinAndName;
+  }
+
+  return null;
+}
+
+async function upsertGuestPasscodeRecord(data) {
+  const keyboardPwdId = data.keyboardPwdId !== null && data.keyboardPwdId !== undefined
+    ? Number(data.keyboardPwdId)
+    : null;
+
+  const payload = {
+    huespedId: Number(data.huespedId),
+    lockId: Number(data.lockId),
+    lockAlias: data.lockAlias || null,
+    codigo: data.codigo ? String(data.codigo).trim() : null,
+    keyboardPwdId,
+    tipo: data.tipo || "ADD",
+    startDate: BigInt(String(normalizeTs(data.startDate) || nowMs())),
+    endDate: BigInt(String(normalizeTs(data.endDate) || nowMs())),
+    estado: data.estado || "ACTIVO",
+    ttlockOk: data.ttlockOk !== false,
+    ttlockMessage: data.ttlockMessage || null,
+  };
+
+  const existingFallback = await prisma.passcode.findFirst({
+    where: {
+      huespedId: payload.huespedId,
+      lockId: payload.lockId,
+      estado: "ACTIVO",
+      OR: [
+        keyboardPwdId !== null ? { keyboardPwdId } : undefined,
+        payload.codigo ? { codigo: payload.codigo } : undefined,
+      ].filter(Boolean),
+    },
+    orderBy: [{ creadoEn: "desc" }, { id: "desc" }],
+  });
+
+  if (existingFallback) {
+    return prisma.passcode.update({
+      where: { id: existingFallback.id },
+      data: payload,
+    });
+  }
+
+  if (keyboardPwdId !== null) {
+    return prisma.passcode.upsert({
+      where: {
+        lockId_keyboardPwdId: {
+          lockId: payload.lockId,
+          keyboardPwdId,
+        },
+      },
+      create: payload,
+      update: payload,
+    });
+  }
+
+  return prisma.passcode.create({ data: payload });
+}
+
 /* =======================================================================
    Enviar eKey
    ======================================================================= */
@@ -741,80 +923,59 @@ async function listGuestPasscodes(req, res) {
     }
 
     const activos = (huesped.passcodes || []).filter((p) => p.estado === "ACTIVO");
+    const expectedNames = buildExpectedPasscodeNames(huesped);
+    const guestPin = String(huesped.codigoTTLock || "").trim();
 
-    // Fetch ALL passcodes from TTLock with pagination
     let ttlockPasscodesByLock = {};
+    let lockAliasById = new Map();
+
     try {
       const accessToken = await getAccessToken();
-      const lockIdsUnique = [...new Set(activos.map((p) => p.lockId))];
+      const availableLocks = await fetchAvailableLocks(accessToken);
+      const availableLockIds = availableLocks.map((lock) => Number(lock.lockId)).filter(Boolean);
+      const dbLockIds = activos.map((p) => Number(p.lockId)).filter(Boolean);
+      const lockIdsUnique = [...new Set([...dbLockIds, ...availableLockIds])];
+
+      lockAliasById = new Map(
+        availableLocks.map((lock) => [Number(lock.lockId), lock.lockAlias || lock.lockName || null])
+      );
 
       for (const lockId of lockIdsUnique) {
         try {
-          let allPasscodes = [];
-          let pageNo = 1;
-          const pageSize = 100;
-          let hasMore = true;
-
-          while (hasMore && pageNo <= 10) {
-            const r = await ttPost("/v3/keyboardPwd/list", {
+          const allPasscodes = await fetchPaginatedTtlockList(
+            "/v3/keyboardPwd/list",
+            {
               clientId: process.env.TTLOCK_CLIENT_ID,
               accessToken,
               lockId,
-              pageNo,
-              pageSize,
-              date: nowMs(),
-            });
-            if (Array.isArray(r?.list)) {
-              allPasscodes = allPasscodes.concat(r.list);
-              hasMore = r.list.length >= pageSize;
-            } else {
-              hasMore = false;
-            }
-            pageNo++;
-          }
+            },
+            { pageSize: 100, maxPages: 20 }
+          );
 
           ttlockPasscodesByLock[lockId] = allPasscodes;
-        } catch (_) {
-          // Lock may not support passcodes
-        }
+        } catch (_) {}
       }
-    } catch (_) {
-      // TTLock API unavailable, continue with DB data only
-    }
+    } catch (_) {}
 
-    const data = activos.map((p) => {
+    const merged = new Map();
+
+    for (const p of activos) {
       const ttlockList = ttlockPasscodesByLock[p.lockId] || [];
+      const ttlockMatch = findMatchingTtlockPasscode(ttlockList, p, expectedNames);
       const pKbdId = p.keyboardPwdId ? Number(p.keyboardPwdId) : null;
       const pCodigo = p.codigo ? String(p.codigo).trim() : null;
 
-      // 1) Match by keyboardPwdId
-      let ttlockMatch = pKbdId
-        ? ttlockList.find((t) => Number(t.keyboardPwdId) === pKbdId)
-        : null;
-
-      // 2) Fallback: match by PIN code value on same lock
-      if (!ttlockMatch && pCodigo) {
-        ttlockMatch = ttlockList.find(
-          (t) => String(t.keyboardPwd || "").trim() === pCodigo
-        );
-        // If found by PIN, update the keyboardPwdId in DB for future matches
-        if (ttlockMatch && ttlockMatch.keyboardPwdId) {
-          prisma.passcode.update({
-            where: { id: p.id },
-            data: { keyboardPwdId: Number(ttlockMatch.keyboardPwdId) },
-          }).catch(() => {});
-        }
+      if (ttlockMatch?.keyboardPwdId && Number(ttlockMatch.keyboardPwdId) !== pKbdId) {
+        prisma.passcode.update({
+          where: { id: p.id },
+          data: { keyboardPwdId: Number(ttlockMatch.keyboardPwdId) },
+        }).catch(() => {});
       }
 
-      // Determine verification status:
-      // - If we found a live match in TTLock API → verified
-      // - If DB says ttlockOk=true (was created successfully) → trust the DB
-      // - Only mark as NOT found if DB says ttlockOk=false or we have no data at all
       let ttlockVerified;
       if (ttlockMatch) {
         ttlockVerified = true;
       } else if (p.ttlockOk === true) {
-        // DB confirms it was created successfully — trust that
         ttlockVerified = true;
       } else if (pKbdId || pCodigo) {
         ttlockVerified = false;
@@ -822,20 +983,24 @@ async function listGuestPasscodes(req, res) {
         ttlockVerified = null;
       }
 
-      return {
+      const resolvedKeyboardPwdId = ttlockMatch?.keyboardPwdId
+        ? Number(ttlockMatch.keyboardPwdId)
+        : pKbdId;
+      const mapKey = `${Number(p.lockId)}_${resolvedKeyboardPwdId || p.id}`;
+
+      merged.set(mapKey, {
         id: p.id,
         lockId: p.lockId,
-        lockAlias: p.lockAlias || null,
-        codigo: p.codigo || null,
-        keyboardPwdId: p.keyboardPwdId || null,
+        lockAlias: p.lockAlias || lockAliasById.get(Number(p.lockId)) || null,
+        codigo: p.codigo || ttlockMatch?.keyboardPwd || null,
+        keyboardPwdId: resolvedKeyboardPwdId || null,
         tipo: p.tipo,
         estado: p.estado,
         ttlockOk: p.ttlockOk,
         ttlockMessage: p.ttlockMessage || null,
-        startDate: p.startDate ? Number(p.startDate) : null,
-        endDate: p.endDate ? Number(p.endDate) : null,
+        startDate: p.startDate ? Number(p.startDate) : normalizeTs(ttlockMatch?.startDate),
+        endDate: p.endDate ? Number(p.endDate) : normalizeTs(ttlockMatch?.endDate),
         creadoEn: p.creadoEn,
-        // TTLock verification
         ttlockVerified,
         ttlockLiveData: ttlockMatch
           ? {
@@ -846,7 +1011,75 @@ async function listGuestPasscodes(req, res) {
               status: ttlockMatch.status,
             }
           : null,
-      };
+      });
+    }
+
+    for (const [lockIdRaw, ttlockList] of Object.entries(ttlockPasscodesByLock)) {
+      const lockId = Number(lockIdRaw);
+      const lockAlias = lockAliasById.get(lockId) || null;
+
+      for (const live of ttlockList || []) {
+        const liveKeyboardPwdId = live?.keyboardPwdId ? Number(live.keyboardPwdId) : null;
+        const livePin = String(live?.keyboardPwd || "").trim();
+        const liveName = normalizeText(live?.keyboardPwdName);
+        const matchesName = expectedNames.has(liveName);
+        const matchesPin = !!guestPin && livePin === guestPin;
+
+        if (!matchesName && !matchesPin) continue;
+
+        const existingEntry = Array.from(merged.values()).find((item) => {
+          const sameLock = Number(item.lockId) === lockId;
+          const sameKeyboardPwdId = liveKeyboardPwdId && Number(item.keyboardPwdId) === liveKeyboardPwdId;
+          const samePin = !!livePin && String(item.codigo || "").trim() === livePin;
+          return sameLock && (sameKeyboardPwdId || samePin);
+        });
+
+        if (existingEntry) continue;
+
+        const syncedRow = await upsertGuestPasscodeRecord({
+          huespedId: huesped.id,
+          lockId,
+          lockAlias,
+          codigo: livePin || guestPin || null,
+          keyboardPwdId: liveKeyboardPwdId,
+          tipo: "ADD",
+          startDate: live.startDate,
+          endDate: live.endDate,
+          estado: "ACTIVO",
+          ttlockOk: true,
+          ttlockMessage: "DESCUBIERTO_TTLOCK",
+        });
+
+        const mapKey = `${lockId}_${liveKeyboardPwdId || syncedRow.id}`;
+        merged.set(mapKey, {
+          id: syncedRow.id,
+          lockId,
+          lockAlias: syncedRow.lockAlias || lockAlias,
+          codigo: syncedRow.codigo || livePin || null,
+          keyboardPwdId: liveKeyboardPwdId,
+          tipo: syncedRow.tipo,
+          estado: syncedRow.estado,
+          ttlockOk: true,
+          ttlockMessage: syncedRow.ttlockMessage || "DESCUBIERTO_TTLOCK",
+          startDate: syncedRow.startDate ? Number(syncedRow.startDate) : normalizeTs(live.startDate),
+          endDate: syncedRow.endDate ? Number(syncedRow.endDate) : normalizeTs(live.endDate),
+          creadoEn: syncedRow.creadoEn,
+          ttlockVerified: true,
+          ttlockLiveData: {
+            keyboardPwd: live.keyboardPwd || null,
+            keyboardPwdName: live.keyboardPwdName || null,
+            startDate: live.startDate || null,
+            endDate: live.endDate || null,
+            status: live.status,
+          },
+        });
+      }
+    }
+
+    const data = Array.from(merged.values()).sort((a, b) => {
+      const left = Number(a.creadoEn ? new Date(a.creadoEn).getTime() : 0);
+      const right = Number(b.creadoEn ? new Date(b.creadoEn).getTime() : 0);
+      return right - left;
     });
 
     return res.json({

@@ -794,7 +794,26 @@ async function getByNumeroReserva(req, res) {
       });
     }
 
-    return res.json({ ok: true, data: huesped });
+    // Enrich with Nobeds total/price
+    let total = null;
+    let price = null;
+    try {
+      const url = `${process.env.NOBEDS_API}/${process.env.NOBEDS_TOKEN}`;
+      const { data } = await axios.get(url, { timeout: 20000 });
+      if (Array.isArray(data)) {
+        const match = data.find(
+          (r) => String(r.order_id || "") === String(huesped.numeroReserva || "")
+        );
+        if (match) {
+          total = match.total ?? match.price ?? null;
+          price = match.price ?? null;
+        }
+      }
+    } catch (err) {
+      console.error("Error enriqueciendo con Nobeds:", err.message);
+    }
+
+    return res.json({ ok: true, data: { ...huesped, total, price } });
   } catch (err) {
     console.error("ERROR /api/checkin/por-reserva:", err);
     return res.status(500).json({ ok: false, error: "Error interno" });

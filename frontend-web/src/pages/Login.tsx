@@ -116,8 +116,8 @@ export default function Login() {
     const checkin = toDateInput(reserva?.checkin);
     const checkout = toDateInput(reserva?.checkout);
 
-    // Nobeds uses b_price / b_name; local DB may have total/price
-    const totalRaw = reserva?.total ?? reserva?.b_price ?? reserva?.price ?? null;
+    // Nobeds: prefer balance over total/price
+    const totalRaw = reserva?.balance ?? reserva?.total ?? reserva?.b_price ?? reserva?.price ?? null;
     const totalParsed = totalRaw != null ? Number(totalRaw) : undefined;
 
     const reservaObj = {

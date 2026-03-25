@@ -828,7 +828,7 @@ async function getByNumeroReserva(req, res) {
       }
 
       if (match) {
-        total = match.total ?? match.price ?? null;
+        total = match.balance ?? match.total ?? match.price ?? null;
         price = match.price ?? null;
       }
     } catch (err) {

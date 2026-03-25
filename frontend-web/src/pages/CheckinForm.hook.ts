@@ -163,15 +163,27 @@ export function useCheckinForm() {
         try {
           setLoading(true);
 
-          const resp = await fetch(buildUrl(`/api/checkin/por-reserva/${orderId}`));
-          const json = await resp.json();
+          // Fetch local DB and Nobeds in parallel
+          const [respLocal, respNobeds] = await Promise.all([
+            fetch(buildUrl(`/api/checkin/por-reserva/${orderId}`)),
+            fetch(buildUrl(`/api/nobeds/reserva/${orderId}`)).catch(() => null),
+          ]);
 
-          if (!json.ok || !json.data) {
+          const jsonLocal = await respLocal.json();
+          let nobedsData: any = null;
+          try {
+            if (respNobeds && respNobeds.ok) {
+              const jsonNobeds = await respNobeds.json();
+              if (jsonNobeds.ok && jsonNobeds.reserva) nobedsData = jsonNobeds.reserva;
+            }
+          } catch { /* silent */ }
+
+          if (!jsonLocal.ok || !jsonLocal.data) {
             fallbackFromLocalStorage(true);
             return;
           }
 
-          const p = json.data;
+          const p = jsonLocal.data;
 
           const huesped: Huesped = {
             ...nuevoHuesped(),
@@ -189,6 +201,11 @@ export function useCheckinForm() {
             fechaSalida: toDateInput(p.checkout),
           };
 
+          // Merge total/price: prefer Nobeds, fallback to local
+          const totalFromNobeds = nobedsData?.total ?? nobedsData?.price ?? null;
+          const totalFinal = totalFromNobeds != null ? Number(totalFromNobeds) : (p.total != null ? Number(p.total) : undefined);
+          const priceFinal = nobedsData?.price != null ? Number(nobedsData.price) : (p.price != null ? Number(p.price) : undefined);
+
           const reservaObj: Reserva = {
             numeroReserva: p.numeroReserva,
             nombre: p.nombre,
@@ -198,14 +215,14 @@ export function useCheckinForm() {
             checkout: toDateInput(p.checkout),
             room_id: p.room_id ?? null,
             lockId: p.lockId ?? undefined,
-            total: p.total != null ? Number(p.total) : undefined,
-            price: p.price != null ? Number(p.price) : undefined,
+            total: totalFinal,
+            price: priceFinal,
           };
 
           setReserva(reservaObj);
           setFormList([huesped]);
 
-          localStorage.setItem("reserva", JSON.stringify(p));
+          localStorage.setItem("reserva", JSON.stringify({ ...p, total: totalFinal, price: priceFinal }));
 
           await ensureSession(reservaObj, [huesped]);
         } catch {

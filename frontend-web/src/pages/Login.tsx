@@ -116,15 +116,21 @@ export default function Login() {
     const checkin = toDateInput(reserva?.checkin);
     const checkout = toDateInput(reserva?.checkout);
 
+    // Nobeds uses b_price / b_name; local DB may have total/price
+    const totalRaw = reserva?.total ?? reserva?.b_price ?? reserva?.price ?? null;
+    const totalParsed = totalRaw != null ? Number(totalRaw) : undefined;
+
     const reservaObj = {
       numeroReserva: numeroReserva || "",
-      nombre: reserva?.nombre || reserva?.name || "",
+      nombre: reserva?.nombre || reserva?.name || reserva?.b_name || "",
       email: reserva?.email || "",
       telefono: reserva?.telefono || reserva?.phone || "",
       checkin,
       checkout,
       room_id: reserva?.room_id ?? null,
       lockId: reserva?.lockId,
+      total: Number.isFinite(totalParsed) && totalParsed! > 0 ? totalParsed : undefined,
+      price: Number.isFinite(totalParsed) && totalParsed! > 0 ? totalParsed : undefined,
     };
 
     const formList = [

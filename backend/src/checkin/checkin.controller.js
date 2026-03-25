@@ -798,16 +798,38 @@ async function getByNumeroReserva(req, res) {
     let total = null;
     let price = null;
     try {
-      const url = `${process.env.NOBEDS_API}/${process.env.NOBEDS_TOKEN}`;
-      const { data } = await axios.get(url, { timeout: 20000 });
-      if (Array.isArray(data)) {
-        const match = data.find(
-          (r) => String(r.order_id || "") === String(huesped.numeroReserva || "")
-        );
-        if (match) {
-          total = match.total ?? match.price ?? null;
-          price = match.price ?? null;
-        }
+      const baseUrl = `${process.env.NOBEDS_API}/${process.env.NOBEDS_TOKEN}`;
+
+      // 1) Try by order_id directly
+      let match = null;
+      try {
+        const { data } = await axios.get(`${baseUrl}?order_id=${encodeURIComponent(huesped.numeroReserva)}`, { timeout: 15000 });
+        if (Array.isArray(data) && data.length > 0) match = data[0];
+      } catch { /* silent */ }
+
+      // 2) Fallback: search by date range and match by name/email
+      if (!match && huesped.fechaIngreso) {
+        const fromdate = String(huesped.fechaIngreso).split("T")[0];
+        const todate = huesped.fechaSalida ? String(huesped.fechaSalida).split("T")[0] : fromdate;
+        try {
+          const { data } = await axios.get(`${baseUrl}?fromdate=${fromdate}&todate=${todate}`, { timeout: 15000 });
+          if (Array.isArray(data) && data.length > 0) {
+            const nombre = String(huesped.nombre || "").toLowerCase().trim();
+            const email = String(huesped.email || "").toLowerCase().trim();
+            match = data.find((r) => {
+              const rName = String(r.name || "").toLowerCase().trim();
+              const rEmail = String(r.email || r.emails || "").toLowerCase().trim();
+              if (nombre && rName && rName.includes(nombre)) return true;
+              if (email && rEmail && rEmail.includes(email)) return true;
+              return false;
+            }) || null;
+          }
+        } catch { /* silent */ }
+      }
+
+      if (match) {
+        total = match.total ?? match.price ?? null;
+        price = match.price ?? null;
       }
     } catch (err) {
       console.error("Error enriqueciendo con Nobeds:", err.message);

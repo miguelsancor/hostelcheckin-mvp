@@ -526,8 +526,8 @@ export function GuestCard({
                   margin: 0,
                 }}
               >
-                Puedes completar esta parte ahora o dejarla para después. Esto
-                ayuda a agilizar la validación de la reserva.
+                Sube tu documento de identidad para completar el registro.
+                Este paso es <strong>obligatorio</strong>.
               </p>
             </div>
 
@@ -535,7 +535,7 @@ export function GuestCard({
               {esCedula && (
                 <>
                   <UploadField
-                    label="Foto cédula frente / ID front"
+                    label="Foto cédula frente / ID front *"
                     inputName="archivoCedula"
                     fileValue={(data as any).archivoCedula || null}
                     onFile={handleFile}
@@ -552,7 +552,7 @@ export function GuestCard({
 
               {esPasaporte && (
                 <UploadField
-                  label="Foto pasaporte / Passport photo"
+                  label="Foto pasaporte / Passport photo *"
                   inputName="archivoPasaporte"
                   fileValue={(data as any).archivoPasaporte || null}
                   onFile={handleFile}

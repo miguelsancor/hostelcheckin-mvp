@@ -198,6 +198,8 @@ export function useCheckinForm() {
             checkout: toDateInput(p.checkout),
             room_id: p.room_id ?? null,
             lockId: p.lockId ?? undefined,
+            total: p.total != null ? Number(p.total) : undefined,
+            price: p.price != null ? Number(p.price) : undefined,
           };
 
           setReserva(reservaObj);
@@ -254,6 +256,8 @@ export function useCheckinForm() {
           checkout,
           room_id: parsed.room_id ?? null,
           lockId: parsed.lockId ?? undefined,
+          total: parsed.total != null ? Number(parsed.total) : undefined,
+          price: parsed.price != null ? Number(parsed.price) : undefined,
         };
 
         setReserva(reservaObj);

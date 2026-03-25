@@ -54,9 +54,9 @@ export default function CheckinForm() {
   /* ── Payment ── */
   const paymentAmount = useMemo(() => {
     const r = reserva as any;
-    const raw = r?.saldoPendiente ?? r?.saldo ?? r?.montoPendiente ?? r?.totalPendiente ?? r?.total ?? 50000;
+    const raw = r?.total ?? r?.price ?? r?.saldoPendiente ?? r?.saldo ?? 0;
     const parsed = Number(raw);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 50000;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
   }, [reserva]);
 
   const paymentDescription = useMemo(() => {
@@ -77,6 +77,8 @@ export default function CheckinForm() {
     return payment.canProceed;
   }, [acceptTerms, payment.canProceed]);
 
+  const [docError, setDocError] = useState("");
+
   const onSubmitClick = () => {
     if (!payment.canProceed) {
       return;
@@ -85,6 +87,31 @@ export default function CheckinForm() {
       setTermsError("Debes aceptar los términos y condiciones para continuar.");
       return;
     }
+
+    // Validar documento obligatorio del titular
+    const t = formList?.[0];
+    if (t) {
+      const tipo = (t.tipoDocumento || "").toLowerCase();
+      const esCedula = tipo.includes("céd") || tipo.includes("ced") || tipo === "cédula de ciudadanía" || tipo === "cedula";
+      const esPasaporte = tipo.includes("pasaporte") || tipo.includes("passport");
+
+      if (!tipo) {
+        setDocError("Debes seleccionar el tipo de documento antes de continuar.");
+        return;
+      }
+
+      if (esCedula && !t.archivoCedula) {
+        setDocError("Debes subir la foto de tu cédula (frente) para continuar.");
+        return;
+      }
+
+      if (esPasaporte && !t.archivoPasaporte) {
+        setDocError("Debes subir la foto de tu pasaporte para continuar.");
+        return;
+      }
+    }
+
+    setDocError("");
     setTermsError("");
     handleSubmit(titular?.motivoViaje || "");
   };
@@ -333,6 +360,9 @@ export default function CheckinForm() {
           </div>
           {termsError && (
             <div style={{ marginTop: "0.75rem", color: "#fca5a5", fontSize: "0.9rem" }}>{termsError}</div>
+          )}
+          {docError && (
+            <div style={{ marginTop: "0.75rem", color: "#fca5a5", fontSize: "0.9rem", fontWeight: 600 }}>{docError}</div>
           )}
         </div>
 

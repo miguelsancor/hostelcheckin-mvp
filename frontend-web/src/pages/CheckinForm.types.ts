@@ -61,6 +61,8 @@ export type Reserva = {
   checkin?: string;
   checkout?: string;
   room_id?: number;
+  total?: number;
+  price?: number;
 };
 
 export type LockItem = {

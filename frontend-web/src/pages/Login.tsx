@@ -116,9 +116,17 @@ export default function Login() {
     const checkin = toDateInput(reserva?.checkin);
     const checkout = toDateInput(reserva?.checkout);
 
-    // Nobeds: prefer balance over total/price
-    const totalRaw = reserva?.balance ?? reserva?.total ?? reserva?.b_price ?? reserva?.price ?? null;
-    const totalParsed = totalRaw != null ? Number(totalRaw) : undefined;
+    // Nobeds: usar balance (deuda pendiente) como monto a cobrar
+    const balanceRaw = reserva?.balance;
+    const balanceParsed = balanceRaw != null ? Number(balanceRaw) : NaN;
+    const cobro = Number.isFinite(balanceParsed) && balanceParsed > 0 ? balanceParsed : undefined;
+
+    // Fallback: price o total solo si no hay balance
+    const priceFallback = [reserva?.price, reserva?.total, reserva?.b_price]
+      .map(v => v != null ? Number(v) : NaN)
+      .find(v => Number.isFinite(v) && v > 0);
+
+    const montoFinal = cobro ?? priceFallback;
 
     const reservaObj = {
       numeroReserva: numeroReserva || "",
@@ -129,8 +137,9 @@ export default function Login() {
       checkout,
       room_id: reserva?.room_id ?? null,
       lockId: reserva?.lockId,
-      total: Number.isFinite(totalParsed) && totalParsed! > 0 ? totalParsed : undefined,
-      price: Number.isFinite(totalParsed) && totalParsed! > 0 ? totalParsed : undefined,
+      balance: cobro,
+      total: montoFinal,
+      price: Number.isFinite(priceFallback) ? priceFallback : montoFinal,
     };
 
     const formList = [

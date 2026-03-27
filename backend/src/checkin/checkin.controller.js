@@ -795,8 +795,9 @@ async function getByNumeroReserva(req, res) {
     }
 
     // Enrich with Nobeds total/price
-    let total = null;
-    let price = null;
+     let total = null;
+     let price = null;
+     let balance = null;
     try {
       const baseUrl = `${process.env.NOBEDS_API}/${process.env.NOBEDS_TOKEN}`;
 
@@ -828,14 +829,15 @@ async function getByNumeroReserva(req, res) {
       }
 
       if (match) {
-        total = match.balance ?? match.total ?? match.price ?? null;
+        balance = match.balance != null ? Number(match.balance) : null;
+        total = match.total ?? match.price ?? null;
         price = match.price ?? null;
       }
     } catch (err) {
       console.error("Error enriqueciendo con Nobeds:", err.message);
     }
 
-    return res.json({ ok: true, data: { ...huesped, total, price } });
+    return res.json({ ok: true, data: { ...huesped, total, price, balance } });
   } catch (err) {
     console.error("ERROR /api/checkin/por-reserva:", err);
     return res.status(500).json({ ok: false, error: "Error interno" });

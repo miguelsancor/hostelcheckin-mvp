@@ -54,7 +54,7 @@ export default function CheckinForm() {
   /* ── Payment ── */
   const paymentAmount = useMemo(() => {
     const r = reserva as any;
-    const raw = r?.total ?? r?.price ?? r?.saldoPendiente ?? r?.saldo ?? 0;
+    const raw = r?.balance ?? r?.total ?? r?.price ?? r?.saldoPendiente ?? r?.saldo ?? 0;
     const parsed = Number(raw);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
   }, [reserva]);

@@ -14,6 +14,7 @@ type AgentResponse = {
   ok: boolean;
   tipo?: string;
   mensaje?: string;
+  message?: string;
   tarjetas?: TarjetaDato[];
   error?: string;
 };
@@ -241,6 +242,8 @@ const SUGERENCIAS = [
   "Cerraduras disponibles",
 ];
 
+const AGENT_QUERY_URL = `${API_BASE}/api/agent/query`;
+
 /* =======================================================================
    COMPONENTE PRINCIPAL
    ======================================================================= */
@@ -277,7 +280,7 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
     setCargando(true);
 
     try {
-      const res = await fetch(`${API_BASE}/agent/query`, {
+      const res = await fetch(AGENT_QUERY_URL, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -285,12 +288,13 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
       });
 
       const data: AgentResponse = await res.json();
+      const textoRespuesta = data.mensaje || data.message || data.error || "No obtuve respuesta.";
 
       setMensajes((prev) => [
         ...prev,
         {
           rol: "agente",
-          texto: data.mensaje || data.error || "No obtuve respuesta.",
+          texto: textoRespuesta,
           tarjetas: data.tarjetas || [],
           timestamp: Date.now(),
         },

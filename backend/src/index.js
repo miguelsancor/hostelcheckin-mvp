@@ -13,6 +13,7 @@ const mcpRoutes = require("./mcp/mcp.routes");
 const adminRoutes = require("./admin/admin.routes");
 const adminAuthRoutes = require("./admin/admin.auth.routes");
 const traRoutes = require("./tra/tra.routes");
+const agentRoutes = require("./agent/agent.routes");
 
 // ✅ NUEVO: rutas de pagos
 const paymentRoutes = require("./payments/payment.router");
@@ -62,6 +63,7 @@ app.use("/api", checkinRoutes);               // /api/checkin, /api/checkin/...
 app.use("/api/nobeds", nobedsRoutes);         // /api/nobeds/reserva/:id, /reservas
 app.use("/api/tra", traRoutes);               // /api/tra/status/:reserva, /retry/:reserva
 app.use("/api/payments", paymentRoutes);      // ✅ /api/payments/bold/create, /api/payments/:numeroReserva
+app.use("/api/agent", agentRoutes);            // /api/agent/query
 app.use("/mcp", mcpRoutes);                   // /mcp/create-key, etc.
 app.use("/admin/auth", adminAuthRoutes);      // /admin/auth/login
 app.use("/admin", adminRoutes);               // /admin/huespedes, /stats, etc.

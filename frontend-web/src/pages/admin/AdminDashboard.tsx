@@ -1,4 +1,5 @@
-import { } from "react";
+import { useState } from "react";
+import AgentPanel from "../agent/AgentPanel";
 import { useAdminAuth } from "./hooks/useAdminAuth";
 import { useAdminDashboard } from "./hooks/useAdminDashboard";
 import {
@@ -30,6 +31,7 @@ import { defaultCobro, formatMoney, ttlockText } from "./admin.utils";
 
 export default function AdminDashboard() {
   const auth = useAdminAuth();
+  const [showAgent, setShowAgent] = useState(false);
 
   const dashboard = useAdminDashboard(auth.autenticado, () => {
     auth.setAutenticado(false);
@@ -75,9 +77,26 @@ export default function AdminDashboard() {
           }}
         >
           <h1>Dashboard Administrativo</h1>
-          <button onClick={handleLogout} style={btnLogout}>
-            Salir
-          </button>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              onClick={() => setShowAgent(true)}
+              style={{
+                background: "#2563eb",
+                color: "white",
+                border: "none",
+                padding: "0.5rem 1rem",
+                borderRadius: "0.6rem",
+                cursor: "pointer",
+                fontWeight: 700,
+                fontSize: "0.9rem",
+              }}
+            >
+              🤖 Assistant
+            </button>
+            <button onClick={handleLogout} style={btnLogout}>
+              Salir
+            </button>
+          </div>
         </div>
 
         <MetricsPanel metrics={dashboard.metrics} />
@@ -512,6 +531,8 @@ export default function AdminDashboard() {
           />
         </div>
       )}
+
+      {showAgent && <AgentPanel onClose={() => setShowAgent(false)} />}
     </div>
   );
 }

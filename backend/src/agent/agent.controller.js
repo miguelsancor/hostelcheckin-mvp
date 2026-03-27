@@ -1,10 +1,77 @@
 const prisma = require("../utils/prismaClient");
+const axios = require("axios");
 
 /**
- * Kuyay Operations Assistant — Fase 1
- * Interpreta consultas operativas y responde con datos reales del sistema.
- * Reutiliza Prisma directamente (mismos modelos que admin/checkin/mcp).
+ * Kuyay Operations Assistant — Fase 1 + LLM (Groq)
+ * Interpreta consultas operativas con lenguaje natural vía Groq,
+ * y responde con datos reales del sistema + tarjetas estructuradas.
  */
+
+/* =======================================================================
+   GROQ LLM — Respuesta en lenguaje natural
+   ======================================================================= */
+
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+
+const SYSTEM_PROMPT = `Eres el asistente operativo del hotel Kuyay. Tu nombre es Kuyay Assistant.
+Respondes en español, de forma breve, profesional y amigable.
+Tu trabajo es ayudar al personal de recepción a consultar datos de huéspedes, reservas, check-ins, cerraduras TTLock y pagos.
+
+Reglas:
+- Responde siempre en español colombiano informal pero profesional.
+- Sé conciso: máximo 2-3 oraciones para el mensaje principal.
+- Si recibes datos del sistema, resúmelos de forma clara y útil.
+- Si no hay datos, sugiere qué buscar (reserva, documento, nombre, email).
+- Nunca inventes datos. Solo usa la información proporcionada.
+- Si te preguntan algo fuera del ámbito del hotel, indica amablemente que solo manejas operaciones hoteleras.`;
+
+/**
+ * Genera respuesta natural con Groq.
+ * Si GROQ_API_KEY no está configurada, retorna el mensaje original (fallback).
+ */
+async function generarRespuestaLLM(query, datosContexto, mensajeFallback) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    console.warn("agent: GROQ_API_KEY no configurada, usando respuesta estática");
+    return mensajeFallback;
+  }
+
+  try {
+    const contextStr = datosContexto
+      ? `\n\nDatos del sistema:\n${JSON.stringify(datosContexto, null, 2)}`
+      : "\n\nNo se encontraron datos relevantes en el sistema.";
+
+    const res = await axios.post(
+      GROQ_URL,
+      {
+        model: GROQ_MODEL,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: `Consulta del recepcionista: "${query}"${contextStr}\n\nResponde de forma natural y breve.`,
+          },
+        ],
+        temperature: 0.4,
+        max_tokens: 300,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 10000,
+      }
+    );
+
+    const respuesta = res.data?.choices?.[0]?.message?.content;
+    return respuesta || mensajeFallback;
+  } catch (err) {
+    console.error("agent: error Groq LLM:", err.response?.data || err.message);
+    return mensajeFallback;
+  }
+}
 
 /* =======================================================================
    UTILIDADES INTERNAS
@@ -14,20 +81,11 @@ const prisma = require("../utils/prismaClient");
 function detectarIntencion(query) {
   const q = query.toLowerCase().trim();
 
-  // Cerraduras / locks
   if (/cerraduras?\s*(disponibles|libres|todas)/i.test(q)) return "locks_disponibles";
   if (/cerraduras?|locks?|pin|código|codigo|ttlock/i.test(q)) return "buscar_huesped";
-
-  // Check-in / sesión
   if (/sesi[oó]n|check.?in|estado/i.test(q)) return "buscar_huesped";
-
-  // Métricas
   if (/m[eé]tricas?|estad[ií]sticas?|resumen|dashboard|hoy cu[aá]ntos/i.test(q)) return "metricas";
-
-  // Huéspedes hoy
   if (/hu[eé]spedes?\s*hoy|check.?in\s*hoy|llegadas?\s*hoy/i.test(q)) return "huespedes_hoy";
-
-  // Búsqueda general (default si hay texto útil)
   if (q.length >= 2) return "buscar_huesped";
 
   return "desconocido";
@@ -35,7 +93,6 @@ function detectarIntencion(query) {
 
 /** Extrae el término de búsqueda limpio */
 function extraerTermino(query) {
-  // Eliminar frases comunes para quedarse con el valor de búsqueda
   return query
     .replace(/buscar?\s*(hu[eé]sped|reserva|cliente|persona)?/gi, "")
     .replace(/estado\s*(de|del)?\s*(check.?in|sesi[oó]n)?/gi, "")
@@ -56,33 +113,20 @@ async function buscarHuesped(termino) {
   const q = raw.toLowerCase();
   const qDigits = raw.replace(/[^\d]/g, "");
 
-  // 1) Exacta por número de reserva
-  const porReserva = await prisma.huesped.findFirst({
-    where: { numeroReserva: raw },
-  });
+  const porReserva = await prisma.huesped.findFirst({ where: { numeroReserva: raw } });
   if (porReserva) return porReserva;
 
-  // 2) Exacta por documento
-  const porDoc = await prisma.huesped.findFirst({
-    where: { numeroDocumento: raw },
-  });
+  const porDoc = await prisma.huesped.findFirst({ where: { numeroDocumento: raw } });
   if (porDoc) return porDoc;
 
-  // 3) Por email exacto
-  const porEmail = await prisma.huesped.findFirst({
-    where: { email: q },
-  });
+  const porEmail = await prisma.huesped.findFirst({ where: { email: q } });
   if (porEmail) return porEmail;
 
-  // 4) Por teléfono
   if (qDigits.length >= 4) {
-    const porTel = await prisma.huesped.findFirst({
-      where: { telefono: { contains: qDigits } },
-    });
+    const porTel = await prisma.huesped.findFirst({ where: { telefono: { contains: qDigits } } });
     if (porTel) return porTel;
   }
 
-  // 5) Por nombre (contiene)
   const porNombre = await prisma.huesped.findFirst({
     where: { nombre: { contains: raw } },
     orderBy: { creadoEn: "desc" },
@@ -96,20 +140,13 @@ async function buscarHuesped(termino) {
    ENRIQUECER DATOS DEL HUÉSPED
    ======================================================================= */
 async function enriquecerHuesped(huesped) {
-  const resultado = {
-    huesped,
-    sesionActiva: null,
-    passcodes: [],
-    cobro: null,
-  };
+  const resultado = { huesped, sesionActiva: null, passcodes: [], cobro: null };
 
-  // Sesión de check-in activa
   try {
     const sesion = await prisma.checkinSession.findFirst({
       where: { numeroReserva: huesped.numeroReserva },
       orderBy: { creadoEn: "desc" },
     });
-
     if (sesion) {
       const expirada = sesion.expiracion && new Date(sesion.expiracion).getTime() < Date.now();
       resultado.sesionActiva = {
@@ -124,7 +161,6 @@ async function enriquecerHuesped(huesped) {
     console.error("agent: error sesión:", e.message);
   }
 
-  // Passcodes TTLock
   try {
     const passcodes = await prisma.passcode.findMany({
       where: { huespedId: huesped.id, estado: "ACTIVO" },
@@ -144,7 +180,6 @@ async function enriquecerHuesped(huesped) {
     console.error("agent: error passcodes:", e.message);
   }
 
-  // Cobro
   try {
     const cobro = await prisma.reservaCobro.findFirst({
       where: { numeroReserva: huesped.numeroReserva },
@@ -220,10 +255,9 @@ async function obtenerHuespedesHoy() {
 }
 
 /* =======================================================================
-   CERRADURAS DISPONIBLES (desde BD — passcodes activos vs todas)
+   CERRADURAS DISPONIBLES
    ======================================================================= */
 async function obtenerLocksDisponibles() {
-  // Obtener lockIds con passcodes activos
   const activos = await prisma.passcode.findMany({
     where: { estado: "ACTIVO" },
     select: { lockId: true, lockAlias: true },
@@ -256,7 +290,6 @@ function formatearRespuesta(intencion, datos) {
       const { huesped, sesionActiva, passcodes, cobro } = datos;
       const tarjetas = [];
 
-      // Tarjeta huésped
       tarjetas.push({
         tipo: "huesped",
         titulo: huesped.nombre,
@@ -273,7 +306,6 @@ function formatearRespuesta(intencion, datos) {
         },
       });
 
-      // Tarjeta sesión check-in
       const estadoCheckin = sesionActiva
         ? sesionActiva.activa
           ? "Sesión activa"
@@ -294,7 +326,6 @@ function formatearRespuesta(intencion, datos) {
         },
       });
 
-      // Tarjeta cerraduras
       if (passcodes.length > 0) {
         tarjetas.push({
           tipo: "cerraduras",
@@ -319,7 +350,6 @@ function formatearRespuesta(intencion, datos) {
         });
       }
 
-      // Tarjeta cobro
       if (cobro) {
         tarjetas.push({
           tipo: "cobro",
@@ -339,13 +369,7 @@ function formatearRespuesta(intencion, datos) {
       return {
         tipo: "metricas",
         mensaje: "Resumen operativo actual del hotel",
-        tarjetas: [
-          {
-            tipo: "metricas",
-            titulo: "Métricas del Hotel",
-            datos,
-          },
-        ],
+        tarjetas: [{ tipo: "metricas", titulo: "Métricas del Hotel", datos }],
       };
     }
 
@@ -354,11 +378,7 @@ function formatearRespuesta(intencion, datos) {
         tipo: "huespedes_hoy",
         mensaje: `Hay ${datos.length} huésped(es) registrados hoy`,
         tarjetas: [
-          {
-            tipo: "lista_huespedes",
-            titulo: `Huéspedes hoy (${datos.length})`,
-            datos: { huespedes: datos },
-          },
+          { tipo: "lista_huespedes", titulo: `Huéspedes hoy (${datos.length})`, datos: { huespedes: datos } },
         ],
       };
     }
@@ -367,13 +387,7 @@ function formatearRespuesta(intencion, datos) {
       return {
         tipo: "locks_disponibles",
         mensaje: `${datos.totalActivos} cerradura(s) con passcodes activos en el sistema`,
-        tarjetas: [
-          {
-            tipo: "locks",
-            titulo: "Cerraduras con passcodes activos",
-            datos,
-          },
-        ],
+        tarjetas: [{ tipo: "locks", titulo: "Cerraduras con passcodes activos", datos }],
       };
     }
 
@@ -414,19 +428,15 @@ async function handleQuery(req, res) {
         }
         break;
       }
-
       case "metricas":
         datos = await obtenerMetricas();
         break;
-
       case "huespedes_hoy":
         datos = await obtenerHuespedesHoy();
         break;
-
       case "locks_disponibles":
         datos = await obtenerLocksDisponibles();
         break;
-
       case "desconocido":
       default:
         break;
@@ -434,7 +444,10 @@ async function handleQuery(req, res) {
 
     const respuesta = formatearRespuesta(intencion, datos);
 
-    return res.json({ ok: true, ...respuesta });
+    // Generar mensaje natural con Groq (o fallback estático)
+    const mensajeNatural = await generarRespuestaLLM(query, datos, respuesta.mensaje);
+
+    return res.json({ ok: true, ...respuesta, mensaje: mensajeNatural });
   } catch (e) {
     console.error("agent/query error:", e);
     return res.status(500).json({

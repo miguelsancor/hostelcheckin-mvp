@@ -154,8 +154,9 @@ function UploadField({
                 letterSpacing: "0.01em",
               }}
             >
-              <FileIcon />
-              Subir archivo
+              <CameraIcon />
+              Usar cámara              
+
             </button>
 
             <button
@@ -179,8 +180,8 @@ function UploadField({
                 boxShadow: "0 12px 24px rgba(59,130,246,0.18)",
               }}
             >
-              <CameraIcon />
-              Usar cámara
+              <FileIcon />
+              Subir archivo
             </button>
           </div>
 

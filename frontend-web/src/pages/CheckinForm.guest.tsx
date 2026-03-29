@@ -241,7 +241,6 @@ function UploadField({
           type="file"
           name={inputName}
           accept="image/*"
-          capture="environment"
           onChange={onFile}
           style={{ display: "none" }}
         />

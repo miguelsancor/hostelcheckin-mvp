@@ -535,7 +535,8 @@ export function GuestCard({
               {esCedula && (
                 <>
                   <UploadField
-                    label="Foto cédula frente / ID front (recomendado)"
+                      label="Foto cédula frente / ID front"
+                      subLabel="(recomendado)"
                     inputName="archivoCedula"
                     fileValue={(data as any).archivoCedula || null}
                     onFile={handleFile}

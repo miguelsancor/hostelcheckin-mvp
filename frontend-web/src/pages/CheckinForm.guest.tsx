@@ -72,8 +72,8 @@ function Field({
       style={{
         width: "100%",
         marginBottom: "0.9rem",
-        display: "grid",
-        gridTemplateColumns: isMobile ? "1fr" : "220px 1fr",
+        display: "flex",
+        flexDirection: isMobile ? "column" as const : "row" as const,
         alignItems: isMobile ? "stretch" : "center",
         gap: isMobile ? "0.45rem" : "0.75rem",
         boxSizing: "border-box",
@@ -84,8 +84,12 @@ function Field({
           color: "#9ca3af",
           fontSize: "0.82rem",
           textAlign: isMobile ? "left" : "right",
-          whiteSpace: isMobile ? "normal" : "nowrap",
+          whiteSpace: "normal",
           lineHeight: 1.35,
+          minWidth: isMobile ? undefined : "180px",
+          maxWidth: isMobile ? undefined : "220px",
+          flexShrink: 0,
+          wordBreak: "break-word" as const,
         }}
       >
         {label}
@@ -535,8 +539,7 @@ export function GuestCard({
               {esCedula && (
                 <>
                   <UploadField
-                      label="Foto cédula frente / ID front"
-                      subLabel="(recomendado)"
+                    label="Foto cédula frente / ID front (recomendado)"
                     inputName="archivoCedula"
                     fileValue={(data as any).archivoCedula || null}
                     onFile={handleFile}

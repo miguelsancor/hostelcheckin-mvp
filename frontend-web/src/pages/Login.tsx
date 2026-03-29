@@ -367,36 +367,48 @@ export default function Login() {
 
   const activeTabStyle = (active: boolean): React.CSSProperties => ({
     flex: 1,
-    padding: "10px 12px",
-    borderRadius: 10,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: active ? "rgba(59,130,246,0.22)" : "rgba(255,255,255,0.06)",
+    padding: "11px 12px",
+    borderRadius: 14,
+    border: active ? "1px solid rgba(59,130,246,0.5)" : "1px solid rgba(255,255,255,0.08)",
+    background: active
+      ? "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(124,58,237,0.14))"
+      : "rgba(255,255,255,0.04)",
     color: "#fff",
     fontWeight: 800,
     cursor: "pointer",
+    fontSize: 13,
+    transition: "all 0.25s ease",
+    boxShadow: active ? "0 4px 20px rgba(59,130,246,0.15)" : "none",
   });
 
   return (
     <div style={ui.page}>
       <div style={ui.card}>
         <div style={ui.header}>
-          <img
-            src="https://kuyay.co/wp-content/uploads/2025/02/android-chrome-192x192-1-e1739471996937.png"
-            width="44"
-            height="44"
-            alt="Kuyay"
-            style={{ borderRadius: 12 }}
-          />
+          <div style={{
+            width: 48, height: 48, borderRadius: 14,
+            overflow: "hidden",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}>
+            <img
+              src="https://kuyay.co/wp-content/uploads/2025/02/android-chrome-192x192-1-e1739471996937.png"
+              width="48"
+              height="48"
+              alt="Kuyay"
+              style={{ display: "block" }}
+            />
+          </div>
           <div style={{ textAlign: "left" }}>
-            <div style={{ fontWeight: 800, lineHeight: 1.1 }}>Kuyay Hostel</div>
-            <div style={{ fontSize: 12, opacity: 0.8 }}>Auto Check-in</div>
+            <div style={{ fontWeight: 900, fontSize: 17, lineHeight: 1.1, letterSpacing: "-0.01em" }}>Kuyay Hostel</div>
+            <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>Auto Check-in</div>
           </div>
         </div>
 
         <h2 style={ui.title}>Auto Check-in</h2>
         <p style={ui.subtitle}>
-          Ingresa tu <b>número de reserva</b>, <b>documento</b>, <b>nombre</b>,{" "}
-          <b>email</b> o <b>teléfono</b> del titular para comenzar.
+          Ingresa tu <b style={{ color: "#fff" }}>número de reserva</b>, <b style={{ color: "#fff" }}>documento</b>, <b style={{ color: "#fff" }}>nombre</b>,{" "}
+          <b style={{ color: "#fff" }}>email</b> o <b style={{ color: "#fff" }}>teléfono</b> del titular para comenzar.
         </p>
 
         {/* Tabs */}
@@ -513,9 +525,9 @@ export default function Login() {
           </button>
         </div>
 
-        <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>
+        <div style={{ marginTop: 14, fontSize: 12.5, color: "#64748b", textAlign: "center" }}>
           ¿Necesitas ayuda?{" "}
-          <a href="#" style={{ color: "#93c5fd" }}>
+          <a href="#" style={{ color: "#93c5fd", fontWeight: 700 }}>
             Contactar recepción
           </a>
         </div>
@@ -538,7 +550,7 @@ export default function Login() {
   );
 }
 
-/* ======================= UI STYLES (solo Login) ======================= */
+/* ======================= UI STYLES 2026 (solo Login) ======================= */
 const ui: { [key: string]: React.CSSProperties } = {
   page: {
     minHeight: "100vh",
@@ -550,80 +562,94 @@ const ui: { [key: string]: React.CSSProperties } = {
   },
   card: {
     width: "100%",
-    maxWidth: 460,
-    borderRadius: 18,
-    padding: "18px 18px 16px",
+    maxWidth: 480,
+    borderRadius: 22,
+    padding: "24px 22px 20px",
     color: "#fff",
-    background: "rgba(17, 24, 39, 0.70)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
-    backdropFilter: "blur(10px)",
+    background: "linear-gradient(165deg, rgba(15,23,42,0.92), rgba(2,6,23,0.96))",
+    border: "1px solid rgba(255,255,255,0.08)",
+    boxShadow: "0 32px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04) inset",
+    backdropFilter: "blur(24px)",
   },
   header: {
     display: "flex",
     alignItems: "center",
-    gap: 10,
-    marginBottom: 10,
+    gap: 12,
+    marginBottom: 14,
   },
   title: {
     margin: "6px 0 6px",
-    fontSize: 28,
-    letterSpacing: 0.2,
+    fontSize: 30,
+    letterSpacing: -0.3,
+    fontWeight: 900,
+    background: "linear-gradient(135deg, #fff 60%, #93c5fd)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
   },
   subtitle: {
     margin: 0,
-    opacity: 0.9,
-    fontSize: 13,
-    lineHeight: 1.4,
+    opacity: 0.85,
+    fontSize: 13.5,
+    lineHeight: 1.5,
+    color: "#cbd5e1",
   },
   tabs: {
-    marginTop: 14,
+    marginTop: 16,
     display: "flex",
     gap: 8,
   },
   input: {
     width: "100%",
-    padding: "12px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.92)",
+    padding: "13px 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.93)",
     color: "#111827",
     outline: "none",
     fontSize: 14,
+    transition: "border-color 0.2s ease, box-shadow 0.2s ease",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
   },
   select: {
     width: 160,
-    padding: "12px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.92)",
+    padding: "13px 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.93)",
     color: "#111827",
     outline: "none",
     fontSize: 14,
   },
   hint: {
-    marginTop: -4,
+    marginTop: -2,
     fontSize: 12,
-    opacity: 0.85,
+    opacity: 0.75,
+    color: "#94a3b8",
   },
   primaryBtn: {
     width: "100%",
-    padding: "12px 14px",
-    borderRadius: 12,
+    padding: "13px 14px",
+    borderRadius: 14,
     border: "none",
-    backgroundColor: "#2563eb",
+    background: "linear-gradient(135deg, #2563eb, #7c3aed)",
     color: "#fff",
     fontWeight: 800,
     cursor: "pointer",
+    fontSize: 15,
+    letterSpacing: "0.01em",
+    boxShadow: "0 8px 28px rgba(37,99,235,0.28)",
+    transition: "transform 0.15s ease, box-shadow 0.15s ease",
   },
   secondaryBtn: {
     width: "100%",
-    padding: "12px 14px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    padding: "13px 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.04)",
     color: "#fff",
     fontWeight: 800,
     cursor: "pointer",
+    fontSize: 15,
+    transition: "background-color 0.2s ease",
   },
 };

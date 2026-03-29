@@ -2,18 +2,11 @@ import { useState } from "react";
 import type { Huesped, HuespedEnriquecido, ReservaCobro, ScopeDashboard } from "../admin.types";
 import { formatMoney, ttlockText } from "../admin.utils";
 import {
-  btnDelete,
-  btnEye,
-  btnMoney,
-  btnTtlock,
-  link,
   paymentBadge,
   tabla,
   tablaWrapper,
   td,
   th,
-  trEven,
-  trOdd,
 } from "../admin.styles";
 
 const PAGE_SIZE = 10;

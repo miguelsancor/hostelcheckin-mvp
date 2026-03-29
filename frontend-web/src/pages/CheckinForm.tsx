@@ -190,17 +190,20 @@ export default function CheckinForm() {
             onClick={cargarHuespedesHoy}
             style={{
               padding: isMobile ? "0.75rem 1rem" : "0.75rem 2rem",
-              background: "#10b981",
-              borderRadius: "0.5rem",
+              background: "linear-gradient(135deg, #2563eb, #7c3aed)",
+              borderRadius: "0.85rem",
               border: "none",
               color: "white",
-              fontWeight: "bold",
+              fontWeight: 800,
               cursor: "pointer",
               width: isMobile ? "100%" : "auto",
               maxWidth: isMobile ? "320px" : "none",
+              boxShadow: "0 6px 20px rgba(37,99,235,0.22)",
+              transition: "transform 0.15s ease",
+              fontSize: "0.95rem",
             }}
           >
-            Volver a Consulta
+            ← Volver a Consulta
           </button>
         </div>
 
@@ -275,15 +278,22 @@ export default function CheckinForm() {
           <button
             onClick={handleAddGuest}
             style={{
-              ...styles.button,
-              backgroundColor: "#8b5cf6",
+              background: "linear-gradient(135deg, #8b5cf6, #a855f7)",
+              color: "white",
+              border: "none",
+              borderRadius: "0.85rem",
               width: isMobile ? "100%" : "auto",
               maxWidth: isMobile ? "320px" : "none",
               padding: "0.85rem 1.5rem",
+              fontWeight: 800,
+              cursor: "pointer",
+              fontSize: "0.95rem",
+              boxShadow: "0 6px 20px rgba(139,92,246,0.22)",
+              transition: "transform 0.15s ease",
             }}
             disabled={loading}
           >
-            Agregar Huésped / Add Guest
+            + Agregar Huésped / Add Guest
           </button>
         </div>
 

@@ -100,15 +100,7 @@ export default function CheckinForm() {
         return;
       }
 
-      if (esCedula && !t.archivoCedula) {
-        setDocError("Debes subir la foto de tu cédula (frente) para continuar.");
-        return;
-      }
-
-      if (esPasaporte && !t.archivoPasaporte) {
-        setDocError("Debes subir la foto de tu pasaporte para continuar.");
-        return;
-      }
+      // Documento ya no es obligatorio, solo recomendado
     }
 
     setDocError("");

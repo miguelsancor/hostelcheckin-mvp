@@ -171,3 +171,37 @@ export async function apiDeleteSelectedPasscodes(payload: {
   const json = await parseJson(res);
   return { res, json };
 }
+
+// ============================================================
+// ROOM LOCKS MAP
+// ============================================================
+
+export type RoomLockEntry = { room: string; aliases: string[] };
+export type RoomLocksMap = Record<string, RoomLockEntry>;
+
+export async function apiGetRoomLocksMap(): Promise<RoomLocksMap> {
+  const res = await fetch(`${API_BASE}/admin/room-locks-map`, { credentials: "include" });
+  const json = await parseJson(res);
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  return json?.map || {};
+}
+
+export async function apiAddRoomLockEntry(roomId: string, room: string, aliases: string[]) {
+  const res = await fetch(`${API_BASE}/admin/room-locks-map`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ roomId, room, aliases }),
+  });
+  const json = await parseJson(res);
+  return { res, json };
+}
+
+export async function apiDeleteRoomLockEntry(roomId: string) {
+  const res = await fetch(`${API_BASE}/admin/room-locks-map/${roomId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  const json = await parseJson(res);
+  return { res, json };
+}

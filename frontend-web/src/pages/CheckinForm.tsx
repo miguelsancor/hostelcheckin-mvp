@@ -92,8 +92,6 @@ export default function CheckinForm() {
     const t = formList?.[0];
     if (t) {
       const tipo = (t.tipoDocumento || "").toLowerCase();
-      const esCedula = tipo.includes("céd") || tipo.includes("ced") || tipo === "cédula de ciudadanía" || tipo === "cedula";
-      const esPasaporte = tipo.includes("pasaporte") || tipo.includes("passport");
 
       if (!tipo) {
         setDocError("Debes seleccionar el tipo de documento antes de continuar.");

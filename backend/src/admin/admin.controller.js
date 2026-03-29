@@ -1,6 +1,22 @@
 const prisma = require("../utils/prismaClient");
 const { nowMs } = require("../utils/helpers");
 const { getAccessToken, ttPost } = require("../mcp/ttlock.service");
+const fs = require("fs");
+const path = require("path");
+
+const ROOM_LOCKS_MAP_PATH = path.join(__dirname, "../../config/roomLocksMap.json");
+
+function loadRoomLocksMap() {
+  try {
+    return JSON.parse(fs.readFileSync(ROOM_LOCKS_MAP_PATH, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+function saveRoomLocksMap(data) {
+  fs.writeFileSync(ROOM_LOCKS_MAP_PATH, JSON.stringify(data, null, 2), "utf-8");
+}
 
 
 /* =======================================================================
@@ -275,6 +291,76 @@ async function metrics(_req, res) {
   }
 }
 
+/* =======================================================================
+   ADMIN - ROOM LOCKS MAP (CRUD)
+   ======================================================================= */
+async function getRoomLocksMap(_req, res) {
+  try {
+    const map = loadRoomLocksMap();
+    res.json({ ok: true, map });
+  } catch (e) {
+    console.error("getRoomLocksMap:", e);
+    res.status(500).json({ ok: false, error: "Error al leer el mapa" });
+  }
+}
+
+async function addRoomLockEntry(req, res) {
+  try {
+    const { roomId, room, aliases } = req.body;
+    if (!roomId || !room) {
+      return res.status(400).json({ ok: false, error: "roomId y room son obligatorios" });
+    }
+    const map = loadRoomLocksMap();
+    if (map[roomId]) {
+      return res.status(409).json({ ok: false, error: `El room_id ${roomId} ya existe con habitación: ${map[roomId].room}` });
+    }
+    map[roomId] = {
+      room: room.toUpperCase(),
+      aliases: Array.isArray(aliases) && aliases.length > 0 ? aliases : ["Door 1 Ay", "Door 2 Ay"],
+    };
+    saveRoomLocksMap(map);
+    res.json({ ok: true, added: roomId, entry: map[roomId] });
+  } catch (e) {
+    console.error("addRoomLockEntry:", e);
+    res.status(500).json({ ok: false, error: "Error al agregar entrada" });
+  }
+}
+
+async function updateRoomLockEntry(req, res) {
+  try {
+    const { roomId } = req.params;
+    const { room, aliases } = req.body;
+    const map = loadRoomLocksMap();
+    if (!map[roomId]) {
+      return res.status(404).json({ ok: false, error: `room_id ${roomId} no encontrado` });
+    }
+    if (room) map[roomId].room = room.toUpperCase();
+    if (Array.isArray(aliases)) map[roomId].aliases = aliases;
+    saveRoomLocksMap(map);
+    res.json({ ok: true, updated: roomId, entry: map[roomId] });
+  } catch (e) {
+    console.error("updateRoomLockEntry:", e);
+    res.status(500).json({ ok: false, error: "Error al actualizar" });
+  }
+}
+
+async function deleteRoomLockEntry(req, res) {
+  try {
+    const { roomId } = req.params;
+    const map = loadRoomLocksMap();
+    if (!map[roomId]) {
+      return res.status(404).json({ ok: false, error: `room_id ${roomId} no encontrado` });
+    }
+    const deleted = map[roomId];
+    delete map[roomId];
+    saveRoomLocksMap(map);
+    res.json({ ok: true, deleted: roomId, entry: deleted });
+  } catch (e) {
+    console.error("deleteRoomLockEntry:", e);
+    res.status(500).json({ ok: false, error: "Error al eliminar" });
+  }
+}
+
 module.exports = {
   listarHuespedes,
   detalleHuesped,
@@ -283,4 +369,8 @@ module.exports = {
   actualizarCheckinPorReserva,
   stats,
   metrics,
+  getRoomLocksMap,
+  addRoomLockEntry,
+  updateRoomLockEntry,
+  deleteRoomLockEntry,
 };

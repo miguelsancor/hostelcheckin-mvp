@@ -9,6 +9,10 @@ const {
   actualizarCheckinPorReserva,
   stats,
   metrics,
+  getRoomLocksMap,
+  addRoomLockEntry,
+  updateRoomLockEntry,
+  deleteRoomLockEntry,
 } = require("./admin.controller");
 
 const {
@@ -58,5 +62,15 @@ router.get("/cobros/:numeroReserva", getReservaCobro);
 
 // /admin/cobros
 router.post("/cobros", saveReservaCobro);
+
+// ============================================================
+// ROOM LOCKS MAP (MAPEO HABITACIONES)
+// ============================================================
+
+// /admin/room-locks-map
+router.get("/room-locks-map", getRoomLocksMap);
+router.post("/room-locks-map", addRoomLockEntry);
+router.put("/room-locks-map/:roomId", updateRoomLockEntry);
+router.delete("/room-locks-map/:roomId", deleteRoomLockEntry);
 
 module.exports = router;

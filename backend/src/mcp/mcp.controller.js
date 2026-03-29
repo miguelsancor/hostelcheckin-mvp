@@ -2,7 +2,20 @@ const { nowMs } = require("../utils/helpers");
 const { TTLOCK_BASE, getAccessToken, ttPost } = require("./ttlock.service");
 const prisma = require("../utils/prismaClient");
 const crypto = require("crypto");
-const roomLocksMap = require("../../config/roomLocksMap.json");
+const fs = require("fs");
+const path = require("path");
+
+const ROOM_LOCKS_MAP_PATH = path.join(__dirname, "../../config/roomLocksMap.json");
+
+function loadRoomLocksMap() {
+  try {
+    const raw = fs.readFileSync(ROOM_LOCKS_MAP_PATH, "utf-8");
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error("Error leyendo roomLocksMap.json:", e.message);
+    return {};
+  }
+}
 
 /* =======================================================================
    Helpers internos
@@ -667,11 +680,13 @@ async function createPasscodeAll(req, res) {
       });
     }
 
+    const roomLocksMap = loadRoomLocksMap();
     const map = roomLocksMap[rid];
     if (!map || !Array.isArray(map.aliases) || map.aliases.length === 0) {
       return res.status(404).json({
         ok: false,
-        error: `No existe mapeo para room_id=${rid} en roomLocksMap.json`,
+        error: `El room_id ${rid} no está registrado en el sistema. Ve al Panel de Administración → Mapeo de Habitaciones y agrégalo antes de generar el código.`,
+        missingRoomId: rid,
       });
     }
 

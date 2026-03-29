@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import AgentPanel from "../agent/AgentPanel";
 import { useAdminAuth } from "./hooks/useAdminAuth";
 import { useAdminDashboard } from "./hooks/useAdminDashboard";
@@ -28,10 +28,12 @@ import { GuestsTable } from "./components/GuestsTable";
 import { GuestDetailModal } from "./modals/GuestDetailModal";
 import { TtlockModal } from "./modals/TtlockModal";
 import { defaultCobro, formatMoney, ttlockText } from "./admin.utils";
+const RoomLocksManager = lazy(() => import("./components/RoomLocksManager"));
 
 export default function AdminDashboard() {
   const auth = useAdminAuth();
   const [showAgent, setShowAgent] = useState(false);
+  const [showRoomMap, setShowRoomMap] = useState(false);
 
   const dashboard = useAdminDashboard(auth.autenticado, () => {
     auth.setAutenticado(false);
@@ -77,7 +79,22 @@ export default function AdminDashboard() {
           }}
         >
           <h1>Dashboard Administrativo</h1>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <button
+              onClick={() => setShowRoomMap(!showRoomMap)}
+              style={{
+                background: showRoomMap ? "#16a34a" : "#374151",
+                color: "white",
+                border: "none",
+                padding: "0.5rem 1rem",
+                borderRadius: "0.6rem",
+                cursor: "pointer",
+                fontWeight: 700,
+                fontSize: "0.9rem",
+              }}
+            >
+              🏠 Habitaciones
+            </button>
             <button
               onClick={() => setShowAgent(true)}
               style={{
@@ -100,6 +117,12 @@ export default function AdminDashboard() {
         </div>
 
         <MetricsPanel metrics={dashboard.metrics} />
+
+        {showRoomMap && (
+          <Suspense fallback={<p style={{ color: "#aaa" }}>Cargando...</p>}>
+            <RoomLocksManager />
+          </Suspense>
+        )}
 
         <AdminToolbar
           vista={dashboard.vista}

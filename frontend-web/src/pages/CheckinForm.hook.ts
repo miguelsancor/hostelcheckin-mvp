@@ -57,22 +57,8 @@ function stripFiles(h: Huesped) {
   return rest;
 }
 
-function joinUrl(base: string, path: string) {
-  const cleanBase = (base || "").replace(/\/+$/, "");
-  const cleanPath = `/${String(path || "").replace(/^\/+/, "")}`;
-  return `${cleanBase}${cleanPath}`;
-}
-
-function buildApiUrl(path: string) {
-  const normalizedPath = String(path || "").replace(/^\/+/, "");
-  const pathWithoutApiPrefix = normalizedPath.replace(/^api\/+/, "");
-  return joinUrl(API_BASE, pathWithoutApiPrefix);
-}
-
-function buildMcpUrl(path: string) {
-  const normalizedPath = String(path || "").replace(/^\/+/, "");
-  const pathWithoutMcpPrefix = normalizedPath.replace(/^mcp\/+/, "");
-  return joinUrl("", `/mcp/${pathWithoutMcpPrefix}`);
+function buildUrl(path: string) {
+  return `${API_BASE}${path}`;
 }
 
 /* ======================= HOOK PRINCIPAL ======================= */
@@ -95,7 +81,7 @@ export function useCheckinForm() {
     try {
       if (sessionToken && sessionToken.trim().length > 10) return;
 
-      const resp = await fetch(buildApiUrl("/checkin/session"), {
+      const resp = await fetch(buildUrl("/api/checkin/session"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -127,7 +113,7 @@ export function useCheckinForm() {
           setLoading(true);
 
           const resp = await fetch(
-            buildApiUrl(`/checkin/session/${encodeURIComponent(token)}`)
+            buildUrl(`/api/checkin/session/${encodeURIComponent(token)}`)
           );
           const json = await resp.json();
 
@@ -177,7 +163,7 @@ export function useCheckinForm() {
         try {
           setLoading(true);
 
-          const resp = await fetch(buildApiUrl(`/checkin/por-reserva/${orderId}`));
+          const resp = await fetch(buildUrl(`/api/checkin/por-reserva/${orderId}`));
           const json = await resp.json();
 
           if (!json.ok || !json.data) {
@@ -292,7 +278,7 @@ export function useCheckinForm() {
   }
 
   useEffect(() => {
-    fetch(buildMcpUrl("/keys"))
+    fetch(buildUrl("/mcp/keys"))
       .then((res) => res.json())
       .then((json) => {
         if (Array.isArray(json?.list)) setLocks(json.list);
@@ -308,7 +294,7 @@ export function useCheckinForm() {
 
     saveTimer.current = setTimeout(async () => {
       try {
-        await fetch(buildApiUrl(`/checkin/session/${encodeURIComponent(sessionToken)}`), {
+        await fetch(buildUrl(`/api/checkin/session/${encodeURIComponent(sessionToken)}`), {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -378,7 +364,7 @@ export function useCheckinForm() {
 
   const cargarHuespedesHoy = async () => {
     try {
-      const res = await fetch(buildApiUrl("/checkin/hoy"));
+      const res = await fetch(buildUrl("/api/checkin/hoy"));
       const json = await res.json();
       setHuespedesHoy(json.huespedes || []);
     } catch {
@@ -437,7 +423,7 @@ export function useCheckinForm() {
         }
       });
 
-      const res = await fetch(buildApiUrl("/checkin"), {
+      const res = await fetch(buildUrl("/api/checkin"), {
         method: "POST",
         body: fd,
       });

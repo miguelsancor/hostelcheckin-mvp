@@ -9,15 +9,7 @@ import { usePayment } from "./CheckinForm.payment.hook";
 import LanguageSelector from "../components/LanguageSelector";
 import { useLanguage } from "../i18n";
 
-/* ── Icons ── */
-function CameraHintIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M9 4.5L7.4 6.5H5.5C4.12 6.5 3 7.62 3 9V17.5C3 18.88 4.12 20 5.5 20H18.5C19.88 20 21 18.88 21 17.5V9C21 7.62 19.88 6.5 18.5 6.5H16.6L15 4.5H9Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-      <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="1.8" />
-    </svg>
-  );
-}
+/* ── (icons moved to GuestCard) ── */
 
 export default function CheckinForm() {
   const { language, setLanguage, t } = useLanguage();

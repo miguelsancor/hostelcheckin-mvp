@@ -3,7 +3,18 @@ import { styles } from "./CheckinForm.styles";
 import type { Huesped } from "./CheckinForm.types";
 import { useLanguage } from "../i18n";
 
-const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
+/* API_BASE: usar variable de entorno, o inferir del dominio actual (puerto 4000) */
+function getApiBase(): string {
+  const envBase = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
+  if (envBase) return envBase;
+  // Si no hay VITE_API_BASE, inferir: mismo host pero puerto 4000
+  if (typeof window !== "undefined") {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:4000`;
+  }
+  return "";
+}
+const API_BASE = getApiBase();
 
 type GuestCardProps = {
   data: Huesped;
@@ -126,9 +137,11 @@ function UploadField({ label, inputName, fileValue, onFile, onOcrFile }: UploadF
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileWithOcr = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onFile(e);
     const file = e.target.files?.[0];
+    // Primero capturar el archivo antes de que onFile limpie el input
+    onFile(e);
     if (file && onOcrFile) {
+      console.log("[OCR] Archivo capturado para OCR:", file.name, file.type, file.size);
       onOcrFile(file);
     }
   };
@@ -263,26 +276,39 @@ export function GuestCard({
 
   /* ── OCR: enviar imagen al backend ── */
   const handleOcrFile = async (file: File) => {
-    if (!file || !file.type.startsWith("image/")) return;
-    if (index !== 0) return;
+    console.log("[OCR] handleOcrFile llamado", { name: file.name, type: file.type, size: file.size, index });
+    if (!file || !file.type.startsWith("image/")) {
+      console.warn("[OCR] Archivo ignorado: no es imagen", file.type);
+      return;
+    }
+    if (index !== 0) {
+      console.warn("[OCR] Ignorado: no es titular (index=", index, ")");
+      return;
+    }
 
     setOcrLoading(true);
     setOcrMessage({ type: "info", text: t("docReader.reading") });
 
     try {
+      const url = `${API_BASE}/api/document-reader/extract`;
+      console.log("[OCR] Enviando a:", url);
+
       const fd = new FormData();
       fd.append("documento", file);
 
-      const resp = await fetch(`${API_BASE}/api/document-reader/extract`, {
+      const resp = await fetch(url, {
         method: "POST",
         body: fd,
       });
 
+      console.log("[OCR] Respuesta status:", resp.status);
       const json = await resp.json();
+      console.log("[OCR] Respuesta JSON:", JSON.stringify(json));
 
       if (!json.ok) {
         const reasonKey = OCR_REASON_MAP[json.reason] || "docReader.readFail";
         setOcrMessage({ type: "error", text: t(reasonKey) });
+        setOcrLoading(false);
         return;
       }
 
@@ -303,17 +329,20 @@ export function GuestCard({
         }
       }
 
+      console.log("[OCR] Campos extraídos:", fields, "autoKeys:", autoKeys);
+
       if (Object.keys(fields).length > 0 && onAutoFill) {
         onAutoFill(fields, [...autoKeys, ...reviewKeys]);
-        setOcrMessage({ type: "success", text: t("docReader.verifyInfo") });
+        setOcrMessage({ type: "success", text: `✅ ${t("docReader.verifyInfo")} (${Object.keys(fields).length} campos)` });
       } else {
         setOcrMessage({ type: "error", text: t("docReader.readFail") });
       }
-    } catch {
-      setOcrMessage({ type: "error", text: t("docReader.readFail") });
+    } catch (err) {
+      console.error("[OCR] Error:", err);
+      setOcrMessage({ type: "error", text: `${t("docReader.readFail")} — ${API_BASE ? "Error de conexión" : "API no configurada"}` });
     } finally {
       setOcrLoading(false);
-      setTimeout(() => setOcrMessage(null), 8000);
+      // No borrar el mensaje automáticamente en caso de éxito para que el usuario lo vea
     }
   };
 
@@ -351,6 +380,48 @@ export function GuestCard({
 
   return (
     <div style={styles.card}>
+      {/* ═══ OCR Status Global (siempre visible) ═══ */}
+      {ocrMessage && (
+        <div
+          style={{
+            marginBottom: "1rem",
+            padding: "0.85rem 1rem",
+            borderRadius: "0.85rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.65rem",
+            fontSize: "0.9rem",
+            fontWeight: 700,
+            background:
+              ocrMessage.type === "success"
+                ? "rgba(16,185,129,0.15)"
+                : ocrMessage.type === "error"
+                ? "rgba(239,68,68,0.15)"
+                : "rgba(59,130,246,0.15)",
+            border:
+              ocrMessage.type === "success"
+                ? "1px solid rgba(16,185,129,0.35)"
+                : ocrMessage.type === "error"
+                ? "1px solid rgba(239,68,68,0.35)"
+                : "1px solid rgba(59,130,246,0.35)",
+            color:
+              ocrMessage.type === "success"
+                ? "#86efac"
+                : ocrMessage.type === "error"
+                ? "#fca5a5"
+                : "#93c5fd",
+          }}
+        >
+          {ocrLoading ? (
+            <span style={{ animation: "spin 1s linear infinite", display: "inline-block", fontSize: "1.1rem" }}>⟳</span>
+          ) : ocrMessage.type === "success" ? (
+            <SuccessIcon />
+          ) : (
+            <ScanIcon />
+          )}
+          <span>{ocrMessage.text}</span>
+        </div>
+      )}
       {/* ═══════════════════════════════════════
           PASO 1 — Titular: Elegir modo (escanear o manual)
           ═══════════════════════════════════════ */}
@@ -508,46 +579,7 @@ export function GuestCard({
             </p>
           </div>
 
-          {/* OCR Status */}
-          {ocrMessage && (
-            <div
-              style={{
-                marginBottom: "0.85rem",
-                padding: "0.7rem 0.9rem",
-                borderRadius: "0.75rem",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.6rem",
-                fontSize: "0.86rem",
-                fontWeight: 700,
-                background:
-                  ocrMessage.type === "success"
-                    ? "rgba(16,185,129,0.12)"
-                    : ocrMessage.type === "error"
-                    ? "rgba(239,68,68,0.12)"
-                    : "rgba(59,130,246,0.12)",
-                border:
-                  ocrMessage.type === "success"
-                    ? "1px solid rgba(16,185,129,0.25)"
-                    : ocrMessage.type === "error"
-                    ? "1px solid rgba(239,68,68,0.25)"
-                    : "1px solid rgba(59,130,246,0.25)",
-                color:
-                  ocrMessage.type === "success"
-                    ? "#86efac"
-                    : ocrMessage.type === "error"
-                    ? "#fca5a5"
-                    : "#93c5fd",
-              }}
-            >
-              {ocrLoading ? (
-                <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>⟳</span>
-              ) : (
-                <ScanIcon />
-              )}
-              {ocrMessage.text}
-            </div>
-          )}
+          {/* OCR Status ya se muestra arriba globalmente */}
 
           {/* Uploads según tipo de documento */}
           {scanDocType === "Cédula" && (

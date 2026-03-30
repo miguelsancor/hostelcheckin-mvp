@@ -3,18 +3,26 @@ import { styles } from "./CheckinForm.styles";
 import type { Huesped } from "./CheckinForm.types";
 import { useLanguage } from "../i18n";
 
-/* API_BASE: usar variable de entorno, o inferir del dominio actual (puerto 4000) */
+/* API_BASE: usar variable de entorno, soportando proxy /api sin duplicarlo */
 function getApiBase(): string {
   const envBase = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
   if (envBase) return envBase;
-  // Si no hay VITE_API_BASE, inferir: mismo host pero puerto 4000
   if (typeof window !== "undefined") {
     const { protocol, hostname } = window.location;
     return `${protocol}//${hostname}:4000`;
   }
   return "";
 }
-const API_BASE = getApiBase();
+
+function buildApiUrl(path: string): string {
+  const base = getApiBase();
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (!base) return cleanPath;
+  if (base === "/api" && cleanPath.startsWith("/api/")) return cleanPath;
+
+  return `${base}${cleanPath}`;
+}
 
 type GuestCardProps = {
   data: Huesped;
@@ -290,7 +298,7 @@ export function GuestCard({
     setOcrMessage({ type: "info", text: t("docReader.reading") });
 
     try {
-      const url = `${API_BASE}/api/document-reader/extract`;
+      const url = buildApiUrl("/api/document-reader/extract");
       console.log("[OCR] Enviando a:", url);
 
       const fd = new FormData();
@@ -339,7 +347,7 @@ export function GuestCard({
       }
     } catch (err) {
       console.error("[OCR] Error:", err);
-      setOcrMessage({ type: "error", text: `${t("docReader.readFail")} — ${API_BASE ? "Error de conexión" : "API no configurada"}` });
+      setOcrMessage({ type: "error", text: `${t("docReader.readFail")} — ${getApiBase() ? "Error de conexión" : "API no configurada"}` });
     } finally {
       setOcrLoading(false);
       // No borrar el mensaje automáticamente en caso de éxito para que el usuario lo vea

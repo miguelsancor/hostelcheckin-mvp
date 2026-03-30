@@ -5,7 +5,6 @@
  * retorna campos con confidence scoring.
  */
 const fs = require("fs");
-const path = require("path");
 const axios = require("axios");
 const { renameWithExtension } = require("../utils/upload");
 
@@ -103,7 +102,6 @@ async function extractDocument(req, res) {
         ],
         temperature: 0.1,
         max_tokens: 1024,
-        response_format: { type: "json_object" },
       },
       {
         headers: {
@@ -116,9 +114,11 @@ async function extractDocument(req, res) {
 
     const content = groqResp.data?.choices?.[0]?.message?.content || "{}";
 
+    console.log("📄 document-reader raw content:", content);
+
     let parsed;
     try {
-      parsed = JSON.parse(content);
+      parsed = safeParseJson(content);
     } catch {
       console.error("❌ document-reader: respuesta Groq no es JSON válido:", content);
       return res.json({ ok: false, reason: "PARSE_ERROR" });
@@ -126,13 +126,29 @@ async function extractDocument(req, res) {
 
     return res.json(parsed);
   } catch (err) {
-    console.error("❌ document-reader error:", err?.response?.data || err.message);
+    console.error("❌ document-reader error:", err?.response?.status, err?.response?.data || err.message);
+
+    if (err?.response?.status === 400 || err?.response?.status === 401 || err?.response?.status === 403) {
+      return res.status(500).json({ ok: false, reason: "SERVICE_UNAVAILABLE" });
+    }
 
     if (err?.response?.status === 429) {
       return res.status(429).json({ ok: false, reason: "RATE_LIMITED" });
     }
 
     return res.status(500).json({ ok: false, reason: "INTERNAL_ERROR" });
+  }
+}
+
+function safeParseJson(content) {
+  if (!content) return {};
+
+  try {
+    return JSON.parse(content);
+  } catch {
+    const match = String(content).match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("Invalid JSON");
+    return JSON.parse(match[0]);
   }
 }
 

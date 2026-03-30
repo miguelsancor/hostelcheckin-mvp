@@ -1,9 +1,28 @@
-import React, { useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { styles } from "./CheckinForm.styles";
 import type { Huesped } from "./CheckinForm.types";
 import { useLanguage } from "../i18n";
 
-const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
+/* API_BASE: usar variable de entorno, soportando proxy /api sin duplicarlo */
+function getApiBase(): string {
+  const envBase = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
+  if (envBase) return envBase;
+  if (typeof window !== "undefined") {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:4000`;
+  }
+  return "";
+}
+
+function buildApiUrl(path: string): string {
+  const base = getApiBase();
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (!base) return cleanPath;
+  if (base === "/api" && cleanPath.startsWith("/api/")) return cleanPath;
+
+  return `${base}${cleanPath}`;
+}
 
 type GuestCardProps = {
   data: Huesped;
@@ -111,7 +130,7 @@ function Field({
   );
 }
 
-/* ── Upload field con OCR ── */
+/* ── Upload field compacto ── */
 type UploadFieldProps = {
   label: string;
   inputName: string;
@@ -126,90 +145,88 @@ function UploadField({ label, inputName, fileValue, onFile, onOcrFile }: UploadF
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileWithOcr = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onFile(e);
     const file = e.target.files?.[0];
+    // Primero capturar el archivo antes de que onFile limpie el input
+    onFile(e);
     if (file && onOcrFile) {
+      console.log("[OCR] Archivo capturado para OCR:", file.name, file.type, file.size);
       onOcrFile(file);
     }
   };
 
   return (
-    <Field label={label}>
-      <div style={{ width: "100%", minWidth: 0 }}>
+    <div style={{ width: "100%", marginBottom: "0.75rem" }}>
+      <div style={{ color: "#9ca3af", fontSize: "0.82rem", marginBottom: "0.4rem", fontWeight: 600 }}>
+        {label}
+      </div>
+      <div
+        style={{
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: "1rem",
+          padding: isMobile ? "0.75rem" : "0.85rem",
+        }}
+      >
         <div
           style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: "1rem",
-            padding: isMobile ? "0.85rem" : "0.95rem",
-            boxShadow: "0 10px 24px rgba(0,0,0,0.18)",
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+            gap: "0.6rem",
           }}
         >
-          <div
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
             style={{
-              display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-              gap: "0.7rem",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              gap: "0.55rem", minHeight: "48px", width: "100%", borderRadius: "0.85rem",
+              background: "linear-gradient(135deg, #1e293b, #334155)",
+              color: "white", border: "1px solid rgba(255,255,255,0.10)",
+              cursor: "pointer", fontWeight: 800, fontSize: "0.86rem",
             }}
           >
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                gap: "0.55rem", minHeight: "52px", width: "100%", borderRadius: "0.85rem",
-                background: "linear-gradient(135deg, #1e293b, #334155)",
-                color: "white", border: "1px solid rgba(255,255,255,0.10)",
-                cursor: "pointer", fontWeight: 800, fontSize: "0.88rem",
-              }}
-            >
-              <CameraIcon />
-              {t("guest.btnCamera")}
-            </button>
+            <CameraIcon />
+            {t("guest.btnCamera")}
+          </button>
 
-            <button
-              type="button"
-              onClick={() => cameraInputRef.current?.click()}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                gap: "0.55rem", minHeight: "52px", width: "100%", borderRadius: "0.85rem",
-                background: "linear-gradient(135deg, #2563eb, #7c3aed)",
-                color: "white", border: "none", cursor: "pointer",
-                fontWeight: 800, fontSize: "0.88rem",
-                boxShadow: "0 12px 24px rgba(59,130,246,0.18)",
-              }}
-            >
-              <FileIcon />
-              {t("guest.btnFile")}
-            </button>
-          </div>
-
-          <div style={{ marginTop: "0.7rem", color: "#94a3b8", fontSize: "0.78rem", lineHeight: 1.45 }}>
-            {t("guest.uploadHint")}
-          </div>
-
-          <div
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
             style={{
-              marginTop: "0.8rem", minHeight: "38px", borderRadius: "0.8rem",
-              border: fileValue ? "1px solid rgba(16,185,129,0.25)" : "1px dashed rgba(255,255,255,0.12)",
-              background: fileValue ? "rgba(16,185,129,0.08)" : "rgba(255,255,255,0.02)",
-              display: "flex", alignItems: "center", gap: "0.55rem",
-              padding: "0.7rem 0.85rem",
-              color: fileValue ? "#34d399" : "#94a3b8", fontSize: "0.82rem", wordBreak: "break-word",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              gap: "0.55rem", minHeight: "48px", width: "100%", borderRadius: "0.85rem",
+              background: "linear-gradient(135deg, #2563eb, #7c3aed)",
+              color: "white", border: "none", cursor: "pointer",
+              fontWeight: 800, fontSize: "0.86rem",
+              boxShadow: "0 8px 20px rgba(59,130,246,0.18)",
             }}
           >
-            {fileValue ? (
-              <><SuccessIcon /><span>{fileValue.name}</span></>
-            ) : (
-              <span>{t("guest.noFile")}</span>
-            )}
-          </div>
+            <FileIcon />
+            {t("guest.btnFile")}
+          </button>
         </div>
 
-        <input ref={fileInputRef} type="file" name={inputName} accept="image/*,.pdf" onChange={handleFileWithOcr} style={{ display: "none" }} />
-        <input ref={cameraInputRef} type="file" name={inputName} accept="image/*" onChange={handleFileWithOcr} style={{ display: "none" }} />
+        <div
+          style={{
+            marginTop: "0.6rem", minHeight: "36px", borderRadius: "0.8rem",
+            border: fileValue ? "1px solid rgba(16,185,129,0.25)" : "1px dashed rgba(255,255,255,0.12)",
+            background: fileValue ? "rgba(16,185,129,0.08)" : "rgba(255,255,255,0.02)",
+            display: "flex", alignItems: "center", gap: "0.55rem",
+            padding: "0.55rem 0.75rem",
+            color: fileValue ? "#34d399" : "#94a3b8", fontSize: "0.8rem", wordBreak: "break-word",
+          }}
+        >
+          {fileValue ? (
+            <><SuccessIcon /><span>{fileValue.name}</span></>
+          ) : (
+            <span>{t("guest.noFile")}</span>
+          )}
+        </div>
       </div>
-    </Field>
+
+      <input ref={fileInputRef} type="file" name={inputName} accept="image/*,.pdf" onChange={handleFileWithOcr} style={{ display: "none" }} />
+      <input ref={cameraInputRef} type="file" name={inputName} accept="image/*" onChange={handleFileWithOcr} style={{ display: "none" }} />
+    </div>
   );
 }
 
@@ -219,8 +236,6 @@ const REASONS_TRIP = [
   "Missed flight", "Family visit", "Sporting event", "Shopping",
   "Academic event", "Other",
 ];
-
-/* ── Reason map for i18n (keys stay in English for backend) ── */
 
 /* ── OCR Error reasons ── */
 const OCR_REASON_MAP: Record<string, string> = {
@@ -254,6 +269,10 @@ export function GuestCard({
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrMessage, setOcrMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
+  /* Estado del flujo documento-primero (solo titular) */
+  const [entryMode, setEntryMode] = useState<"choose" | "scan" | "manual" | null>(null);
+  const [scanDocType, setScanDocType] = useState<"Cédula" | "Pasaporte" | null>(null);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => onChange(index, e);
@@ -265,30 +284,42 @@ export function GuestCard({
 
   /* ── OCR: enviar imagen al backend ── */
   const handleOcrFile = async (file: File) => {
-    if (!file || !file.type.startsWith("image/")) return;
-    if (index !== 0) return; // Solo titular
+    console.log("[OCR] handleOcrFile llamado", { name: file.name, type: file.type, size: file.size, index });
+    if (!file || !file.type.startsWith("image/")) {
+      console.warn("[OCR] Archivo ignorado: no es imagen", file.type);
+      return;
+    }
+    if (index !== 0) {
+      console.warn("[OCR] Ignorado: no es titular (index=", index, ")");
+      return;
+    }
 
     setOcrLoading(true);
     setOcrMessage({ type: "info", text: t("docReader.reading") });
 
     try {
+      const url = buildApiUrl("/api/document-reader/extract");
+      console.log("[OCR] Enviando a:", url);
+
       const fd = new FormData();
       fd.append("documento", file);
 
-      const resp = await fetch(`${API_BASE}/api/document-reader/extract`, {
+      const resp = await fetch(url, {
         method: "POST",
         body: fd,
       });
 
+      console.log("[OCR] Respuesta status:", resp.status);
       const json = await resp.json();
+      console.log("[OCR] Respuesta JSON:", JSON.stringify(json));
 
       if (!json.ok) {
         const reasonKey = OCR_REASON_MAP[json.reason] || "docReader.readFail";
         setOcrMessage({ type: "error", text: t(reasonKey) });
+        setOcrLoading(false);
         return;
       }
 
-      // Aplicar campos con confidence scoring
       const fields: Record<string, string> = {};
       const autoKeys: string[] = [];
       const reviewKeys: string[] = [];
@@ -303,27 +334,43 @@ export function GuestCard({
             fields[key] = value;
             reviewKeys.push(key);
           }
-          // < 0.70: no llenar
         }
       }
 
+      console.log("[OCR] Campos extraídos:", fields, "autoKeys:", autoKeys);
+
       if (Object.keys(fields).length > 0 && onAutoFill) {
         onAutoFill(fields, [...autoKeys, ...reviewKeys]);
-        setOcrMessage({ type: "success", text: t("docReader.verifyInfo") });
+        setOcrMessage({ type: "success", text: `✅ ${t("docReader.verifyInfo")} (${Object.keys(fields).length} campos)` });
       } else {
         setOcrMessage({ type: "error", text: t("docReader.readFail") });
       }
-    } catch {
-      setOcrMessage({ type: "error", text: t("docReader.readFail") });
+    } catch (err) {
+      console.error("[OCR] Error:", err);
+      setOcrMessage({ type: "error", text: `${t("docReader.readFail")} — ${getApiBase() ? "Error de conexión" : "API no configurada"}` });
     } finally {
       setOcrLoading(false);
-      setTimeout(() => setOcrMessage(null), 8000);
+      // No borrar el mensaje automáticamente en caso de éxito para que el usuario lo vea
     }
+  };
+
+  /* Cuando el titular elige tipo doc para escanear, setear en el form */
+  const handleSelectScanDocType = (tipo: "Cédula" | "Pasaporte") => {
+    setScanDocType(tipo);
+    const syntheticEvent = {
+      target: { name: "tipoDocumento", value: tipo },
+    } as React.ChangeEvent<HTMLSelectElement>;
+    onChange(index, syntheticEvent);
   };
 
   const esCedula = data.tipoDocumento === "Cédula";
   const esPasaporte = data.tipoDocumento === "Pasaporte";
   const esTitular = index === 0;
+
+  /* Determinar modo efectivo */
+  const effectiveMode = esTitular ? (entryMode || "choose") : "manual";
+  /* Si ya escaneó y tiene autoFilledFields, mostrar form también */
+  const showForm = effectiveMode === "manual" || (effectiveMode === "scan" && scanDocType !== null) || !esTitular;
 
   const getHighlight = (fieldName: string): "auto" | "review" | null => {
     if (autoFilledFields.includes(fieldName)) return "auto";
@@ -341,30 +388,30 @@ export function GuestCard({
 
   return (
     <div style={styles.card}>
-      {/* OCR Status */}
+      {/* ═══ OCR Status Global (siempre visible) ═══ */}
       {ocrMessage && (
         <div
           style={{
             marginBottom: "1rem",
-            padding: "0.75rem 1rem",
-            borderRadius: "0.75rem",
+            padding: "0.85rem 1rem",
+            borderRadius: "0.85rem",
             display: "flex",
             alignItems: "center",
-            gap: "0.6rem",
-            fontSize: "0.88rem",
+            gap: "0.65rem",
+            fontSize: "0.9rem",
             fontWeight: 700,
             background:
               ocrMessage.type === "success"
-                ? "rgba(16,185,129,0.12)"
+                ? "rgba(16,185,129,0.15)"
                 : ocrMessage.type === "error"
-                ? "rgba(239,68,68,0.12)"
-                : "rgba(59,130,246,0.12)",
+                ? "rgba(239,68,68,0.15)"
+                : "rgba(59,130,246,0.15)",
             border:
               ocrMessage.type === "success"
-                ? "1px solid rgba(16,185,129,0.25)"
+                ? "1px solid rgba(16,185,129,0.35)"
                 : ocrMessage.type === "error"
-                ? "1px solid rgba(239,68,68,0.25)"
-                : "1px solid rgba(59,130,246,0.25)",
+                ? "1px solid rgba(239,68,68,0.35)"
+                : "1px solid rgba(59,130,246,0.35)",
             color:
               ocrMessage.type === "success"
                 ? "#86efac"
@@ -374,156 +421,391 @@ export function GuestCard({
           }}
         >
           {ocrLoading ? (
-            <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>⟳</span>
+            <span style={{ animation: "spin 1s linear infinite", display: "inline-block", fontSize: "1.1rem" }}>⟳</span>
+          ) : ocrMessage.type === "success" ? (
+            <SuccessIcon />
           ) : (
             <ScanIcon />
           )}
-          {ocrMessage.text}
+          <span>{ocrMessage.text}</span>
+        </div>
+      )}
+      {/* ═══════════════════════════════════════
+          PASO 1 — Titular: Elegir modo (escanear o manual)
+          ═══════════════════════════════════════ */}
+      {esTitular && effectiveMode === "choose" && (
+        <div style={{ marginBottom: "1.25rem" }}>
+          <div style={{ textAlign: "center", marginBottom: "1.25rem" }}>
+            <h3 style={{ color: "white", fontSize: "1.15rem", marginBottom: "0.45rem", fontWeight: 900 }}>
+              {t("guest.docSectionTitle")}
+            </h3>
+            <p
+              style={{ color: "#94a3b8", fontSize: "0.88rem", lineHeight: 1.5, margin: 0 }}
+              dangerouslySetInnerHTML={{ __html: t("guest.docSectionDesc") }}
+            />
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+              gap: "0.85rem",
+            }}
+          >
+            {/* Opción: Escanear */}
+            <button
+              type="button"
+              onClick={() => setEntryMode("scan")}
+              style={{
+                background: "linear-gradient(135deg, rgba(37,99,235,0.15), rgba(124,58,237,0.12))",
+                border: "2px solid rgba(59,130,246,0.35)",
+                borderRadius: "1.15rem",
+                padding: "1.5rem 1.25rem",
+                cursor: "pointer",
+                textAlign: "center",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <div style={{ fontSize: "2.2rem", marginBottom: "0.6rem" }}>📷</div>
+              <div style={{ color: "white", fontWeight: 900, fontSize: "1rem", marginBottom: "0.35rem" }}>
+                {t("guest.btnScanDoc")}
+              </div>
+              <div style={{ color: "#94a3b8", fontSize: "0.82rem", lineHeight: 1.4 }}>
+                {t("guest.btnScanDocDesc")}
+              </div>
+            </button>
+
+            {/* Opción: Manual */}
+            <button
+              type="button"
+              onClick={() => setEntryMode("manual")}
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                border: "2px solid rgba(255,255,255,0.12)",
+                borderRadius: "1.15rem",
+                padding: "1.5rem 1.25rem",
+                cursor: "pointer",
+                textAlign: "center",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <div style={{ fontSize: "2.2rem", marginBottom: "0.6rem" }}>✍️</div>
+              <div style={{ color: "white", fontWeight: 900, fontSize: "1rem", marginBottom: "0.35rem" }}>
+                {t("guest.btnManual")}
+              </div>
+              <div style={{ color: "#94a3b8", fontSize: "0.82rem", lineHeight: 1.4 }}>
+                {t("guest.btnManualDesc")}
+              </div>
+            </button>
+          </div>
         </div>
       )}
 
-      <div style={styles.row}>
-        <Field label={t("guest.name")} highlight={getHighlight("nombre")}>
-          <input name="nombre" value={data.nombre || ""} onChange={handleChange} placeholder={t("guest.placeholderName")} style={styles.input} />
-        </Field>
-
-        <Field label={t("guest.docType")} highlight={getHighlight("tipoDocumento")}>
-          <select name="tipoDocumento" value={data.tipoDocumento || ""} onChange={handleChange} style={styles.input}>
-            <option value="">{t("guest.select")}</option>
-            <option value="Cédula">{t("guest.cedula")}</option>
-            <option value="Pasaporte">{t("guest.passport")}</option>
-          </select>
-        </Field>
-
-        <Field label={t("guest.docNumber")} highlight={getHighlight("numeroDocumento")}>
-          <input name="numeroDocumento" value={data.numeroDocumento || ""} onChange={handleChange} placeholder={t("guest.placeholderNumber")} style={styles.input} />
-        </Field>
-
-        <Field label={t("guest.nationality")} highlight={getHighlight("nacionalidad")}>
-          <input name="nacionalidad" value={data.nacionalidad || ""} onChange={handleChange} placeholder={t("guest.placeholderNationality")} style={styles.input} />
-        </Field>
-      </div>
-
-      <div style={styles.row}>
-        <Field label={t("guest.birthDate")} highlight={getHighlight("fechaNacimiento")}>
-          <input type="date" name="fechaNacimiento" value={data.fechaNacimiento || ""} onChange={handleChange} style={styles.input} />
-        </Field>
-
-        <Field label={t("guest.phone")}>
-          <input name="telefono" value={data.telefono || ""} onChange={handleChange} style={styles.input} />
-        </Field>
-
-        <Field label={t("guest.email")}>
-          <input name="email" value={data.email || ""} onChange={handleChange} style={styles.input} />
-        </Field>
-      </div>
-
-      {esTitular && (
-        <>
-          <div style={{ marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-            <div style={styles.row}>
-              <Field label={t("guest.residenceCity")} highlight={getHighlight("ciudadResidencia")}>
-                <input name="ciudadResidencia" value={(data as any).ciudadResidencia || ""} onChange={handleChange} placeholder={t("guest.placeholderResidence")} style={styles.input} />
-              </Field>
-
-              <Field label={t("guest.originCity")} highlight={getHighlight("ciudadProcedencia")}>
-                <input name="ciudadProcedencia" value={(data as any).ciudadProcedencia || ""} onChange={handleChange} placeholder={t("guest.placeholderOrigin")} style={styles.input} />
-              </Field>
-
-              <Field label={t("guest.destinationCity")} highlight={getHighlight("ciudadDestino")}>
-                <input name="ciudadDestino" value={(data as any).ciudadDestino || ""} onChange={handleChange} placeholder={t("guest.placeholderDestination")} style={styles.input} />
-              </Field>
-
-              {esPasaporte && (
-                <>
-                  <Field label={t("guest.originPlace")}>
-                    <input name="lugarProcedencia" value={(data as any).lugarProcedencia || ""} onChange={handleChange} placeholder={t("guest.placeholderOriginPlace")} style={styles.input} />
-                  </Field>
-
-                  <Field label={t("guest.destinationPlace")}>
-                    <input name="lugarDestino" value={(data as any).lugarDestino || ""} onChange={handleChange} placeholder={t("guest.placeholderDestinationPlace")} style={styles.input} />
-                  </Field>
-                </>
-              )}
-
-              <Field label={t("guest.tripReason")}>
-                <select name="motivoViaje" value={data.motivoViaje || ""} onChange={handleChange} style={styles.input}>
-                  <option value="">{t("guest.select")}</option>
-                  {REASONS_TRIP.map((r) => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label={t("guest.address")} highlight={getHighlight("direccion")}>
-                <input name="direccion" value={data.direccion || ""} onChange={handleChange} placeholder={t("guest.placeholderAddress")} style={styles.input} />
-              </Field>
-            </div>
-
-            <div style={styles.row}>
-              <Field label={t("guest.checkin")}>
-                <input type="date" name="fechaIngreso" value={data.fechaIngreso || ""} onChange={handleChange} style={lockedInputStyle} disabled readOnly />
-              </Field>
-
-              <Field label={t("guest.checkout")}>
-                <input type="date" name="fechaSalida" value={data.fechaSalida || ""} onChange={handleChange} style={lockedInputStyle} disabled readOnly />
-              </Field>
-            </div>
-
-            {!esPasaporte && (
-              <div style={{ width: "100%", color: "#9ca3af", fontSize: "0.85rem", textAlign: "center", marginTop: "0.25rem", lineHeight: 1.4 }}>
-                {t("guest.foreignOnlyHint")}
-              </div>
-            )}
+      {/* ═══════════════════════════════════════
+          PASO 2 — Escanear: elegir tipo doc
+          ═══════════════════════════════════════ */}
+      {esTitular && effectiveMode === "scan" && !scanDocType && (
+        <div style={{ marginBottom: "1.25rem" }}>
+          <div style={{ textAlign: "center", marginBottom: "1rem" }}>
+            <h3 style={{ color: "white", fontSize: "1.05rem", marginBottom: "0.35rem", fontWeight: 900 }}>
+              {t("guest.scanDocTypeTitle")}
+            </h3>
           </div>
 
-          <div style={{ marginTop: "1.35rem", paddingTop: "1.25rem", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-            <div style={{ textAlign: "center", marginBottom: "1rem" }}>
-              <h3 style={{ color: "white", fontSize: "1.05rem", marginBottom: "0.3rem" }}>
-                {t("guest.docSectionTitle")}
-              </h3>
-              <p
-                style={{ color: "#94a3b8", fontSize: "0.86rem", lineHeight: 1.45, margin: 0 }}
-                dangerouslySetInnerHTML={{ __html: t("guest.docSectionDesc") }}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+              gap: "0.75rem",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => handleSelectScanDocType("Cédula")}
+              style={{
+                background: "linear-gradient(135deg, #1e293b, #334155)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: "1rem",
+                padding: "1.15rem",
+                cursor: "pointer",
+                color: "white",
+                fontWeight: 800,
+                fontSize: "0.95rem",
+              }}
+            >
+              🪪 {t("guest.scanDocBtnCedula")}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectScanDocType("Pasaporte")}
+              style={{
+                background: "linear-gradient(135deg, #1e293b, #334155)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: "1rem",
+                padding: "1.15rem",
+                cursor: "pointer",
+                color: "white",
+                fontWeight: 800,
+                fontSize: "0.95rem",
+              }}
+            >
+              🛂 {t("guest.scanDocBtnPasaporte")}
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setEntryMode("choose")}
+            style={{
+              marginTop: "0.85rem",
+              background: "transparent",
+              border: "none",
+              color: "#94a3b8",
+              cursor: "pointer",
+              fontSize: "0.82rem",
+              textDecoration: "underline",
+              width: "100%",
+              textAlign: "center",
+            }}
+          >
+            ← {t("form.termsModalBack")}
+          </button>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════
+          PASO 3 — Escanear: subir imagen(es)
+          ═══════════════════════════════════════ */}
+      {esTitular && effectiveMode === "scan" && scanDocType && (
+        <div style={{ marginBottom: "1.25rem" }}>
+          <div style={{ textAlign: "center", marginBottom: "0.85rem" }}>
+            <h3 style={{ color: "white", fontSize: "1rem", marginBottom: "0.3rem", fontWeight: 900 }}>
+              {t("guest.scanStepUpload")}
+            </h3>
+            <p style={{ color: "#94a3b8", fontSize: "0.84rem", lineHeight: 1.45, margin: 0 }}>
+              {t("guest.scanStepUploadDesc")}
+            </p>
+          </div>
+
+          {/* OCR Status ya se muestra arriba globalmente */}
+
+          {/* Uploads según tipo de documento */}
+          {scanDocType === "Cédula" && (
+            <>
+              <UploadField
+                label={t("guest.uploadIdFront")}
+                inputName="archivoCedula"
+                fileValue={(data as any).archivoCedula || null}
+                onFile={handleFile}
+                onOcrFile={handleOcrFile}
               />
+              <UploadField
+                label={t("guest.uploadIdBack")}
+                inputName="archivoFirma"
+                fileValue={(data as any).archivoFirma || null}
+                onFile={handleFile}
+              />
+            </>
+          )}
+
+          {scanDocType === "Pasaporte" && (
+            <UploadField
+              label={t("guest.uploadPassport")}
+              inputName="archivoPasaporte"
+              fileValue={(data as any).archivoPasaporte || null}
+              onFile={handleFile}
+              onOcrFile={handleOcrFile}
+            />
+          )}
+
+          <button
+            type="button"
+            onClick={() => { setScanDocType(null); setEntryMode("choose"); }}
+            style={{
+              marginTop: "0.5rem",
+              background: "transparent",
+              border: "none",
+              color: "#94a3b8",
+              cursor: "pointer",
+              fontSize: "0.82rem",
+              textDecoration: "underline",
+              width: "100%",
+              textAlign: "center",
+            }}
+          >
+            ← {t("form.termsModalBack")}
+          </button>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════
+          FORMULARIO — aparece después de elegir modo
+          ═══════════════════════════════════════ */}
+      {showForm && (
+        <>
+          {esTitular && (
+            <div style={{
+              textAlign: "center",
+              marginBottom: "1rem",
+              paddingBottom: "0.75rem",
+              borderBottom: "1px solid rgba(255,255,255,0.08)",
+            }}>
+              <h3 style={{ color: "white", fontSize: "1.05rem", marginBottom: "0.2rem", fontWeight: 900 }}>
+                {t("guest.formSectionTitle")}
+              </h3>
+              <p style={{ color: "#94a3b8", fontSize: "0.84rem", margin: 0 }}>
+                {t("guest.formSectionDesc")}
+              </p>
             </div>
+          )}
 
-            <div style={styles.row}>
-              {esCedula && (
-                <>
-                  <UploadField
-                    label={t("guest.uploadIdFront")}
-                    inputName="archivoCedula"
-                    fileValue={(data as any).archivoCedula || null}
-                    onFile={handleFile}
-                    onOcrFile={esTitular ? handleOcrFile : undefined}
-                  />
-                  <UploadField
-                    label={t("guest.uploadIdBack")}
-                    inputName="archivoFirma"
-                    fileValue={(data as any).archivoFirma || null}
-                    onFile={handleFile}
-                  />
-                </>
-              )}
+          <div style={styles.row}>
+            <Field label={t("guest.name")} highlight={getHighlight("nombre")}>
+              <input name="nombre" value={data.nombre || ""} onChange={handleChange} placeholder={t("guest.placeholderName")} style={styles.input} />
+            </Field>
 
-              {esPasaporte && (
-                <UploadField
-                  label={t("guest.uploadPassport")}
-                  inputName="archivoPasaporte"
-                  fileValue={(data as any).archivoPasaporte || null}
-                  onFile={handleFile}
-                  onOcrFile={esTitular ? handleOcrFile : undefined}
-                />
-              )}
+            <Field label={t("guest.docType")} highlight={getHighlight("tipoDocumento")}>
+              <select name="tipoDocumento" value={data.tipoDocumento || ""} onChange={handleChange} style={styles.input}>
+                <option value="">{t("guest.select")}</option>
+                <option value="Cédula">{t("guest.cedula")}</option>
+                <option value="Pasaporte">{t("guest.passport")}</option>
+              </select>
+            </Field>
 
-              {!esCedula && !esPasaporte && (
-                <div style={{ width: "100%", color: "#9ca3af", fontSize: "0.85rem", textAlign: "center", padding: "0.75rem 0", lineHeight: 1.4 }}>
-                  {t("guest.selectDocHint")}
+            <Field label={t("guest.docNumber")} highlight={getHighlight("numeroDocumento")}>
+              <input name="numeroDocumento" value={data.numeroDocumento || ""} onChange={handleChange} placeholder={t("guest.placeholderNumber")} style={styles.input} />
+            </Field>
+
+            <Field label={t("guest.nationality")} highlight={getHighlight("nacionalidad")}>
+              <input name="nacionalidad" value={data.nacionalidad || ""} onChange={handleChange} placeholder={t("guest.placeholderNationality")} style={styles.input} />
+            </Field>
+          </div>
+
+          <div style={styles.row}>
+            <Field label={t("guest.birthDate")} highlight={getHighlight("fechaNacimiento")}>
+              <input type="date" name="fechaNacimiento" value={data.fechaNacimiento || ""} onChange={handleChange} style={styles.input} />
+            </Field>
+
+            <Field label={t("guest.phone")}>
+              <input name="telefono" value={data.telefono || ""} onChange={handleChange} style={styles.input} />
+            </Field>
+
+            <Field label={t("guest.email")}>
+              <input name="email" value={data.email || ""} onChange={handleChange} style={styles.input} />
+            </Field>
+          </div>
+
+          {esTitular && (
+            <>
+              <div style={{ marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                <div style={styles.row}>
+                  <Field label={t("guest.residenceCity")} highlight={getHighlight("ciudadResidencia")}>
+                    <input name="ciudadResidencia" value={(data as any).ciudadResidencia || ""} onChange={handleChange} placeholder={t("guest.placeholderResidence")} style={styles.input} />
+                  </Field>
+
+                  <Field label={t("guest.originCity")} highlight={getHighlight("ciudadProcedencia")}>
+                    <input name="ciudadProcedencia" value={(data as any).ciudadProcedencia || ""} onChange={handleChange} placeholder={t("guest.placeholderOrigin")} style={styles.input} />
+                  </Field>
+
+                  <Field label={t("guest.destinationCity")} highlight={getHighlight("ciudadDestino")}>
+                    <input name="ciudadDestino" value={(data as any).ciudadDestino || ""} onChange={handleChange} placeholder={t("guest.placeholderDestination")} style={styles.input} />
+                  </Field>
+
+                  {esPasaporte && (
+                    <>
+                      <Field label={t("guest.originPlace")}>
+                        <input name="lugarProcedencia" value={(data as any).lugarProcedencia || ""} onChange={handleChange} placeholder={t("guest.placeholderOriginPlace")} style={styles.input} />
+                      </Field>
+
+                      <Field label={t("guest.destinationPlace")}>
+                        <input name="lugarDestino" value={(data as any).lugarDestino || ""} onChange={handleChange} placeholder={t("guest.placeholderDestinationPlace")} style={styles.input} />
+                      </Field>
+                    </>
+                  )}
+
+                  <Field label={t("guest.tripReason")}>
+                    <select name="motivoViaje" value={data.motivoViaje || ""} onChange={handleChange} style={styles.input}>
+                      <option value="">{t("guest.select")}</option>
+                      {REASONS_TRIP.map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label={t("guest.address")} highlight={getHighlight("direccion")}>
+                    <input name="direccion" value={data.direccion || ""} onChange={handleChange} placeholder={t("guest.placeholderAddress")} style={styles.input} />
+                  </Field>
+                </div>
+
+                <div style={styles.row}>
+                  <Field label={t("guest.checkin")}>
+                    <input type="date" name="fechaIngreso" value={data.fechaIngreso || ""} onChange={handleChange} style={lockedInputStyle} disabled readOnly />
+                  </Field>
+
+                  <Field label={t("guest.checkout")}>
+                    <input type="date" name="fechaSalida" value={data.fechaSalida || ""} onChange={handleChange} style={lockedInputStyle} disabled readOnly />
+                  </Field>
+                </div>
+
+                {!esPasaporte && (
+                  <div style={{ width: "100%", color: "#9ca3af", fontSize: "0.85rem", textAlign: "center", marginTop: "0.25rem", lineHeight: 1.4 }}>
+                    {t("guest.foreignOnlyHint")}
+                  </div>
+                )}
+              </div>
+
+              {/* Si eligió manual, mostrar upload de docs aquí abajo */}
+              {effectiveMode === "manual" && (
+                <div style={{ marginTop: "1.35rem", paddingTop: "1.25rem", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                  <div style={{ textAlign: "center", marginBottom: "1rem" }}>
+                    <h3 style={{ color: "white", fontSize: "1.05rem", marginBottom: "0.3rem" }}>
+                      {t("guest.docSectionTitle").replace("📄 ", "")}
+                    </h3>
+                    <p
+                      style={{ color: "#94a3b8", fontSize: "0.86rem", lineHeight: 1.45, margin: 0 }}
+                      dangerouslySetInnerHTML={{ __html: t("guest.docSectionDesc") }}
+                    />
+                  </div>
+
+                  <div style={styles.row}>
+                    {esCedula && (
+                      <>
+                        <UploadField
+                          label={t("guest.uploadIdFront")}
+                          inputName="archivoCedula"
+                          fileValue={(data as any).archivoCedula || null}
+                          onFile={handleFile}
+                          onOcrFile={handleOcrFile}
+                        />
+                        <UploadField
+                          label={t("guest.uploadIdBack")}
+                          inputName="archivoFirma"
+                          fileValue={(data as any).archivoFirma || null}
+                          onFile={handleFile}
+                        />
+                      </>
+                    )}
+
+                    {esPasaporte && (
+                      <UploadField
+                        label={t("guest.uploadPassport")}
+                        inputName="archivoPasaporte"
+                        fileValue={(data as any).archivoPasaporte || null}
+                        onFile={handleFile}
+                        onOcrFile={handleOcrFile}
+                      />
+                    )}
+
+                    {!esCedula && !esPasaporte && (
+                      <div style={{ width: "100%", color: "#9ca3af", fontSize: "0.85rem", textAlign: "center", padding: "0.75rem 0", lineHeight: 1.4 }}>
+                        {t("guest.selectDocHint")}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-            </div>
-          </div>
+            </>
+          )}
         </>
       )}
 

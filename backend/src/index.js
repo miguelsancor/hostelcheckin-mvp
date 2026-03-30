@@ -15,8 +15,6 @@ const adminAuthRoutes = require("./admin/admin.auth.routes");
 const traRoutes = require("./tra/tra.routes");
 const agentRoutes = require("./agent/agent.routes");
 const documentReaderRoutes = require("./document-reader/documentReader.routes");
-
-// ✅ NUEVO: rutas de pagos
 const paymentRoutes = require("./payments/payment.router");
 
 const app = express();
@@ -24,6 +22,7 @@ const app = express();
 app.use(cors());
 app.use(cookieParser());
 app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 /* ============================================================
    🔥 SERVIR ARCHIVOS SUBIDOS (IMÁGENES / FIRMAS / DOCUMENTOS)
@@ -60,15 +59,15 @@ console.log("📁 Carpeta de uploads sirviéndose desde:", uploadsPath);
 /* ============================================================
    RUTAS PRINCIPALES
    ============================================================ */
-app.use("/api", checkinRoutes);               // /api/checkin, /api/checkin/...
-app.use("/api/nobeds", nobedsRoutes);         // /api/nobeds/reserva/:id, /reservas
-app.use("/api/tra", traRoutes);               // /api/tra/status/:reserva, /retry/:reserva
-app.use("/api/payments", paymentRoutes);      // ✅ /api/payments/bold/create, /api/payments/:numeroReserva
-app.use("/api/agent", agentRoutes);            // /api/agent/query
-app.use("/api/document-reader", documentReaderRoutes); // /api/document-reader/extract
-app.use("/mcp", mcpRoutes);                   // /mcp/create-key, etc.
-app.use("/admin/auth", adminAuthRoutes);      // /admin/auth/login
-app.use("/admin", adminRoutes);               // /admin/huespedes, /stats, etc.
+app.use("/api", checkinRoutes);
+app.use("/api/nobeds", nobedsRoutes);
+app.use("/api/tra", traRoutes);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/agent", agentRoutes);
+app.use("/api/document-reader", documentReaderRoutes);
+app.use("/mcp", mcpRoutes);
+app.use("/admin/auth", adminAuthRoutes);
+app.use("/admin", adminRoutes);
 
 /* ============================================================
    HEALTHCHECK
@@ -76,7 +75,7 @@ app.use("/admin", adminRoutes);               // /admin/huespedes, /stats, etc.
 app.get("/health", (_req, res) => {
   return res.json({
     ok: true,
-    service: "hostelcheckin-backend"
+    service: "hostelcheckin-backend",
   });
 });
 
@@ -86,7 +85,7 @@ app.get("/health", (_req, res) => {
 app.use((req, res) => {
   return res.status(404).json({
     ok: false,
-    message: "Ruta no encontrada"
+    message: `Ruta no encontrada: ${req.method} ${req.originalUrl}`,
   });
 });
 
@@ -95,9 +94,24 @@ app.use((req, res) => {
    ============================================================ */
 app.use((err, _req, res, _next) => {
   console.error("❌ Error no controlado:", err);
+
+  if (err?.message === "INVALID_FILE_TYPE") {
+    return res.status(400).json({
+      ok: false,
+      reason: "NOT_A_DOCUMENT",
+    });
+  }
+
+  if (err?.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({
+      ok: false,
+      reason: "LOW_RESOLUTION",
+    });
+  }
+
   return res.status(500).json({
     ok: false,
-    message: "Error interno del servidor"
+    message: "Error interno del servidor",
   });
 });
 
@@ -105,6 +119,6 @@ app.use((err, _req, res, _next) => {
    SERVER
    ============================================================ */
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`🚀 Backend corriendo en http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Backend corriendo en http://0.0.0.0:${PORT}`);
 });

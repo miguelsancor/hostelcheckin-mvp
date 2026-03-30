@@ -4,8 +4,16 @@ import { loadPaymentConfig } from "./CheckinForm.payment.types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
 
-function buildUrl(path: string) {
-  return `${API_BASE}${path}`;
+function joinUrl(base: string, path: string) {
+  const cleanBase = (base || "").replace(/\/+$/, "");
+  const cleanPath = `/${String(path || "").replace(/^\/+/, "")}`;
+  return `${cleanBase}${cleanPath}`;
+}
+
+function buildApiUrl(path: string) {
+  const normalizedPath = String(path || "").replace(/^\/+/, "");
+  const pathWithoutApiPrefix = normalizedPath.replace(/^api\/+/, "");
+  return joinUrl(API_BASE, pathWithoutApiPrefix);
 }
 
 export function usePayment(numeroReserva: string, monto: number, descripcion: string) {
@@ -27,7 +35,7 @@ export function usePayment(numeroReserva: string, monto: number, descripcion: st
     setError("");
     setProcessing(true);
     try {
-      const resp = await fetch(buildUrl("/api/payments/create-intent"), {
+      const resp = await fetch(buildApiUrl("/payments/create-intent"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ numeroReserva, monto, canal, descripcion }),
@@ -49,13 +57,16 @@ export function usePayment(numeroReserva: string, monto: number, descripcion: st
   /** Confirm a payment (mock or real) */
   const confirmPayment = useCallback(async (paymentId?: number) => {
     const id = paymentId || intent?.id;
-    if (!id) { setError("No hay intención de pago"); return null; }
+    if (!id) {
+      setError("No hay intención de pago");
+      return null;
+    }
 
     setError("");
     setProcessing(true);
     setStatus("PROCESSING");
     try {
-      const resp = await fetch(buildUrl("/api/payments/confirm"), {
+      const resp = await fetch(buildApiUrl("/payments/confirm"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ paymentId: id }),
@@ -81,13 +92,15 @@ export function usePayment(numeroReserva: string, monto: number, descripcion: st
     if (!id) return;
 
     try {
-      const resp = await fetch(buildUrl(`/api/payments/status/${id}`));
+      const resp = await fetch(buildApiUrl(`/payments/status/${id}`));
       const json = await resp.json();
       if (json.ok && json.payment) {
         setIntent(json.payment);
         if (json.payment.estado === "APPROVED") setStatus("APPROVED");
       }
-    } catch { /* silent */ }
+    } catch {
+      // silent
+    }
   }, [intent]);
 
   /** Open Bold payment flow */

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useCheckinForm } from "./CheckinForm.hook";
 import { GuestCard } from "./CheckinForm.guest";
 import { ResultModal, GuestsTodayModal } from "./CheckinForm.modal";
@@ -6,6 +6,8 @@ import { styles } from "./CheckinForm.styles";
 import TERMS_TEXT from "./terminoscondiciones.txt?raw";
 import { PaymentDemoModal, PaymentGateModal } from "./CheckinForm.payment";
 import { usePayment } from "./CheckinForm.payment.hook";
+import LanguageSelector from "../components/LanguageSelector";
+import { useLanguage } from "../i18n";
 
 /* ── Icons ── */
 function CameraHintIcon() {
@@ -18,6 +20,8 @@ function CameraHintIcon() {
 }
 
 export default function CheckinForm() {
+  const { language, setLanguage, t } = useLanguage();
+
   const {
     formList,
     reserva,
@@ -43,6 +47,7 @@ export default function CheckinForm() {
   const [termsError, setTermsError] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const [paymentGatePassed, setPaymentGatePassed] = useState(false);
+  const [autoFilledFields, setAutoFilledFields] = useState<string[]>([]);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= 768);
@@ -50,6 +55,21 @@ export default function CheckinForm() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  /* ── Autocompletado OCR ── */
+  const handleAutoFill = useCallback(
+    (fields: Record<string, string>, autoKeys: string[]) => {
+      // Simular onChange para cada campo
+      for (const [key, value] of Object.entries(fields)) {
+        const syntheticEvent = {
+          target: { name: key, value },
+        } as React.ChangeEvent<HTMLInputElement>;
+        handleChange(0, syntheticEvent);
+      }
+      setAutoFilledFields((prev) => [...new Set([...prev, ...autoKeys])]);
+    },
+    [handleChange]
+  );
 
   /* ── Payment ── */
   const paymentAmount = useMemo(() => {
@@ -80,33 +100,24 @@ export default function CheckinForm() {
   const [docError, setDocError] = useState("");
 
   const onSubmitClick = () => {
-    if (!payment.canProceed) {
-      return;
-    }
+    if (!payment.canProceed) return;
     if (!acceptTerms) {
-      setTermsError("Debes aceptar los términos y condiciones para continuar.");
+      setTermsError(t("form.termsError"));
       return;
     }
-
-    // Validar documento obligatorio del titular
-    const t = formList?.[0];
-    if (t) {
-      const tipo = (t.tipoDocumento || "").toLowerCase();
-
+    const titularData = formList?.[0];
+    if (titularData) {
+      const tipo = (titularData.tipoDocumento || "").toLowerCase();
       if (!tipo) {
-        setDocError("Debes seleccionar el tipo de documento antes de continuar.");
+        setDocError(t("form.docError"));
         return;
       }
-
-      // Documento ya no es obligatorio, solo recomendado
     }
-
     setDocError("");
     setTermsError("");
     handleSubmit(titular?.motivoViaje || "");
   };
 
-  /* ── Payment gate: show full-screen modal if any payment channel exists and not yet passed ── */
   const showPaymentGate = !paymentGatePassed && !loading && (
     payment.config.enabled ||
     payment.config.channels.bold.enabled ||
@@ -141,13 +152,11 @@ export default function CheckinForm() {
         reserva={reserva as any}
         onClose={() => setShowModal(false)}
       />
-
       <GuestsTodayModal
         show={showModalHoy}
         huespedes={huespedesHoy}
         onClose={cerrarModalHoy}
       />
-
       <PaymentDemoModal
         show={payment.showModal}
         processing={payment.processing}
@@ -173,6 +182,9 @@ export default function CheckinForm() {
           position: "relative",
         }}
       >
+        {/* Selector de idioma */}
+        <LanguageSelector language={language} onChange={setLanguage} />
+
         <h2
           style={{
             ...styles.title,
@@ -182,7 +194,7 @@ export default function CheckinForm() {
             marginBottom: "1rem",
           }}
         >
-          Registro de Huéspedes
+          {t("form.title")}
         </h2>
 
         <div style={{ display: "flex", justifyContent: "center", marginBottom: "1.25rem" }}>
@@ -203,7 +215,7 @@ export default function CheckinForm() {
               fontSize: "0.95rem",
             }}
           >
-            ← Volver a Consulta
+            {t("form.btnBack")}
           </button>
         </div>
 
@@ -217,7 +229,7 @@ export default function CheckinForm() {
               marginBottom: "1rem",
             }}
           >
-            Código de Reserva:{" "}
+            {t("form.codeLabel")}{" "}
             <span style={{ color: "#10b981", wordBreak: "break-word" }}>
               {reserva.numeroReserva}
             </span>
@@ -252,12 +264,10 @@ export default function CheckinForm() {
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ color: "white", fontWeight: 800, fontSize: "0.96rem", marginBottom: "0.25rem" }}>
-              Puedes subir documentos o usar la cámara de tu dispositivo
+              {t("form.cameraHintTitle")}
             </div>
             <div style={{ color: "#cbd5e1", fontSize: "0.84rem", lineHeight: 1.5 }}>
-              En celulares compatibles el sistema intentará abrir la cámara.
-              Algunos navegadores muestran primero el selector del dispositivo.
-              El documento sigue siendo opcional.
+              {t("form.cameraHintDesc")}
             </div>
           </div>
         </div>
@@ -271,6 +281,8 @@ export default function CheckinForm() {
             onChange={handleChange}
             onFile={handleFileChange}
             onRemove={removeGuestByIndex}
+            autoFilledFields={index === 0 ? autoFilledFields : []}
+            onAutoFill={index === 0 ? handleAutoFill : undefined}
           />
         ))}
 
@@ -293,11 +305,11 @@ export default function CheckinForm() {
             }}
             disabled={loading}
           >
-            + Agregar Huésped / Add Guest
+            {t("form.addGuest")}
           </button>
         </div>
 
-        {/* Payment inline summary (only if gate was passed with approved payment) */}
+        {/* Payment inline summary */}
         {payment.status === "APPROVED" && (
           <div style={{
             marginTop: "1.5rem", padding: "0.9rem 1rem",
@@ -306,7 +318,7 @@ export default function CheckinForm() {
             color: "#86efac", fontWeight: 800, fontSize: "0.92rem",
           }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/><path d="M8.7 12.3L10.8 14.4L15.5 9.7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            Pago confirmado — {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(paymentAmount)}
+            {t("form.paymentConfirmed")} — {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(paymentAmount)}
           </div>
         )}
 
@@ -340,7 +352,7 @@ export default function CheckinForm() {
                 style={{ transform: "scale(1.2)", cursor: "pointer", flexShrink: 0 }}
               />
               <label htmlFor="acceptTerms" style={{ color: "white", cursor: "pointer", fontWeight: 700, lineHeight: 1.35 }}>
-                Acepto los Términos y Condiciones del servicio
+                {t("form.termsLabel")}
               </label>
             </div>
             <button
@@ -355,7 +367,7 @@ export default function CheckinForm() {
                 padding: "0.65rem 0.8rem", cursor: "pointer", fontWeight: 700,
               }}
             >
-              Ver términos
+              {t("form.btnTerms")}
             </button>
           </div>
           {termsError && (
@@ -379,13 +391,13 @@ export default function CheckinForm() {
             }}
             disabled={loading || !canSubmit}
           >
-            {loading ? "Enviando..." : "Enviar Registro / Submit"}
+            {loading ? t("form.btnSubmitting") : t("form.btnSubmit")}
           </button>
         </div>
 
         {payment.config.enabled && payment.config.mockMode && (
           <div style={{ marginTop: "0.85rem", textAlign: "center", color: "#fcd34d", fontSize: "0.86rem", lineHeight: 1.45 }}>
-            Aviso: la pasarela de pago está en modo demo. El flujo de registro sigue operando sin bloquear.
+            {t("form.paymentDemo")}
           </div>
         )}
 
@@ -401,7 +413,7 @@ export default function CheckinForm() {
             onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.62)"; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.38)"; }}
           >
-            Acceso interno
+            {t("form.internalAccess")}
           </a>
         </div>
       </div>
@@ -427,7 +439,7 @@ export default function CheckinForm() {
           >
             <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", gap: "1rem" }}>
               <h2 style={{ margin: 0, fontSize: isMobile ? "1rem" : "1.1rem", lineHeight: 1.3 }}>
-                Términos y Condiciones del servicio
+                {t("form.termsModalTitle")}
               </h2>
               <button
                 type="button"
@@ -439,7 +451,7 @@ export default function CheckinForm() {
                   width: isMobile ? "100%" : "auto",
                 }}
               >
-                Cerrar
+                {t("form.termsModalClose")}
               </button>
             </div>
             <div
@@ -463,7 +475,7 @@ export default function CheckinForm() {
                   color: "white", padding: "0.75rem", fontWeight: 900, cursor: "pointer",
                 }}
               >
-                Acepto los términos
+                {t("form.termsModalAccept")}
               </button>
               <button
                 type="button"
@@ -474,7 +486,7 @@ export default function CheckinForm() {
                   fontWeight: 800, cursor: "pointer",
                 }}
               >
-                Volver
+                {t("form.termsModalBack")}
               </button>
             </div>
           </div>

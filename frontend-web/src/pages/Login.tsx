@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import ContactAutocomplete, {
   type ContactSuggestion,
 } from "../components/ContactAutocomplete";
+import LanguageSelector from "../components/LanguageSelector";
+import { useLanguage } from "../i18n";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http:///api";
 
@@ -19,21 +21,15 @@ function toDateInput(value?: string | null) {
   return d.toISOString().slice(0, 10);
 }
 
-// Normaliza un teléfono: quita espacios, guiones, paréntesis
 function normalizePhone(raw: string) {
   const s = String(raw || "").trim();
-  const digits = s.replace(/[^\d]/g, "");
-  return digits;
+  return s.replace(/[^\d]/g, "");
 }
 
-// Genera candidatos para búsqueda: tolera +57, 57, sin prefijo
 function phoneCandidates(input: string) {
   const d = normalizePhone(input);
   if (!d) return [];
-
-  const c: string[] = [];
-  c.push(d);
-
+  const c: string[] = [d];
   if (d.startsWith("57") && d.length >= 12) {
     const tail = d.slice(2);
     c.push(tail);
@@ -42,92 +38,70 @@ function phoneCandidates(input: string) {
     c.push(`57${d}`);
     c.push(`+57${d}`);
   }
-
   return Array.from(new Set(c)).filter(Boolean);
 }
 
-// Normaliza email (trim + lower)
 function normalizeEmail(raw: string) {
   return String(raw || "").trim().toLowerCase();
 }
 
 export default function Login() {
-  // ✅ por defecto contacto
-  const [tipoBusqueda, setTipoBusqueda] = useState<TipoBusqueda>("contacto");
+  const { language, setLanguage, t } = useLanguage();
 
+  const [tipoBusqueda, setTipoBusqueda] = useState<TipoBusqueda>("contacto");
   const [tipoDocumento, setTipoDocumento] = useState("Cédula");
   const [numeroDocumento, setNumeroDocumento] = useState("");
   const [codigoReserva, setCodigoReserva] = useState("");
   const [valorContacto, setValorContacto] = useState("");
   const [contactoSeleccionado, setContactoSeleccionado] =
     useState<ContactSuggestion | null>(null);
-
   const [loading, setLoading] = useState(false);
   const [reservaEncontrada, setReservaEncontrada] = useState<any>(null);
   const navigate = useNavigate();
 
   const tabs = useMemo(
     () => [
-      { key: "codigo" as const, label: "Número de reserva" },
-      { key: "documento" as const, label: "Documento" },
-      { key: "contacto" as const, label: "Nombre / Email / Teléfono" },
+      { key: "codigo" as const, label: t("login.tabCode") },
+      { key: "documento" as const, label: t("login.tabDocument") },
+      { key: "contacto" as const, label: t("login.tabContact") },
     ],
-    []
+    [t]
   );
 
-  /* ===============================================
-      GENERAR Y GUARDAR LINK EN BD (NO BLOQUEANTE)
-  =============================================== */
   const generarYGuardarLink = async (reserva: any) => {
     const numero = String(
       reserva?.numeroReserva || reserva?.order_id || reserva?.numero || ""
     ).trim();
     if (!numero) return;
-
     const PUBLIC_BASE =
       import.meta.env.VITE_PUBLIC_BASE_URL ||
       `${window.location.protocol}//${window.location.host}`;
-
     const link = `${PUBLIC_BASE}/checkin?reserva=${encodeURIComponent(numero)}`;
     localStorage.setItem("checkinUrlReal", link);
-
     try {
       await fetch(`${API_BASE}/admin/huesped/checkin-por-reserva`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ numeroReserva: numero, checkinUrl: link }),
       });
-    } catch {
-      // silencioso
-    }
+    } catch {}
   };
 
-  /* ===============================================
-      ✅ Crear sesión compartible (token) y navegar /checkin?t=
-  =============================================== */
   const crearSesionYNavegar = async (reserva: any) => {
     localStorage.setItem("usuario", JSON.stringify({ role: "guest-checkin" }));
     localStorage.setItem("reserva", JSON.stringify(reserva));
-
     const numeroReserva = String(
       reserva?.numeroReserva || reserva?.order_id || reserva?.numero || ""
     ).trim();
-
     const checkin = toDateInput(reserva?.checkin);
     const checkout = toDateInput(reserva?.checkout);
-
-    // Nobeds: usar balance (deuda pendiente) como monto a cobrar
     const balanceRaw = reserva?.balance;
     const balanceParsed = balanceRaw != null ? Number(balanceRaw) : NaN;
     const cobro = Number.isFinite(balanceParsed) && balanceParsed > 0 ? balanceParsed : undefined;
-
-    // Fallback: price o total solo si no hay balance
     const priceFallback = [reserva?.price, reserva?.total, reserva?.b_price]
-      .map(v => v != null ? Number(v) : NaN)
-      .find(v => Number.isFinite(v) && v > 0);
-
+      .map((v: any) => (v != null ? Number(v) : NaN))
+      .find((v: number) => Number.isFinite(v) && v > 0);
     const montoFinal = cobro ?? priceFallback;
-
     const reservaObj = {
       numeroReserva: numeroReserva || "",
       nombre: reserva?.nombre || reserva?.name || reserva?.b_name || "",
@@ -141,7 +115,6 @@ export default function Login() {
       total: montoFinal,
       price: Number.isFinite(priceFallback) ? priceFallback : montoFinal,
     };
-
     const formList = [
       {
         nombre: reservaObj.nombre,
@@ -158,31 +131,22 @@ export default function Login() {
         fechaSalida: checkout,
       },
     ];
-
     if (!numeroReserva) {
       navigate("/checkin", { replace: true });
       return;
     }
-
     try {
       const resp = await fetch(`${API_BASE}/api/checkin/session`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reserva: reservaObj, formList }),
       });
-
       const json = await resp.json();
-
       if (json?.ok && json?.token) {
-        navigate(`/checkin?t=${encodeURIComponent(String(json.token))}`, {
-          replace: true,
-        });
+        navigate(`/checkin?t=${encodeURIComponent(String(json.token))}`, { replace: true });
         return;
       }
-    } catch {
-      // no rompemos
-    }
-
+    } catch {}
     navigate("/checkin", { replace: true });
   };
 
@@ -192,155 +156,88 @@ export default function Login() {
     navigate("/checkin", { replace: true });
   };
 
-  /* ===============================================
-      ✅ BUSCAR RESERVA
-  =============================================== */
   const buscarReserva = async () => {
     try {
       setLoading(true);
       setReservaEncontrada(null);
-
       let reserva: any = null;
 
-      // 1) Número de reserva (NoBeds)
       if (tipoBusqueda === "codigo") {
         const code = codigoReserva.trim();
-        if (!code) {
-          alert("Ingresa el número de reserva");
-          return;
-        }
-
-        const res = await fetch(
-          `${API_BASE}/api/nobeds/reserva/${encodeURIComponent(code)}`
-        );
-
+        if (!code) { alert(t("login.alertNoCode")); return; }
+        const res = await fetch(`${API_BASE}/api/nobeds/reserva/${encodeURIComponent(code)}`);
         if (res.ok) {
           const data = await res.json();
           if (data?.ok && data?.reserva) reserva = data.reserva;
         }
       }
 
-      // 2) Documento (SQLite local)
       if (tipoBusqueda === "documento") {
         const doc = numeroDocumento.trim();
-        if (!doc) {
-          alert("Ingresa el número de documento");
-          return;
-        }
-
+        if (!doc) { alert(t("login.alertNoDoc")); return; }
         const res = await fetch(`${API_BASE}/api/checkin/buscar`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            tipoDocumento,
-            numeroDocumento: doc,
-          }),
+          body: JSON.stringify({ tipoDocumento, numeroDocumento: doc }),
         });
-
         if (res.ok) reserva = await res.json();
       }
 
-      // 3) Contacto / Nombre
       if (tipoBusqueda === "contacto") {
         const raw = valorContacto.trim();
+        if (!raw) { alert(t("login.alertNoContact")); return; }
 
-        if (!raw) {
-          alert("Ingresa nombre, email o teléfono");
-          return;
-        }
-
-        // ✅ si el usuario eligió una sugerencia, usar primero su numeroReserva
         if (contactoSeleccionado?.numeroReserva) {
           const nr = String(contactoSeleccionado.numeroReserva).trim();
-
           if (nr) {
-            const nb = await fetch(
-              `${API_BASE}/api/nobeds/reserva/${encodeURIComponent(nr)}`
-            );
-
+            const nb = await fetch(`${API_BASE}/api/nobeds/reserva/${encodeURIComponent(nr)}`);
             if (nb.ok) {
               const data = await nb.json();
-              if (data?.ok && data?.reserva) {
-                reserva = data.reserva;
-              }
+              if (data?.ok && data?.reserva) reserva = data.reserva;
             }
-
             if (!reserva) {
-              const local = await fetch(
-                `${API_BASE}/api/checkin/por-reserva/${encodeURIComponent(nr)}`
-              );
-
+              const local = await fetch(`${API_BASE}/api/checkin/por-reserva/${encodeURIComponent(nr)}`);
               if (local.ok) {
                 const data = await local.json();
-                if (data?.ok && data?.data) {
-                  reserva = data.data;
-                }
+                if (data?.ok && data?.data) reserva = data.data;
               }
             }
           }
         }
 
-        // ✅ flujo actual tolerante por email / teléfono
         if (!reserva) {
           const isEmail = raw.includes("@");
           const candidates = isEmail
             ? [normalizeEmail(raw), raw.trim(), raw]
             : phoneCandidates(raw).concat([raw.trim(), raw]);
-
           for (const v of Array.from(new Set(candidates)).filter(Boolean)) {
-            const res = await fetch(
-              `${API_BASE}/api/checkin/buscar-combinado/${encodeURIComponent(v)}`
-            );
-
+            const res = await fetch(`${API_BASE}/api/checkin/buscar-combinado/${encodeURIComponent(v)}`);
             if (res.ok) {
               const data = await res.json();
-              if (data?.ok && data?.data) {
-                reserva = data.data;
-                break;
-              }
+              if (data?.ok && data?.data) { reserva = data.data; break; }
             }
           }
         }
 
-        // ✅ fallback predictivo por nombre/email/teléfono
         if (!reserva) {
-          const q = raw.includes("@")
-            ? normalizeEmail(raw)
-            : normalizePhone(raw) || raw;
-
-          const res = await fetch(
-            `${API_BASE}/api/checkin/contactos?query=${encodeURIComponent(q)}`
-          );
-
+          const q = raw.includes("@") ? normalizeEmail(raw) : normalizePhone(raw) || raw;
+          const res = await fetch(`${API_BASE}/api/checkin/contactos?query=${encodeURIComponent(q)}`);
           if (res.ok) {
             const list = await res.json();
-
             if (Array.isArray(list) && list.length > 0) {
               const best = list[0];
               const nr = String(best?.numeroReserva || "").trim();
-
               if (nr) {
-                const nb = await fetch(
-                  `${API_BASE}/api/nobeds/reserva/${encodeURIComponent(nr)}`
-                );
-
+                const nb = await fetch(`${API_BASE}/api/nobeds/reserva/${encodeURIComponent(nr)}`);
                 if (nb.ok) {
                   const data = await nb.json();
-                  if (data?.ok && data?.reserva) {
-                    reserva = data.reserva;
-                  }
+                  if (data?.ok && data?.reserva) reserva = data.reserva;
                 }
-
                 if (!reserva) {
-                  const local = await fetch(
-                    `${API_BASE}/api/checkin/por-reserva/${encodeURIComponent(nr)}`
-                  );
-
+                  const local = await fetch(`${API_BASE}/api/checkin/por-reserva/${encodeURIComponent(nr)}`);
                   if (local.ok) {
                     const data = await local.json();
-                    if (data?.ok && data?.data) {
-                      reserva = data.data;
-                    }
+                    if (data?.ok && data?.data) reserva = data.data;
                   }
                 }
               }
@@ -349,17 +246,12 @@ export default function Login() {
         }
       }
 
-      if (!reserva) {
-        alert("Reserva no encontrada");
-        return;
-      }
-
+      if (!reserva) { alert(t("login.alertNotFound")); return; }
       setReservaEncontrada(reserva);
-
       await generarYGuardarLink(reserva);
       await crearSesionYNavegar(reserva);
     } catch {
-      alert("Error de conexión");
+      alert(t("login.alertConnectionError"));
     } finally {
       setLoading(false);
     }
@@ -384,6 +276,9 @@ export default function Login() {
   return (
     <div style={ui.page}>
       <div style={ui.card}>
+        {/* Selector de idioma */}
+        <LanguageSelector language={language} onChange={setLanguage} />
+
         <div style={ui.header}>
           <div style={{
             width: 48, height: 48, borderRadius: 14,
@@ -405,47 +300,35 @@ export default function Login() {
           </div>
         </div>
 
-        <h2 style={ui.title}>Auto Check-in</h2>
-        <p style={ui.subtitle}>
-          Ingresa tu <b style={{ color: "#fff" }}>número de reserva</b>, <b style={{ color: "#fff" }}>documento</b>, <b style={{ color: "#fff" }}>nombre</b>,{" "}
-          <b style={{ color: "#fff" }}>email</b> o <b style={{ color: "#fff" }}>teléfono</b> del titular para comenzar.
-        </p>
+        <h2 style={ui.title}>{t("login.title")}</h2>
+        <p style={ui.subtitle} dangerouslySetInnerHTML={{ __html: t("login.subtitle") }} />
 
         {/* Tabs */}
         <div style={ui.tabs}>
-          {tabs.map((t) => (
+          {tabs.map((tab) => (
             <button
-              key={t.key}
+              key={tab.key}
               type="button"
-              style={activeTabStyle(tipoBusqueda === t.key)}
-              onClick={() => setTipoBusqueda(t.key)}
+              style={activeTabStyle(tipoBusqueda === tab.key)}
+              onClick={() => setTipoBusqueda(tab.key)}
             >
-              {t.label}
+              {tab.label}
             </button>
           ))}
         </div>
 
         {/* Inputs por tab */}
-        <div
-          style={{
-            marginTop: 14,
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-          }}
-        >
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
           {tipoBusqueda === "codigo" && (
             <>
               <input
                 type="text"
-                placeholder="Número de reserva (Ej: 837462 o NB-10293)"
+                placeholder={t("login.placeholderCode")}
                 value={codigoReserva}
                 onChange={(e) => setCodigoReserva(e.target.value)}
                 style={ui.input}
               />
-              <div style={ui.hint}>
-                Ejemplo: <b>837462</b> o <b>NB-10293</b>
-              </div>
+              <div style={ui.hint} dangerouslySetInnerHTML={{ __html: t("login.hintCode") }} />
             </>
           )}
 
@@ -457,22 +340,18 @@ export default function Login() {
                   onChange={(e) => setTipoDocumento(e.target.value)}
                   style={ui.select}
                 >
-                  <option value="Cédula">Cédula</option>
-                  <option value="Pasaporte">Pasaporte</option>
+                  <option value="Cédula">{t("login.selectCedula")}</option>
+                  <option value="Pasaporte">{t("login.selectPasaporte")}</option>
                 </select>
-
                 <input
                   type="text"
-                  placeholder="Número de documento"
+                  placeholder={t("login.placeholderDoc")}
                   value={numeroDocumento}
                   onChange={(e) => setNumeroDocumento(e.target.value)}
                   style={{ ...ui.input, flex: 1 }}
                 />
               </div>
-              <div style={ui.hint}>
-                Tip: no importa si escribes con puntos/espacios, el sistema intenta
-                tolerarlo.
-              </div>
+              <div style={ui.hint}>{t("login.hintDoc")}</div>
             </>
           )}
 
@@ -480,69 +359,36 @@ export default function Login() {
             <>
               <ContactAutocomplete
                 value={valorContacto}
-                onChange={(val) => {
-                  setValorContacto(val);
-                  setContactoSeleccionado(null);
-                }}
+                onChange={(val) => { setValorContacto(val); setContactoSeleccionado(null); }}
                 onSelectSuggestion={(item) => {
                   setContactoSeleccionado(item);
-                  setValorContacto(
-                    item?.nombre ||
-                      item?.email ||
-                      item?.telefono ||
-                      item?.numeroReserva ||
-                      ""
-                  );
+                  setValorContacto(item?.nombre || item?.email || item?.telefono || item?.numeroReserva || "");
                 }}
               />
-              <div style={ui.hint}>
-                Puedes buscar por <b>teléfono</b>, <b>email</b> o <b>nombre</b>. Te mostraremos coincidencias del titular.
-              </div>
-
+              <div style={ui.hint} dangerouslySetInnerHTML={{ __html: t("login.hintContact") }} />
             </>
           )}
         </div>
 
         {/* Botones */}
-        <div
-          style={{
-            marginTop: 16,
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-          }}
-        >
+        <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
           <button style={ui.primaryBtn} onClick={buscarReserva} disabled={loading}>
-            {loading ? "Buscando..." : "Iniciar check-in"}
+            {loading ? t("login.btnSearching") : t("login.btnStart")}
           </button>
-
-          <button
-            style={ui.secondaryBtn}
-            onClick={crearFormatoEnBlanco}
-            disabled={loading}
-          >
-            Reservar
+          <button style={ui.secondaryBtn} onClick={crearFormatoEnBlanco} disabled={loading}>
+            {t("login.btnReserve")}
           </button>
         </div>
 
         <div style={{ marginTop: 14, fontSize: 12.5, color: "#64748b", textAlign: "center" }}>
-          ¿Necesitas ayuda?{" "}
-          <a href="#" style={{ color: "#93c5fd", fontWeight: 700 }}>
-            Contactar recepción
-          </a>
+          {t("login.helpText")}{" "}
+          <a href="#" style={{ color: "#93c5fd", fontWeight: 700 }}>{t("login.helpLink")}</a>
         </div>
 
         {reservaEncontrada && (
           <div style={{ marginTop: 12, fontSize: 12, opacity: 0.85 }}>
-            Reserva detectada:{" "}
-            <b>
-              {String(
-                reservaEncontrada?.numeroReserva ||
-                  reservaEncontrada?.order_id ||
-                  reservaEncontrada?.numero ||
-                  "-"
-              )}
-            </b>
+            {t("login.reservaDetected")}{" "}
+            <b>{String(reservaEncontrada?.numeroReserva || reservaEncontrada?.order_id || reservaEncontrada?.numero || "-")}</b>
           </div>
         )}
       </div>

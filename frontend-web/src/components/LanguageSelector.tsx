@@ -2,7 +2,6 @@
  * Selector de idioma compacto para Kuyay.
  * Se renderiza como pills/segmented control.
  */
-import React from "react";
 import { type Lang, LANG_FLAGS } from "../i18n";
 
 type Props = {

@@ -236,41 +236,7 @@ export default function CheckinForm() {
           </h3>
         )}
 
-        {/* Camera hint */}
-        <div
-          style={{
-            marginBottom: "1.2rem",
-            background: "linear-gradient(135deg, rgba(37,99,235,0.18), rgba(139,92,246,0.14))",
-            border: "1px solid rgba(255,255,255,0.10)",
-            borderRadius: "0.95rem",
-            padding: isMobile ? "0.9rem" : "1rem 1.1rem",
-            display: "flex",
-            flexDirection: isMobile ? "column" : "row",
-            alignItems: isMobile ? "flex-start" : "center",
-            gap: "0.85rem",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
-          }}
-        >
-          <div
-            style={{
-              width: "42px", height: "42px", minWidth: "42px",
-              borderRadius: "0.85rem", display: "flex",
-              alignItems: "center", justifyContent: "center",
-              color: "#93c5fd", background: "rgba(255,255,255,0.07)",
-              border: "1px solid rgba(255,255,255,0.08)",
-            }}
-          >
-            <CameraHintIcon />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ color: "white", fontWeight: 800, fontSize: "0.96rem", marginBottom: "0.25rem" }}>
-              {t("form.cameraHintTitle")}
-            </div>
-            <div style={{ color: "#cbd5e1", fontSize: "0.84rem", lineHeight: 1.5 }}>
-              {t("form.cameraHintDesc")}
-            </div>
-          </div>
-        </div>
+        {/* El flujo de documentos ahora está integrado dentro de cada GuestCard */}
 
         {/* Guest cards */}
         {formList.map((formData, index) => (

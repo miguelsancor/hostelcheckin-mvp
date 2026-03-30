@@ -24,23 +24,6 @@ function buildApiUrl(path: string): string {
   return `${base}${cleanPath}`;
 }
 
-/**
- * OCR patch local:
- * - intenta primero por /api/document-reader/extract
- * - si responde 404, intenta /document-reader/extract
- * Esto evita tocar el resto de la app.
- */
-function buildOcrCandidateUrls(): string[] {
-  const urls = [
-    buildApiUrl("/api/document-reader/extract"),
-    buildApiUrl("/document-reader/extract"),
-    "/api/document-reader/extract",
-    "/document-reader/extract",
-  ];
-
-  return [...new Set(urls.filter(Boolean))];
-}
-
 type GuestCardProps = {
   data: Huesped;
   index: number;
@@ -298,7 +281,7 @@ export function GuestCard({
     e.target.value = "";
   };
 
-  /* ── OCR: enviar imagen al backend con fallback local ── */
+  /* ── OCR: enviar imagen al backend ── */
   const handleOcrFile = async (file: File) => {
     console.log("[OCR] handleOcrFile llamado", { name: file.name, type: file.type, size: file.size, index });
 
@@ -316,54 +299,23 @@ export function GuestCard({
     setOcrMessage({ type: "info", text: t("docReader.reading") });
 
     try {
-      const urls = buildOcrCandidateUrls();
-      let lastJson: any = null;
-      let matchedResponse: Response | null = null;
+      const url = buildApiUrl("/api/api/document-reader/extract");
+      console.log("[OCR] Enviando a:", url);
 
-      for (const url of urls) {
-        try {
-          console.log("[OCR] Probando endpoint:", url);
+      const fd = new FormData();
+      fd.append("documento", file);
 
-          const fd = new FormData();
-          fd.append("documento", file);
+      const resp = await fetch(url, {
+        method: "POST",
+        body: fd,
+      });
 
-          const resp = await fetch(url, {
-            method: "POST",
-            body: fd,
-          });
+      console.log("[OCR] Respuesta status:", resp.status);
+      const json = await resp.json();
+      console.log("[OCR] Respuesta JSON:", JSON.stringify(json));
 
-          let json: any = null;
-          try {
-            json = await resp.json();
-          } catch {
-            json = null;
-          }
-
-          console.log("[OCR] Respuesta", url, "status:", resp.status, "json:", json);
-
-          if (resp.status === 404) {
-            lastJson = json;
-            continue;
-          }
-
-          matchedResponse = resp;
-          lastJson = json;
-          break;
-        } catch (innerErr) {
-          console.warn("[OCR] Falló endpoint:", url, innerErr);
-        }
-      }
-
-      if (!matchedResponse) {
-        setOcrMessage({ type: "error", text: t("docReader.readFail") });
-        setOcrLoading(false);
-        return;
-      }
-
-      const json = lastJson;
-
-      if (!json?.ok) {
-        const reasonKey = OCR_REASON_MAP[json?.reason] || "docReader.readFail";
+      if (!json.ok) {
+        const reasonKey = OCR_REASON_MAP[json.reason] || "docReader.readFail";
         setOcrMessage({ type: "error", text: t(reasonKey) });
         setOcrLoading(false);
         return;
@@ -376,33 +328,27 @@ export function GuestCard({
       if (json.fields) {
         for (const [key, val] of Object.entries(json.fields)) {
           const { value, confidence } = val as { value: string; confidence: number };
-          if (confidence >= 0.9) {
+          if (confidence >= 0.90) {
             fields[key] = value;
             autoKeys.push(key);
-          } else if (confidence >= 0.7) {
+          } else if (confidence >= 0.70) {
             fields[key] = value;
             reviewKeys.push(key);
           }
         }
       }
 
-      console.log("[OCR] Campos extraídos:", fields, "autoKeys:", autoKeys, "reviewKeys:", reviewKeys);
+      console.log("[OCR] Campos extraídos:", fields, "autoKeys:", autoKeys);
 
       if (Object.keys(fields).length > 0 && onAutoFill) {
         onAutoFill(fields, [...autoKeys, ...reviewKeys]);
-        setOcrMessage({
-          type: "success",
-          text: `✅ ${t("docReader.verifyInfo")} (${Object.keys(fields).length} campos)`,
-        });
+        setOcrMessage({ type: "success", text: `✅ ${t("docReader.verifyInfo")} (${Object.keys(fields).length} campos)` });
       } else {
         setOcrMessage({ type: "error", text: t("docReader.readFail") });
       }
     } catch (err) {
       console.error("[OCR] Error:", err);
-      setOcrMessage({
-        type: "error",
-        text: `${t("docReader.readFail")} — ${getApiBase() ? "Error de conexión" : "API no configurada"}`,
-      });
+      setOcrMessage({ type: "error", text: `${t("docReader.readFail")} — ${getApiBase() ? "Error de conexión" : "API no configurada"}` });
     } finally {
       setOcrLoading(false);
     }
@@ -442,6 +388,7 @@ export function GuestCard({
 
   return (
     <div style={styles.card}>
+      {/* ═══ OCR Status Global (siempre visible) ═══ */}
       {ocrMessage && (
         <div
           style={{
@@ -484,6 +431,9 @@ export function GuestCard({
         </div>
       )}
 
+      {/* ═══════════════════════════════════════
+          PASO 1 — Titular: Elegir modo (escanear o manual)
+          ═══════════════════════════════════════ */}
       {esTitular && effectiveMode === "choose" && (
         <div style={{ marginBottom: "1.25rem" }}>
           <div style={{ textAlign: "center", marginBottom: "1.25rem" }}>
@@ -503,6 +453,7 @@ export function GuestCard({
               gap: "0.85rem",
             }}
           >
+            {/* Opción: Escanear */}
             <button
               type="button"
               onClick={() => setEntryMode("scan")}
@@ -525,6 +476,7 @@ export function GuestCard({
               </div>
             </button>
 
+            {/* Opción: Manual */}
             <button
               type="button"
               onClick={() => setEntryMode("manual")}
@@ -550,6 +502,9 @@ export function GuestCard({
         </div>
       )}
 
+      {/* ═══════════════════════════════════════
+          PASO 2 — Escanear: elegir tipo doc
+          ═══════════════════════════════════════ */}
       {esTitular && effectiveMode === "scan" && !scanDocType && (
         <div style={{ marginBottom: "1.25rem" }}>
           <div style={{ textAlign: "center", marginBottom: "1rem" }}>
@@ -619,6 +574,9 @@ export function GuestCard({
         </div>
       )}
 
+      {/* ═══════════════════════════════════════
+          PASO 3 — Escanear: subir imagen(es)
+          ═══════════════════════════════════════ */}
       {esTitular && effectiveMode === "scan" && scanDocType && (
         <div style={{ marginBottom: "1.25rem" }}>
           <div style={{ textAlign: "center", marginBottom: "0.85rem" }}>
@@ -630,6 +588,7 @@ export function GuestCard({
             </p>
           </div>
 
+          {/* Uploads según tipo de documento */}
           {scanDocType === "Cédula" && (
             <>
               <UploadField
@@ -678,6 +637,9 @@ export function GuestCard({
         </div>
       )}
 
+      {/* ═══════════════════════════════════════
+          FORMULARIO — aparece después de elegir modo
+          ═══════════════════════════════════════ */}
       {showForm && (
         <>
           {esTitular && (
@@ -791,6 +753,7 @@ export function GuestCard({
                 )}
               </div>
 
+              {/* Si eligió manual, mostrar upload de docs aquí abajo */}
               {effectiveMode === "manual" && (
                 <div style={{ marginTop: "1.35rem", paddingTop: "1.25rem", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
                   <div style={{ textAlign: "center", marginBottom: "1rem" }}>

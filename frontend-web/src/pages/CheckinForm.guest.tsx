@@ -10,6 +10,7 @@ type GuestCardProps = {
     index: number,
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => void;
+  onBatchUpdate: (index: number, fields: Record<string, string>) => void;
   onFile: (index: number, e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemove?: (index: number) => void;
 };
@@ -158,17 +159,27 @@ function parseDocumentText(text: string, _esCedula: boolean, _esPasaporte: boole
     result.numeroDocumento = numMatch[1].replace(/[.,]/g, "");
   }
 
+  /* Nombre: buscar APELLIDOS + NOMBRES en cédulas colombianas */
+  const apellidoMatch = joined.match(/APELLIDOS?\s*[:\s]*([A-ZÁÉÍÓÚÑ\s]+?)(?=\s*NOMBRES?\b)/i);
+  const nombreMatch = joined.match(/NOMBRES?\s*[:\s]*([A-ZÁÉÍÓÚÑ\s]+?)(?=\s*(?:FIRMA|FECHA|$|\d))/i);
+  if (apellidoMatch && nombreMatch) {
+    const apellidos = apellidoMatch[1].trim();
+    const nombres = nombreMatch[1].trim();
+    if (apellidos.length > 1 && nombres.length > 1) {
+      result.nombre = `${nombres} ${apellidos}`.replace(/\s{2,}/g, " ").trim();
+    }
+  }
+
   /* Fecha de nacimiento: buscar patrones de fecha */
   const datePatterns = [
-    /(\d{4}[-/.]\d{2}[-/.]\d{2})/,           // YYYY-MM-DD
-    /(\d{2}[-/.]\d{2}[-/.]\d{4})/,           // DD-MM-YYYY o MM-DD-YYYY
-    /(\d{2}\s+[A-Z]{3}\s+\d{4})/i,           // 15 ENE 1990
+    /(\d{4}[-/.]\d{2}[-/.]\d{2})/,
+    /(\d{2}[-/.]\d{2}[-/.]\d{4})/,
+    /(\d{2}\s+[A-Z]{3}\s+\d{4})/i,
   ];
   for (const pat of datePatterns) {
     const m = joined.match(pat);
     if (m) {
       let dateStr = m[1].replace(/[/.]/g, "-");
-      /* Intentar convertir DD-MM-YYYY a YYYY-MM-DD */
       const parts = dateStr.split("-");
       if (parts.length === 3 && parts[2].length === 4) {
         dateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
@@ -193,7 +204,7 @@ function parseDocumentText(text: string, _esCedula: boolean, _esPasaporte: boole
     result.tipoDocumento = "Pasaporte";
   }
 
-  /* Ciudad / dirección — heurístico */
+  /* Ciudad / dirección */
   const cityMatch = joined.match(/(?:LUGAR\s+DE\s+(?:NACIMIENTO|EXPEDICIÓN)|BIRTH\s*PLACE|CITY)[:\s]+([A-Za-zÁÉÍÓÚÑáéíóúñ\s]+)/i);
   if (cityMatch) {
     result.ciudadResidencia = cityMatch[1].trim().substring(0, 40);
@@ -203,9 +214,10 @@ function parseDocumentText(text: string, _esCedula: boolean, _esPasaporte: boole
 }
 
 /* ── GuestCard ── */
-export function GuestCard({ data, index, onChange, onFile, onRemove }: GuestCardProps) {
+export function GuestCard({ data, index, onChange, onBatchUpdate, onFile, onRemove }: GuestCardProps) {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrResult, setOcrResult] = useState<string | null>(null);
+  const [ocrProgress, setOcrProgress] = useState(0);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => onChange(index, e);
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -226,6 +238,7 @@ export function GuestCard({ data, index, onChange, onFile, onRemove }: GuestCard
     if (!docFile || ocrLoading) return;
     setOcrLoading(true);
     setOcrResult(null);
+    setOcrProgress(0);
 
     try {
       /* Leer archivo como dataURL */
@@ -240,7 +253,7 @@ export function GuestCard({ data, index, onChange, onFile, onRemove }: GuestCard
       const result = await Tesseract.recognize(dataUrl, "spa+eng", {
         logger: (m: any) => {
           if (m.status === "recognizing text" && typeof m.progress === "number") {
-            setOcrResult(`Leyendo... ${Math.round(m.progress * 100)}%`);
+            setOcrProgress(Math.round(m.progress * 100));
           }
         },
       });
@@ -254,23 +267,25 @@ export function GuestCard({ data, index, onChange, onFile, onRemove }: GuestCard
       /* Parsear campos del documento de identidad */
       const autoFill = parseDocumentText(rawText, esCedula, esPasaporte);
 
-      /* Trigger onChange for each field */
+      /* Filtrar solo campos con valor */
+      const validFields: Record<string, string> = {};
       for (const [name, value] of Object.entries(autoFill)) {
-        if (value) {
-          const syntheticEvent = {
-            target: { name, value },
-          } as React.ChangeEvent<HTMLInputElement>;
-          onChange(index, syntheticEvent);
-        }
+        if (value) validFields[name] = value;
       }
 
-      const count = Object.values(autoFill).filter(Boolean).length;
+      /* Aplicar todos los campos de una sola vez */
+      if (Object.keys(validFields).length > 0) {
+        onBatchUpdate(index, validFields);
+      }
+
+      const count = Object.keys(validFields).length;
       setOcrResult(count > 0 ? `✓ ${count} campos completados automáticamente` : "No se encontraron datos legibles");
     } catch (err) {
       console.error("OCR error:", err);
       setOcrResult("Error procesando el documento");
     } finally {
       setOcrLoading(false);
+      setOcrProgress(0);
     }
   };
 
@@ -398,7 +413,7 @@ export function GuestCard({ data, index, onChange, onFile, onRemove }: GuestCard
               )}
             </div>
 
-            {/* ── OCR Button: subtle but eye-catching ── */}
+            {/* ── OCR Button: sutil pero llamativo ── */}
             {tieneDoc && (
               <div style={{ marginTop: "0.75rem", textAlign: "center" }}>
                 <button
@@ -425,10 +440,35 @@ export function GuestCard({ data, index, onChange, onFile, onRemove }: GuestCard
                   }}
                 >
                   <WandIcon />
-                  {ocrLoading ? "Leyendo documento..." : "✨ Rellenar datos con el documento adjunto"}
+                  {ocrLoading ? `Escaneando documento... ${ocrProgress}%` : "✨ Rellenar datos con el documento adjunto"}
                 </button>
 
-                {ocrResult && (
+                {/* Barra de progreso sutil durante escaneo */}
+                {ocrLoading && (
+                  <div style={{
+                    marginTop: "0.5rem",
+                    maxWidth: "260px",
+                    marginLeft: "auto",
+                    marginRight: "auto",
+                  }}>
+                    <div style={{
+                      height: "4px",
+                      background: "rgba(139,92,246,0.15)",
+                      borderRadius: "999px",
+                      overflow: "hidden",
+                    }}>
+                      <div style={{
+                        height: "100%",
+                        width: `${ocrProgress}%`,
+                        background: "linear-gradient(90deg, #8b5cf6, #3b82f6)",
+                        borderRadius: "999px",
+                        transition: "width 0.3s ease",
+                      }} />
+                    </div>
+                  </div>
+                )}
+
+                {ocrResult && !ocrLoading && (
                   <div style={{
                     marginTop: "0.5rem",
                     fontSize: "0.82rem",

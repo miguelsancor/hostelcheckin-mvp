@@ -30,6 +30,7 @@ export default function CheckinForm() {
     cerrarModalHoy,
     setShowModal,
     handleChange,
+    handleBatchUpdate,
     handleFileChange,
     handleAddGuest,
     removeGuestByIndex,
@@ -282,6 +283,7 @@ export default function CheckinForm() {
             data={formData}
             index={index}
             onChange={handleChange}
+            onBatchUpdate={handleBatchUpdate}
             onFile={handleFileChange}
             onRemove={removeGuestByIndex}
           />

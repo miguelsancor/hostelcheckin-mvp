@@ -327,6 +327,15 @@ export function useCheckinForm() {
     });
   };
 
+  /** Aplica múltiples campos de una vez (usado por OCR) */
+  const handleBatchUpdate = (index: number, fields: Record<string, string>) => {
+    setFormList((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], ...fields };
+      return updated;
+    });
+  };
+
   const handleFileChange = (
     index: number,
     e: React.ChangeEvent<HTMLInputElement>
@@ -462,6 +471,7 @@ export function useCheckinForm() {
     modalMessage,
     showModalHoy,
     handleChange,
+    handleBatchUpdate,
     handleFileChange,
     handleAddGuest,
     removeGuestByIndex,

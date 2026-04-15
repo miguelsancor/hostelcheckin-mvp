@@ -801,27 +801,54 @@ async function getByNumeroReserva(req, res) {
     try {
       const baseUrl = `${process.env.NOBEDS_API}/${process.env.NOBEDS_TOKEN}`;
 
-      // 1) Try by order_id directly
       let match = null;
+
+      // 1) Try by order_id directly
       try {
         const { data } = await axios.get(`${baseUrl}?order_id=${encodeURIComponent(huesped.numeroReserva)}`, { timeout: 15000 });
         if (Array.isArray(data) && data.length > 0) match = data[0];
       } catch { /* silent */ }
 
-      // 2) Fallback: search by date range and match by name/email
-      if (!match && huesped.fechaIngreso) {
-        const fromdate = String(huesped.fechaIngreso).split("T")[0];
-        const todate = huesped.fechaSalida ? String(huesped.fechaSalida).split("T")[0] : fromdate;
+      // 2) Fallback: try extracting numeric part of the reservation code (e.g. "06338089-RES-67E8CF" → "06338089")
+      if (!match && huesped.numeroReserva) {
+        const numericPart = String(huesped.numeroReserva).replace(/^0+/, "").split("-")[0];
+        if (numericPart && numericPart !== huesped.numeroReserva) {
+          try {
+            const { data } = await axios.get(`${baseUrl}?order_id=${encodeURIComponent(numericPart)}`, { timeout: 15000 });
+            if (Array.isArray(data) && data.length > 0) match = data[0];
+          } catch { /* silent */ }
+        }
+      }
+
+      // 3) Fallback: fetch all reservations and match by name/email/phone
+      if (!match) {
         try {
-          const { data } = await axios.get(`${baseUrl}?fromdate=${fromdate}&todate=${todate}`, { timeout: 15000 });
+          const { data } = await axios.get(baseUrl, { timeout: 20000 });
           if (Array.isArray(data) && data.length > 0) {
             const nombre = String(huesped.nombre || "").toLowerCase().trim();
             const email = String(huesped.email || "").toLowerCase().trim();
+            const telefono = String(huesped.telefono || "").replace(/\D/g, "");
+            const orderId = String(huesped.numeroReserva || "").trim();
+
             match = data.find((r) => {
-              const rName = String(r.name || "").toLowerCase().trim();
+              // Match by order_id (partial)
+              const rOrderId = String(r.order_id || "").trim();
+              if (orderId && rOrderId && (rOrderId.includes(orderId) || orderId.includes(rOrderId))) return true;
+
+              // Match by name
+              const rFirst = String(r.first_name || r.name || "").toLowerCase().trim();
+              const rLast = String(r.last_name || "").toLowerCase().trim();
+              const rFull = `${rFirst} ${rLast}`.trim();
+              if (nombre && rFull && (rFull.includes(nombre) || nombre.includes(rFull))) return true;
+
+              // Match by email
               const rEmail = String(r.email || r.emails || "").toLowerCase().trim();
-              if (nombre && rName && rName.includes(nombre)) return true;
               if (email && rEmail && rEmail.includes(email)) return true;
+
+              // Match by phone
+              const rPhone = String(r.phone || "").replace(/\D/g, "");
+              if (telefono && rPhone && (rPhone.includes(telefono) || telefono.includes(rPhone))) return true;
+
               return false;
             }) || null;
           }
@@ -832,6 +859,9 @@ async function getByNumeroReserva(req, res) {
         balance = match.balance != null ? Number(match.balance) : null;
         total = match.total ?? match.price ?? null;
         price = match.price ?? null;
+        console.log(`[Nobeds enrich] Reserva ${huesped.numeroReserva}: total=${total}, price=${price}, balance=${balance}`);
+      } else {
+        console.log(`[Nobeds enrich] No se encontró match en Nobeds para reserva ${huesped.numeroReserva}`);
       }
     } catch (err) {
       console.error("Error enriqueciendo con Nobeds:", err.message);

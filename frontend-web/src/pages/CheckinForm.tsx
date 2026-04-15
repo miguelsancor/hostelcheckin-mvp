@@ -85,13 +85,15 @@ export default function CheckinForm() {
 
   const canSubmit = useMemo(() => {
     if (!acceptTerms) return false;
+    // Si no hay monto a cobrar, el pago no aplica
+    if (paymentAmount <= 0) return true;
     return payment.canProceed;
-  }, [acceptTerms, payment.canProceed]);
+  }, [acceptTerms, payment.canProceed, paymentAmount]);
 
   const [docError, setDocError] = useState("");
 
   const onSubmitClick = () => {
-    if (!payment.canProceed) return;
+    if (paymentAmount > 0 && !payment.canProceed) return;
     if (!acceptTerms) {
       setTermsError("Debes aceptar los términos y condiciones para continuar.");
       return;
@@ -117,8 +119,8 @@ export default function CheckinForm() {
     setPaymentGatePassed(true);
   };
 
-  /* ── Payment gate ── */
-  const showPaymentGate = !paymentGatePassed && !loading && (
+  /* ── Payment gate: solo mostrar si hay monto a cobrar ── */
+  const showPaymentGate = !paymentGatePassed && !loading && paymentAmount > 0 && (
     payment.config.enabled ||
     payment.config.channels.bold.enabled ||
     payment.config.channels.billetero.enabled ||

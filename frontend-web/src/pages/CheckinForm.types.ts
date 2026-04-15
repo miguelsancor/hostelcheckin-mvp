@@ -63,6 +63,7 @@ export type Reserva = {
   room_id?: number;
   total?: number;
   price?: number;
+  balance?: number;
 };
 
 export type LockItem = {

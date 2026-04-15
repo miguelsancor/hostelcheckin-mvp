@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const { upload } = require("../utils/upload");
+const { extractDocument } = require("../document-reader/documentReader.controller");
 const {
   postCheckinSimple,
   postCheckinMultiple,
@@ -33,6 +34,9 @@ router.get("/checkin/contactos", contactos);
 router.get("/checkin/buscar-combinado/:valor", buscarCombinado);
 
 router.get("/checkin/por-reserva/:numeroReserva", getByNumeroReserva);
+
+// OCR de documentos bajo /api/document-reader/extract usando el router principal /api
+router.post("/document-reader/extract", upload.single("documento"), extractDocument);
 
 /* ======================= ✅ SESIÓN COMPARTIBLE ======================= */
 router.post("/checkin/session", express.json(), createSession);

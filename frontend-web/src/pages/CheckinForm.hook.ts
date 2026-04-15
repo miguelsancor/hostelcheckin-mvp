@@ -200,6 +200,7 @@ export function useCheckinForm() {
             lockId: p.lockId ?? undefined,
             total: p.total != null ? Number(p.total) : undefined,
             price: p.price != null ? Number(p.price) : undefined,
+            balance: p.balance != null ? Number(p.balance) : undefined,
           };
 
           setReserva(reservaObj);
@@ -258,6 +259,7 @@ export function useCheckinForm() {
           lockId: parsed.lockId ?? undefined,
           total: parsed.total != null ? Number(parsed.total) : undefined,
           price: parsed.price != null ? Number(parsed.price) : undefined,
+          balance: parsed.balance != null ? Number(parsed.balance) : undefined,
         };
 
         setReserva(reservaObj);

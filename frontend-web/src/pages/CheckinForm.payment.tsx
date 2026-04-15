@@ -165,13 +165,13 @@ function ManualInstructions({
       display: "flex", flexDirection: "column", gap: "0.75rem",
     }}>
       <div style={{ color: "#93c5fd", fontWeight: 800, fontSize: "0.84rem", textTransform: "uppercase", letterSpacing: "0.03em" }}>
-        Instrucciones de pago
+        Medios de pago disponibles
       </div>
       <div style={{ color: "#cbd5e1", fontSize: "0.88rem", lineHeight: 1.5 }}>
         {info.instructionsText}
       </div>
 
-      {/* Datos de transferencia */}
+      {/* Nequi y Daviplata destacados */}
       <div style={{
         background: "rgba(0,0,0,0.25)", borderRadius: "0.75rem", padding: "0.85rem",
         border: "1px solid rgba(255,255,255,0.06)", display: "grid", gap: "0.5rem",
@@ -179,14 +179,25 @@ function ManualInstructions({
       }}>
         <InfoRow label="Nequi" value={info.nequiNumber} />
         <InfoRow label="Daviplata" value={info.daviplataNumber} />
-        <InfoRow label="Llave" value={info.keyLabel} />
+        <InfoRow label="Llave Brev" value={info.keyLabel} />
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", margin: "0.25rem 0" }} />
-        <InfoRow label="Banco" value={info.bankName} />
-        <InfoRow label="Tipo cuenta" value={info.accountType} />
-        <InfoRow label="Cuenta" value={info.accountNumber} />
-        <InfoRow label="Titular" value={info.beneficiaryName} />
-        <InfoRow label="Documento" value={info.beneficiaryDocument} />
+        <InfoRow label="A nombre de" value={info.beneficiaryName} />
       </div>
+
+      {/* Cuentas bancarias */}
+      {info.accounts.map((acc, i) => (
+        <div key={i} style={{
+          background: "rgba(0,0,0,0.20)", borderRadius: "0.75rem", padding: "0.75rem",
+          border: "1px solid rgba(255,255,255,0.05)", display: "grid", gap: "0.4rem",
+          fontSize: "0.83rem",
+        }}>
+          <InfoRow label="Banco" value={acc.bankName} />
+          <InfoRow label="Tipo" value={acc.accountType} />
+          <InfoRow label="Cuenta" value={acc.accountNumber} />
+          <InfoRow label="Titular" value={acc.holderName} />
+          {acc.holderDocument && <InfoRow label="Documento" value={acc.holderDocument} />}
+        </div>
+      ))}
 
       {/* Referencia */}
       <div>
@@ -210,7 +221,7 @@ function ManualInstructions({
       {/* Comprobante */}
       <div>
         <label style={{ color: "#94a3b8", fontSize: "0.8rem", display: "block", marginBottom: 4 }}>
-          Comprobante de pago (imagen o PDF)
+          Cargar imagen del pago
         </label>
         <button
           type="button"
@@ -235,7 +246,7 @@ function ManualInstructions({
           ) : (
             <>
               <UploadIcon />
-              Subir comprobante
+              Cargar imagen del pago
             </>
           )}
         </button>

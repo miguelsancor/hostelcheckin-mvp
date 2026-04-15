@@ -30,31 +30,55 @@ export interface PaymentMethodDef {
   iconType: "wallet" | "cash" | "link" | "terminal";
 }
 
-/* ── Datos bancarios / transferencia (configurables) ── */
-export interface ManualPaymentInfo {
+/* ── Cuenta bancaria individual ── */
+export interface BankAccountInfo {
   bankName: string;
   accountType: string;
   accountNumber: string;
-  beneficiaryName: string;
-  beneficiaryDocument: string;
-  nequiNumber: string;
-  daviplataNumber: string;
-  keyLabel: string;
-  instructionsText: string;
+  holderName: string;
+  holderDocument: string;
 }
 
-/* ── Config por defecto (reemplazable por backend/CMS) ── */
+/* ── Datos bancarios / transferencia (configurables) ── */
+export interface ManualPaymentInfo {
+  /** Cuentas bancarias disponibles */
+  accounts: BankAccountInfo[];
+  /** Número Nequi */
+  nequiNumber: string;
+  /** Número Daviplata */
+  daviplataNumber: string;
+  /** Llave bancaria (Nequi/transferencia) */
+  keyLabel: string;
+  /** Texto introductorio */
+  instructionsText: string;
+  /** Nombre del beneficiario general */
+  beneficiaryName: string;
+}
+
+/* ── Config por defecto con datos reales ── */
 export const DEFAULT_MANUAL_INFO: ManualPaymentInfo = {
-  bankName: "Bancolombia",
-  accountType: "Ahorros",
-  accountNumber: "XXX-XXXXXX-XX",
-  beneficiaryName: "Kuyay Hostel S.A.S",
-  beneficiaryDocument: "NIT 900.XXX.XXX-X",
-  nequiNumber: "3XX XXX XXXX",
-  daviplataNumber: "3XX XXX XXXX",
-  keyLabel: "kuyayhostel@correo.com",
+  accounts: [
+    {
+      bankName: "Caja Social",
+      accountType: "Ahorros",
+      accountNumber: "24117547148",
+      holderName: "Carlos Guayazan",
+      holderDocument: "C.C 1136880512",
+    },
+    {
+      bankName: "NU BANK",
+      accountType: "Ahorros",
+      accountNumber: "Llave Breb: @CGR512",
+      holderName: "Carlos Guayazan",
+      holderDocument: "",
+    },
+  ],
+  nequiNumber: "321 6363732",
+  daviplataNumber: "300 2696890",
+  keyLabel: "@CGR512",
   instructionsText:
-    "Realiza la transferencia o pago al número/cuenta indicado y sube el comprobante para validación.",
+    "Estos son los medios de pago / These are the payment methods available.",
+  beneficiaryName: "Cindy Díaz",
 };
 
 /* ── Métodos de pago en orden de prioridad ── */

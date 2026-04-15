@@ -1,97 +1,71 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { styles } from "./CheckinForm.styles";
 import type { Huesped } from "./CheckinForm.types";
+
+const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
 
 type GuestCardProps = {
   data: Huesped;
   index: number;
   onChange: (
     index: number,
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => void;
   onFile: (index: number, e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemove?: (index: number) => void;
 };
 
-const isMobile =
-  typeof window !== "undefined" ? window.innerWidth <= 768 : false;
+const isMobile = typeof window !== "undefined" ? window.innerWidth <= 768 : false;
 
+/* ── Icons ── */
 function FileIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
       <path d="M14 3v5h5" stroke="currentColor" strokeWidth="1.8" />
     </svg>
   );
 }
-
 function CameraIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M9 4.5L7.4 6.5H5.5C4.12 6.5 3 7.62 3 9V17.5C3 18.88 4.12 20 5.5 20H18.5C19.88 20 21 18.88 21 17.5V9C21 7.62 19.88 6.5 18.5 6.5H16.6L15 4.5H9Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
+      <path d="M9 4.5L7.4 6.5H5.5C4.12 6.5 3 7.62 3 9V17.5C3 18.88 4.12 20 5.5 20H18.5C19.88 20 21 18.88 21 17.5V9C21 7.62 19.88 6.5 18.5 6.5H16.6L15 4.5H9Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
       <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="1.8" />
     </svg>
   );
 }
-
 function SuccessIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M20 6L9 17l-5-5"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function WandIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M15 4V2M15 16V14M8 9H10M20 9H22M17.8 11.8L19 13M17.8 6.2L19 5M12.2 11.8L11 13M12.2 6.2L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M2 22L13 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+/* ── Field ── */
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div
-      style={{
-        width: "100%",
-        marginBottom: "0.9rem",
-        display: "flex",
-        flexDirection: isMobile ? "column" as const : "row" as const,
-        alignItems: isMobile ? "stretch" : "center",
-        gap: isMobile ? "0.45rem" : "0.75rem",
-        boxSizing: "border-box",
-      }}
-    >
-      <label
-        style={{
-          color: "#9ca3af",
-          fontSize: "0.82rem",
-          textAlign: isMobile ? "left" : "right",
-          whiteSpace: "normal",
-          lineHeight: 1.35,
-          minWidth: isMobile ? undefined : "180px",
-          maxWidth: isMobile ? undefined : "220px",
-          flexShrink: 0,
-          wordBreak: "break-word" as const,
-        }}
-      >
+    <div style={{
+      width: "100%", marginBottom: "0.9rem",
+      display: "flex", flexDirection: isMobile ? "column" : "row",
+      alignItems: isMobile ? "stretch" : "center", gap: isMobile ? "0.45rem" : "0.75rem",
+      boxSizing: "border-box",
+    }}>
+      <label style={{
+        color: "#9ca3af", fontSize: "0.82rem",
+        textAlign: isMobile ? "left" : "right", whiteSpace: "normal",
+        lineHeight: 1.35, minWidth: isMobile ? undefined : "180px",
+        maxWidth: isMobile ? undefined : "220px", flexShrink: 0,
+        wordBreak: "break-word",
+      }}>
         {label}
       </label>
       <div style={{ width: "100%", minWidth: 0 }}>{children}</div>
@@ -99,6 +73,7 @@ function Field({
   );
 }
 
+/* ── Upload Field ── */
 type UploadFieldProps = {
   label: string;
   inputName: string;
@@ -106,176 +81,78 @@ type UploadFieldProps = {
   onFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
 };
 
-function UploadField({
-  label,
-  inputName,
-  fileValue,
-  onFile,
-}: UploadFieldProps) {
+function UploadField({ label, inputName, fileValue, onFile }: UploadFieldProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
   return (
     <Field label={label}>
       <div style={{ width: "100%", minWidth: 0 }}>
-        <div
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: "1rem",
-            padding: isMobile ? "0.85rem" : "0.95rem",
-            boxShadow: "0 10px 24px rgba(0,0,0,0.18)",
-          }}
-        >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-              gap: "0.7rem",
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
+        <div style={{
+          background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: "1rem", padding: isMobile ? "0.85rem" : "0.95rem",
+          boxShadow: "0 10px 24px rgba(0,0,0,0.18)",
+        }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "0.7rem" }}>
+            <button type="button" onClick={() => fileInputRef.current?.click()}
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "0.55rem",
-                minHeight: "52px",
-                width: "100%",
-                borderRadius: "0.85rem",
-                background: "linear-gradient(135deg, #1e293b, #334155)",
-                color: "white",
-                border: "1px solid rgba(255,255,255,0.10)",
-                cursor: "pointer",
-                fontWeight: 800,
-                fontSize: "0.88rem",
-                letterSpacing: "0.01em",
-              }}
-            >
-              <CameraIcon />
-              Usar cámara              
-
+                display: "flex", alignItems: "center", justifyContent: "center",
+                gap: "0.55rem", minHeight: "52px", width: "100%",
+                borderRadius: "0.85rem", background: "linear-gradient(135deg, #1e293b, #334155)",
+                color: "white", border: "1px solid rgba(255,255,255,0.10)",
+                cursor: "pointer", fontWeight: 800, fontSize: "0.88rem",
+              }}>
+              <CameraIcon /> Usar cámara
             </button>
-
-            <button
-              type="button"
-              onClick={() => cameraInputRef.current?.click()}
+            <button type="button" onClick={() => cameraInputRef.current?.click()}
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "0.55rem",
-                minHeight: "52px",
-                width: "100%",
-                borderRadius: "0.85rem",
-                background: "linear-gradient(135deg, #2563eb, #7c3aed)",
-                color: "white",
-                border: "none",
-                cursor: "pointer",
-                fontWeight: 800,
-                fontSize: "0.88rem",
-                letterSpacing: "0.01em",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                gap: "0.55rem", minHeight: "52px", width: "100%",
+                borderRadius: "0.85rem", background: "linear-gradient(135deg, #2563eb, #7c3aed)",
+                color: "white", border: "none", cursor: "pointer",
+                fontWeight: 800, fontSize: "0.88rem",
                 boxShadow: "0 12px 24px rgba(59,130,246,0.18)",
-              }}
-            >
-              <FileIcon />
-              Subir archivo
+              }}>
+              <FileIcon /> Subir archivo
             </button>
           </div>
-
-          <div
-            style={{
-              marginTop: "0.7rem",
-              color: "#94a3b8",
-              fontSize: "0.78rem",
-              lineHeight: 1.45,
-            }}
-          >
-            Puedes elegir un archivo guardado o intentar tomar una foto. Según
-            el navegador, puede aparecer primero el selector del dispositivo.
+          <div style={{ marginTop: "0.7rem", color: "#94a3b8", fontSize: "0.78rem", lineHeight: 1.45 }}>
+            Puedes elegir un archivo guardado o intentar tomar una foto. Según el navegador, puede aparecer primero el selector del dispositivo.
           </div>
-
-          <div
-            style={{
-              marginTop: "0.8rem",
-              minHeight: "38px",
-              borderRadius: "0.8rem",
-              border: fileValue
-                ? "1px solid rgba(16,185,129,0.25)"
-                : "1px dashed rgba(255,255,255,0.12)",
-              background: fileValue
-                ? "rgba(16,185,129,0.08)"
-                : "rgba(255,255,255,0.02)",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.55rem",
-              padding: "0.7rem 0.85rem",
-              color: fileValue ? "#34d399" : "#94a3b8",
-              fontSize: "0.82rem",
-              wordBreak: "break-word",
-            }}
-          >
+          <div style={{
+            marginTop: "0.8rem", minHeight: "38px", borderRadius: "0.8rem",
+            border: fileValue ? "1px solid rgba(16,185,129,0.25)" : "1px dashed rgba(255,255,255,0.12)",
+            background: fileValue ? "rgba(16,185,129,0.08)" : "rgba(255,255,255,0.02)",
+            display: "flex", alignItems: "center", gap: "0.55rem",
+            padding: "0.7rem 0.85rem", color: fileValue ? "#34d399" : "#94a3b8",
+            fontSize: "0.82rem", wordBreak: "break-word",
+          }}>
             {fileValue ? (
-              <>
-                <SuccessIcon />
-                <span>{fileValue.name}</span>
-              </>
+              <><SuccessIcon /><span>{fileValue.name}</span></>
             ) : (
               <span>No has seleccionado ningún archivo todavía.</span>
             )}
           </div>
         </div>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          name={inputName}
-          accept="image/*,.pdf"
-          onChange={onFile}
-          style={{ display: "none" }}
-        />
-
-        <input
-          ref={cameraInputRef}
-          type="file"
-          name={inputName}
-          accept="image/*"
-          onChange={onFile}
-          style={{ display: "none" }}
-        />
+        <input ref={fileInputRef} type="file" name={inputName} accept="image/*,.pdf" onChange={onFile} style={{ display: "none" }} />
+        <input ref={cameraInputRef} type="file" name={inputName} accept="image/*" onChange={onFile} style={{ display: "none" }} />
       </div>
     </Field>
   );
 }
 
 const REASONS_TRIP = [
-  "Tourism",
-  "Medical check up",
-  "Business",
-  "Musical event",
-  "Missed flight",
-  "Family visit",
-  "Sporting event",
-  "Shopping",
-  "Academic event",
-  "Other",
+  "Tourism", "Medical check up", "Business", "Musical event",
+  "Missed flight", "Family visit", "Sporting event", "Shopping",
+  "Academic event", "Other",
 ];
 
-export function GuestCard({
-  data,
-  index,
-  onChange,
-  onFile,
-  onRemove,
-}: GuestCardProps) {
-  const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >
-  ) => onChange(index, e);
+/* ── GuestCard ── */
+export function GuestCard({ data, index, onChange, onFile, onRemove }: GuestCardProps) {
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrResult, setOcrResult] = useState<string | null>(null);
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => onChange(index, e);
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     onFile(index, e);
     e.target.value = "";
@@ -284,6 +161,74 @@ export function GuestCard({
   const esCedula = data.tipoDocumento === "Cédula";
   const esPasaporte = data.tipoDocumento === "Pasaporte";
   const esTitular = index === 0;
+
+  /* Detect if a primary document has been uploaded */
+  const docFile = esCedula ? (data as any).archivoCedula : esPasaporte ? (data as any).archivoPasaporte : null;
+  const tieneDoc = !!docFile;
+
+  /* OCR: send the uploaded doc to the backend */
+  const handleOcrClick = async () => {
+    if (!docFile || ocrLoading) return;
+    setOcrLoading(true);
+    setOcrResult(null);
+
+    try {
+      const fd = new FormData();
+      fd.append("file", docFile);
+
+      const resp = await fetch(`${API_BASE}/api/document-reader/extract`, {
+        method: "POST",
+        body: fd,
+      });
+      const json = await resp.json();
+
+      if (!json.ok) {
+        const reasons: Record<string, string> = {
+          IMAGE_TOO_BLURRY: "Imagen borrosa",
+          LOW_RESOLUTION: "Resolución muy baja",
+          DOCUMENT_CROPPED: "Documento cortado",
+          GLARE_DETECTED: "Reflejos detectados",
+          TOO_DARK: "Imagen muy oscura",
+          IMAGE_ROTATED: "Imagen rotada",
+          NOT_A_DOCUMENT: "No parece un documento",
+          PARSE_ERROR: "No se pudo leer el documento",
+        };
+        setOcrResult(reasons[json.reason] || "No se pudo leer el documento");
+        return;
+      }
+
+      /* Autocomplete fields from OCR response */
+      const fields = json.fields || {};
+      const autoFill: Record<string, string> = {};
+
+      if (fields.tipoDocumento?.value) autoFill.tipoDocumento = fields.tipoDocumento.value;
+      if (fields.numeroDocumento?.value) autoFill.numeroDocumento = fields.numeroDocumento.value;
+      if (fields.nacionalidad?.value) autoFill.nacionalidad = fields.nacionalidad.value;
+      if (fields.fechaNacimiento?.value) autoFill.fechaNacimiento = fields.fechaNacimiento.value;
+      if (fields.ciudadResidencia?.value) autoFill.ciudadResidencia = fields.ciudadResidencia.value;
+      if (fields.ciudadProcedencia?.value) autoFill.ciudadProcedencia = fields.ciudadProcedencia.value;
+      if (fields.ciudadDestino?.value) autoFill.ciudadDestino = fields.ciudadDestino.value;
+      if (fields.direccion?.value) autoFill.direccion = fields.direccion.value;
+
+      /* Trigger onChange for each field */
+      for (const [name, value] of Object.entries(autoFill)) {
+        if (value) {
+          const syntheticEvent = {
+            target: { name, value },
+          } as React.ChangeEvent<HTMLInputElement>;
+          onChange(index, syntheticEvent);
+        }
+      }
+
+      const count = Object.keys(autoFill).filter((k) => autoFill[k]).length;
+      setOcrResult(count > 0 ? `✓ ${count} campos completados automáticamente` : "No se encontraron datos legibles");
+    } catch (err) {
+      console.error("OCR error:", err);
+      setOcrResult("Error de conexión con el lector de documentos");
+    } finally {
+      setOcrLoading(false);
+    }
+  };
 
   const lockedInputStyle: React.CSSProperties = {
     ...styles.input,
@@ -298,238 +243,95 @@ export function GuestCard({
     <div style={styles.card}>
       <div style={styles.row}>
         <Field label="Nombre / Name">
-          <input
-            name="nombre"
-            value={data.nombre || ""}
-            onChange={handleChange}
-            placeholder="Nombre completo"
-            style={styles.input}
-          />
+          <input name="nombre" value={data.nombre || ""} onChange={handleChange} placeholder="Nombre completo" style={styles.input} />
         </Field>
-
         <Field label="Tipo documento / Document type">
-          <select
-            name="tipoDocumento"
-            value={data.tipoDocumento || ""}
-            onChange={handleChange}
-            style={styles.input}
-          >
+          <select name="tipoDocumento" value={data.tipoDocumento || ""} onChange={handleChange} style={styles.input}>
             <option value="">Seleccione / Select</option>
             <option value="Cédula">Cédula</option>
             <option value="Pasaporte">Pasaporte</option>
           </select>
         </Field>
-
         <Field label="Número documento / Document number">
-          <input
-            name="numeroDocumento"
-            value={data.numeroDocumento || ""}
-            onChange={handleChange}
-            placeholder="Número"
-            style={styles.input}
-          />
+          <input name="numeroDocumento" value={data.numeroDocumento || ""} onChange={handleChange} placeholder="Número" style={styles.input} />
         </Field>
-
         <Field label="Nacionalidad / Nationality">
-          <input
-            name="nacionalidad"
-            value={data.nacionalidad || ""}
-            onChange={handleChange}
-            placeholder="Nacionalidad"
-            style={styles.input}
-          />
+          <input name="nacionalidad" value={data.nacionalidad || ""} onChange={handleChange} placeholder="Nacionalidad" style={styles.input} />
         </Field>
       </div>
 
       <div style={styles.row}>
         <Field label="Fecha nacimiento / Birth date">
-          <input
-            type="date"
-            name="fechaNacimiento"
-            value={data.fechaNacimiento || ""}
-            onChange={handleChange}
-            style={styles.input}
-          />
+          <input type="date" name="fechaNacimiento" value={data.fechaNacimiento || ""} onChange={handleChange} style={styles.input} />
         </Field>
-
         <Field label="Teléfono / Phone">
-          <input
-            name="telefono"
-            value={data.telefono || ""}
-            onChange={handleChange}
-            style={styles.input}
-          />
+          <input name="telefono" value={data.telefono || ""} onChange={handleChange} style={styles.input} />
         </Field>
-
         <Field label="Email">
-          <input
-            name="email"
-            value={data.email || ""}
-            onChange={handleChange}
-            style={styles.input}
-          />
+          <input name="email" value={data.email || ""} onChange={handleChange} style={styles.input} />
         </Field>
       </div>
 
       {esTitular && (
         <>
-          <div
-            style={{
-              marginTop: "1.25rem",
-              paddingTop: "1.25rem",
-              borderTop: "1px solid rgba(255,255,255,0.08)",
-            }}
-          >
+          <div style={{ marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
             <div style={styles.row}>
               <Field label="Ciudad residencia / Residence city">
-                <input
-                  name="ciudadResidencia"
-                  value={(data as any).ciudadResidencia || ""}
-                  onChange={handleChange}
-                  placeholder="Ciudad de residencia"
-                  style={styles.input}
-                />
+                <input name="ciudadResidencia" value={(data as any).ciudadResidencia || ""} onChange={handleChange} placeholder="Ciudad de residencia" style={styles.input} />
               </Field>
-
               <Field label="Ciudad procedencia / Origin city">
-                <input
-                  name="ciudadProcedencia"
-                  value={(data as any).ciudadProcedencia || ""}
-                  onChange={handleChange}
-                  placeholder="Ciudad de procedencia"
-                  style={styles.input}
-                />
+                <input name="ciudadProcedencia" value={(data as any).ciudadProcedencia || ""} onChange={handleChange} placeholder="Ciudad de procedencia" style={styles.input} />
               </Field>
-
               <Field label="Ciudad destino / Destination city">
-                <input
-                  name="ciudadDestino"
-                  value={(data as any).ciudadDestino || ""}
-                  onChange={handleChange}
-                  placeholder="Ciudad de destino"
-                  style={styles.input}
-                />
+                <input name="ciudadDestino" value={(data as any).ciudadDestino || ""} onChange={handleChange} placeholder="Ciudad de destino" style={styles.input} />
               </Field>
 
               {esPasaporte && (
                 <>
                   <Field label="Lugar procedencia / Origin place">
-                    <input
-                      name="lugarProcedencia"
-                      value={(data as any).lugarProcedencia || ""}
-                      onChange={handleChange}
-                      placeholder="Lugar procedencia"
-                      style={styles.input}
-                    />
+                    <input name="lugarProcedencia" value={(data as any).lugarProcedencia || ""} onChange={handleChange} placeholder="Lugar procedencia" style={styles.input} />
                   </Field>
-
                   <Field label="Lugar destino / Destination place">
-                    <input
-                      name="lugarDestino"
-                      value={(data as any).lugarDestino || ""}
-                      onChange={handleChange}
-                      placeholder="Lugar destino"
-                      style={styles.input}
-                    />
+                    <input name="lugarDestino" value={(data as any).lugarDestino || ""} onChange={handleChange} placeholder="Lugar destino" style={styles.input} />
                   </Field>
                 </>
               )}
 
               <Field label="Motivo viaje / Trip reason">
-                <select
-                  name="motivoViaje"
-                  value={data.motivoViaje || ""}
-                  onChange={handleChange}
-                  style={styles.input}
-                >
+                <select name="motivoViaje" value={data.motivoViaje || ""} onChange={handleChange} style={styles.input}>
                   <option value="">Seleccione / Select</option>
-                  {REASONS_TRIP.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
+                  {REASONS_TRIP.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
               </Field>
 
               <Field label="Dirección / Address (opcional)">
-                <input
-                  name="direccion"
-                  value={data.direccion || ""}
-                  onChange={handleChange}
-                  placeholder="Dirección"
-                  style={styles.input}
-                />
+                <input name="direccion" value={data.direccion || ""} onChange={handleChange} placeholder="Dirección" style={styles.input} />
               </Field>
             </div>
 
             <div style={styles.row}>
               <Field label="Ingreso / Check-in">
-                <input
-                  type="date"
-                  name="fechaIngreso"
-                  value={data.fechaIngreso || ""}
-                  onChange={handleChange}
-                  style={lockedInputStyle}
-                  disabled
-                  readOnly
-                />
+                <input type="date" name="fechaIngreso" value={data.fechaIngreso || ""} onChange={handleChange} style={lockedInputStyle} disabled readOnly />
               </Field>
-
               <Field label="Salida / Check-out">
-                <input
-                  type="date"
-                  name="fechaSalida"
-                  value={data.fechaSalida || ""}
-                  onChange={handleChange}
-                  style={lockedInputStyle}
-                  disabled
-                  readOnly
-                />
+                <input type="date" name="fechaSalida" value={data.fechaSalida || ""} onChange={handleChange} style={lockedInputStyle} disabled readOnly />
               </Field>
             </div>
 
             {!esPasaporte && (
-              <div
-                style={{
-                  width: "100%",
-                  color: "#9ca3af",
-                  fontSize: "0.85rem",
-                  textAlign: "center",
-                  marginTop: "0.25rem",
-                  lineHeight: 1.4,
-                }}
-              >
-                Lugar de procedencia y destino aplican solo para extranjeros
-                (Pasaporte).
+              <div style={{ width: "100%", color: "#9ca3af", fontSize: "0.85rem", textAlign: "center", marginTop: "0.25rem", lineHeight: 1.4 }}>
+                Lugar de procedencia y destino aplican solo para extranjeros (Pasaporte).
               </div>
             )}
           </div>
 
-          <div
-            style={{
-              marginTop: "1.35rem",
-              paddingTop: "1.25rem",
-              borderTop: "1px solid rgba(255,255,255,0.08)",
-            }}
-          >
+          {/* Document upload section */}
+          <div style={{ marginTop: "1.35rem", paddingTop: "1.25rem", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
             <div style={{ textAlign: "center", marginBottom: "1rem" }}>
-              <h3
-                style={{
-                  color: "white",
-                  fontSize: "1.05rem",
-                  marginBottom: "0.3rem",
-                }}
-              >
+              <h3 style={{ color: "white", fontSize: "1.05rem", marginBottom: "0.3rem" }}>
                 Documentos del titular
               </h3>
-              <p
-                style={{
-                  color: "#94a3b8",
-                  fontSize: "0.86rem",
-                  lineHeight: 1.45,
-                  margin: 0,
-                }}
-              >
+              <p style={{ color: "#94a3b8", fontSize: "0.86rem", lineHeight: 1.45, margin: 0 }}>
                 Sube tu documento de identidad para agilizar tu registro.
                 Este paso es <strong style={{ color: "#fbbf24" }}>muy recomendado</strong> para una mejor experiencia.
               </p>
@@ -538,70 +340,83 @@ export function GuestCard({
             <div style={styles.row}>
               {esCedula && (
                 <>
-                  <UploadField
-                    label="Foto cédula frente / ID front (recomendado)"
-                    inputName="archivoCedula"
-                    fileValue={(data as any).archivoCedula || null}
-                    onFile={handleFile}
-                  />
-
-                  <UploadField
-                    label="Foto cédula atrás / ID back"
-                    inputName="archivoFirma"
-                    fileValue={(data as any).archivoFirma || null}
-                    onFile={handleFile}
-                  />
+                  <UploadField label="Foto cédula frente / ID front (recomendado)" inputName="archivoCedula" fileValue={(data as any).archivoCedula || null} onFile={handleFile} />
+                  <UploadField label="Foto cédula atrás / ID back" inputName="archivoFirma" fileValue={(data as any).archivoFirma || null} onFile={handleFile} />
                 </>
               )}
-
               {esPasaporte && (
-                  <UploadField
-                    label="Foto pasaporte / Passport photo (recomendado)"
-                  inputName="archivoPasaporte"
-                  fileValue={(data as any).archivoPasaporte || null}
-                  onFile={handleFile}
-                />
+                <UploadField label="Foto pasaporte / Passport photo (recomendado)" inputName="archivoPasaporte" fileValue={(data as any).archivoPasaporte || null} onFile={handleFile} />
               )}
-
               {!esCedula && !esPasaporte && (
-                <div
-                  style={{
-                    width: "100%",
-                    color: "#9ca3af",
-                    fontSize: "0.85rem",
-                    textAlign: "center",
-                    padding: "0.75rem 0",
-                    lineHeight: 1.4,
-                  }}
-                >
-                  Selecciona el tipo de documento (Cédula o Pasaporte) para
-                  habilitar la carga.
+                <div style={{ width: "100%", color: "#9ca3af", fontSize: "0.85rem", textAlign: "center", padding: "0.75rem 0", lineHeight: 1.4 }}>
+                  Selecciona el tipo de documento (Cédula o Pasaporte) para habilitar la carga.
                 </div>
               )}
             </div>
+
+            {/* ── OCR Button: subtle but eye-catching ── */}
+            {tieneDoc && (
+              <div style={{ marginTop: "0.75rem", textAlign: "center" }}>
+                <button
+                  type="button"
+                  onClick={handleOcrClick}
+                  disabled={ocrLoading}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0.65rem 1.2rem",
+                    background: ocrLoading
+                      ? "rgba(139,92,246,0.10)"
+                      : "linear-gradient(135deg, rgba(139,92,246,0.15), rgba(59,130,246,0.15))",
+                    border: "1px solid rgba(139,92,246,0.45)",
+                    borderRadius: "0.75rem",
+                    color: "#c4b5fd",
+                    cursor: ocrLoading ? "wait" : "pointer",
+                    fontWeight: 700,
+                    fontSize: "0.85rem",
+                    transition: "all 0.2s ease",
+                    boxShadow: "0 4px 16px rgba(139,92,246,0.15)",
+                    animation: ocrLoading ? undefined : "ocrPulse 2.5s ease-in-out infinite",
+                  }}
+                >
+                  <WandIcon />
+                  {ocrLoading ? "Leyendo documento..." : "✨ Rellenar datos con el documento adjunto"}
+                </button>
+
+                {ocrResult && (
+                  <div style={{
+                    marginTop: "0.5rem",
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    color: ocrResult.startsWith("✓") ? "#34d399" : "#fbbf24",
+                    lineHeight: 1.4,
+                  }}>
+                    {ocrResult}
+                  </div>
+                )}
+
+                <style>{`
+                  @keyframes ocrPulse {
+                    0%, 100% { box-shadow: 0 4px 16px rgba(139,92,246,0.15); }
+                    50% { box-shadow: 0 4px 24px rgba(139,92,246,0.35); }
+                  }
+                `}</style>
+              </div>
+            )}
           </div>
         </>
       )}
 
       {!esTitular && (
-        <div
-          style={{
-            textAlign: isMobile ? "center" : "right",
-            marginTop: "0.75rem",
-          }}
-        >
+        <div style={{ textAlign: isMobile ? "center" : "right", marginTop: "0.75rem" }}>
           <button
             type="button"
             onClick={() => onRemove?.(index)}
             style={{
-              background: "#dc2626",
-              color: "white",
-              border: "none",
-              padding: "0.7rem 1rem",
-              borderRadius: "0.45rem",
-              cursor: "pointer",
-              fontSize: "0.85rem",
-              fontWeight: 700,
+              background: "#dc2626", color: "white", border: "none",
+              padding: "0.7rem 1rem", borderRadius: "0.45rem",
+              cursor: "pointer", fontSize: "0.85rem", fontWeight: 700,
               width: isMobile ? "100%" : "auto",
             }}
           >

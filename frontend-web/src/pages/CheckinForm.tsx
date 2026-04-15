@@ -4,7 +4,7 @@ import { GuestCard } from "./CheckinForm.guest";
 import { ResultModal, GuestsTodayModal } from "./CheckinForm.modal";
 import { styles } from "./CheckinForm.styles";
 import TERMS_TEXT from "./terminoscondiciones.txt?raw";
-import { PaymentDemoModal, PaymentGateModal } from "./CheckinForm.payment";
+import { PaymentDemoModal, PaymentGateModal, type ManualPaymentData } from "./CheckinForm.payment";
 import { usePayment } from "./CheckinForm.payment.hook";
 
 /* ── Icons ── */
@@ -43,6 +43,7 @@ export default function CheckinForm() {
   const [termsError, setTermsError] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const [paymentGatePassed, setPaymentGatePassed] = useState(false);
+  const [manualPaymentData, setManualPaymentData] = useState<ManualPaymentData | null>(null);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= 768);
@@ -51,13 +52,22 @@ export default function CheckinForm() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  /* ── Payment ── */
-  const paymentAmount = useMemo(() => {
+  /* ── Payment amounts ── */
+  const paymentBalance = useMemo(() => {
     const r = reserva as any;
-    const raw = r?.balance ?? r?.total ?? r?.price ?? r?.saldoPendiente ?? r?.saldo ?? 0;
+    const raw = r?.balance ?? r?.saldoPendiente ?? r?.saldo ?? 0;
     const parsed = Number(raw);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
   }, [reserva]);
+
+  const paymentTotal = useMemo(() => {
+    const r = reserva as any;
+    const raw = r?.total ?? r?.price ?? 0;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  }, [reserva]);
+
+  const paymentAmount = paymentBalance > 0 ? paymentBalance : paymentTotal;
 
   const paymentDescription = useMemo(() => {
     const r = reserva as any;
@@ -80,25 +90,19 @@ export default function CheckinForm() {
   const [docError, setDocError] = useState("");
 
   const onSubmitClick = () => {
-    if (!payment.canProceed) {
-      return;
-    }
+    if (!payment.canProceed) return;
     if (!acceptTerms) {
       setTermsError("Debes aceptar los términos y condiciones para continuar.");
       return;
     }
 
-    // Validar documento obligatorio del titular
     const t = formList?.[0];
     if (t) {
       const tipo = (t.tipoDocumento || "").toLowerCase();
-
       if (!tipo) {
         setDocError("Debes seleccionar el tipo de documento antes de continuar.");
         return;
       }
-
-      // Documento ya no es obligatorio, solo recomendado
     }
 
     setDocError("");
@@ -106,7 +110,13 @@ export default function CheckinForm() {
     handleSubmit(titular?.motivoViaje || "");
   };
 
-  /* ── Payment gate: show full-screen modal if any payment channel exists and not yet passed ── */
+  const handleManualConfirm = (data: ManualPaymentData) => {
+    setManualPaymentData(data);
+    // Auto-pass the gate after manual confirmation
+    setPaymentGatePassed(true);
+  };
+
+  /* ── Payment gate ── */
   const showPaymentGate = !paymentGatePassed && !loading && (
     payment.config.enabled ||
     payment.config.channels.bold.enabled ||
@@ -125,6 +135,8 @@ export default function CheckinForm() {
           selectedCanal={payment.selectedCanal}
           processing={payment.processing}
           amount={paymentAmount}
+          balance={paymentBalance}
+          total={paymentTotal}
           description={paymentDescription}
           isMobile={isMobile}
           onSelectCanal={payment.setSelectedCanal}
@@ -132,6 +144,7 @@ export default function CheckinForm() {
           onReset={payment.reset}
           onSkip={() => setPaymentGatePassed(true)}
           requirePayment={payment.config.requirePayment}
+          onManualConfirm={handleManualConfirm}
         />
       )}
       <ResultModal
@@ -297,8 +310,38 @@ export default function CheckinForm() {
           </button>
         </div>
 
-        {/* Payment inline summary (only if gate was passed with approved payment) */}
-        {payment.status === "APPROVED" && (
+        {/* Payment inline summary */}
+        {manualPaymentData && (
+          <div style={{
+            marginTop: "1.5rem", padding: "0.9rem 1rem",
+            background: manualPaymentData.status === "PROOF_UPLOADED"
+              ? "rgba(16,185,129,0.12)"
+              : manualPaymentData.status === "PAY_AT_PROPERTY"
+                ? "rgba(56,189,248,0.12)"
+                : "rgba(245,158,11,0.12)",
+            border: `1px solid ${
+              manualPaymentData.status === "PROOF_UPLOADED"
+                ? "rgba(16,185,129,0.30)"
+                : manualPaymentData.status === "PAY_AT_PROPERTY"
+                  ? "rgba(56,189,248,0.30)"
+                  : "rgba(245,158,11,0.30)"
+            }`,
+            borderRadius: "0.85rem", display: "flex", alignItems: "center", gap: "0.7rem",
+            color: manualPaymentData.status === "PROOF_UPLOADED"
+              ? "#86efac"
+              : manualPaymentData.status === "PAY_AT_PROPERTY"
+                ? "#7dd3fc"
+                : "#fcd34d",
+            fontWeight: 800, fontSize: "0.9rem",
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/><path d="M8.7 12.3L10.8 14.4L15.5 9.7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            {manualPaymentData.status === "PROOF_UPLOADED" && `Comprobante enviado — ${new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(manualPaymentData.calc.montoFinal)}`}
+            {manualPaymentData.status === "PAY_AT_PROPERTY" && `Pago presencial al llegar — ${new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(manualPaymentData.calc.montoFinal)}`}
+            {manualPaymentData.status === "PENDING_MANUAL_VALIDATION" && `Pago pendiente de validación — ${new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(manualPaymentData.calc.montoFinal)}`}
+          </div>
+        )}
+
+        {payment.status === "APPROVED" && !manualPaymentData && (
           <div style={{
             marginTop: "1.5rem", padding: "0.9rem 1rem",
             background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.30)",
@@ -474,7 +517,7 @@ export default function CheckinForm() {
                   fontWeight: 800, cursor: "pointer",
                 }}
               >
-                Volver
+                Cerrar
               </button>
             </div>
           </div>

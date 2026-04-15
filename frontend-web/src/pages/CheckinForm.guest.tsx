@@ -1,8 +1,7 @@
 import React, { useRef, useState } from "react";
+import Tesseract from "tesseract.js";
 import { styles } from "./CheckinForm.styles";
 import type { Huesped } from "./CheckinForm.types";
-
-const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
 
 type GuestCardProps = {
   data: Huesped;
@@ -147,6 +146,62 @@ const REASONS_TRIP = [
   "Academic event", "Other",
 ];
 
+/* ── Parser de texto OCR para documentos de identidad ── */
+function parseDocumentText(text: string, _esCedula: boolean, _esPasaporte: boolean): Record<string, string> {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const joined = lines.join(" ");
+  const result: Record<string, string> = {};
+
+  /* Número de documento: buscar secuencias numéricas largas */
+  const numMatch = joined.match(/\b(\d[\d.,]{5,15}\d)\b/);
+  if (numMatch) {
+    result.numeroDocumento = numMatch[1].replace(/[.,]/g, "");
+  }
+
+  /* Fecha de nacimiento: buscar patrones de fecha */
+  const datePatterns = [
+    /(\d{4}[-/.]\d{2}[-/.]\d{2})/,           // YYYY-MM-DD
+    /(\d{2}[-/.]\d{2}[-/.]\d{4})/,           // DD-MM-YYYY o MM-DD-YYYY
+    /(\d{2}\s+[A-Z]{3}\s+\d{4})/i,           // 15 ENE 1990
+  ];
+  for (const pat of datePatterns) {
+    const m = joined.match(pat);
+    if (m) {
+      let dateStr = m[1].replace(/[/.]/g, "-");
+      /* Intentar convertir DD-MM-YYYY a YYYY-MM-DD */
+      const parts = dateStr.split("-");
+      if (parts.length === 3 && parts[2].length === 4) {
+        dateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      result.fechaNacimiento = dateStr;
+      break;
+    }
+  }
+
+  /* Nacionalidad */
+  if (/COLOMBIA|COLOMBIAN[OA]?/i.test(joined)) {
+    result.nacionalidad = "Colombia";
+  } else {
+    const natMatch = joined.match(/(?:NATIONALITY|NACIONALIDAD|NAC)[:\s]+([A-Za-zÁÉÍÓÚÑáéíóúñ\s]+)/i);
+    if (natMatch) result.nacionalidad = natMatch[1].trim();
+  }
+
+  /* Tipo de documento (confirmar) */
+  if (/REPÚBLICA\s+DE\s+COLOMBIA|CÉDULA\s+DE\s+CIUDADANÍA|CEDULA/i.test(joined)) {
+    result.tipoDocumento = "Cédula";
+  } else if (/PASSPORT|PASAPORTE/i.test(joined)) {
+    result.tipoDocumento = "Pasaporte";
+  }
+
+  /* Ciudad / dirección — heurístico */
+  const cityMatch = joined.match(/(?:LUGAR\s+DE\s+(?:NACIMIENTO|EXPEDICIÓN)|BIRTH\s*PLACE|CITY)[:\s]+([A-Za-zÁÉÍÓÚÑáéíóúñ\s]+)/i);
+  if (cityMatch) {
+    result.ciudadResidencia = cityMatch[1].trim().substring(0, 40);
+  }
+
+  return result;
+}
+
 /* ── GuestCard ── */
 export function GuestCard({ data, index, onChange, onFile, onRemove }: GuestCardProps) {
   const [ocrLoading, setOcrLoading] = useState(false);
@@ -166,49 +221,38 @@ export function GuestCard({ data, index, onChange, onFile, onRemove }: GuestCard
   const docFile = esCedula ? (data as any).archivoCedula : esPasaporte ? (data as any).archivoPasaporte : null;
   const tieneDoc = !!docFile;
 
-  /* OCR: send the uploaded doc to the backend */
+  /* ── OCR client-side con Tesseract.js ── */
   const handleOcrClick = async () => {
     if (!docFile || ocrLoading) return;
     setOcrLoading(true);
     setOcrResult(null);
 
     try {
-      const fd = new FormData();
-      fd.append("file", docFile);
-
-      const resp = await fetch(`${API_BASE}/api/document-reader/extract`, {
-        method: "POST",
-        body: fd,
+      /* Leer archivo como dataURL */
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(docFile);
       });
-      const json = await resp.json();
 
-      if (!json.ok) {
-        const reasons: Record<string, string> = {
-          IMAGE_TOO_BLURRY: "Imagen borrosa",
-          LOW_RESOLUTION: "Resolución muy baja",
-          DOCUMENT_CROPPED: "Documento cortado",
-          GLARE_DETECTED: "Reflejos detectados",
-          TOO_DARK: "Imagen muy oscura",
-          IMAGE_ROTATED: "Imagen rotada",
-          NOT_A_DOCUMENT: "No parece un documento",
-          PARSE_ERROR: "No se pudo leer el documento",
-        };
-        setOcrResult(reasons[json.reason] || "No se pudo leer el documento");
+      /* Ejecutar OCR con Tesseract.js */
+      const result = await Tesseract.recognize(dataUrl, "spa+eng", {
+        logger: (m: any) => {
+          if (m.status === "recognizing text" && typeof m.progress === "number") {
+            setOcrResult(`Leyendo... ${Math.round(m.progress * 100)}%`);
+          }
+        },
+      });
+
+      const rawText = (result?.data?.text || "").trim();
+      if (!rawText || rawText.length < 5) {
+        setOcrResult("No se encontró texto legible en el documento");
         return;
       }
 
-      /* Autocomplete fields from OCR response */
-      const fields = json.fields || {};
-      const autoFill: Record<string, string> = {};
-
-      if (fields.tipoDocumento?.value) autoFill.tipoDocumento = fields.tipoDocumento.value;
-      if (fields.numeroDocumento?.value) autoFill.numeroDocumento = fields.numeroDocumento.value;
-      if (fields.nacionalidad?.value) autoFill.nacionalidad = fields.nacionalidad.value;
-      if (fields.fechaNacimiento?.value) autoFill.fechaNacimiento = fields.fechaNacimiento.value;
-      if (fields.ciudadResidencia?.value) autoFill.ciudadResidencia = fields.ciudadResidencia.value;
-      if (fields.ciudadProcedencia?.value) autoFill.ciudadProcedencia = fields.ciudadProcedencia.value;
-      if (fields.ciudadDestino?.value) autoFill.ciudadDestino = fields.ciudadDestino.value;
-      if (fields.direccion?.value) autoFill.direccion = fields.direccion.value;
+      /* Parsear campos del documento de identidad */
+      const autoFill = parseDocumentText(rawText, esCedula, esPasaporte);
 
       /* Trigger onChange for each field */
       for (const [name, value] of Object.entries(autoFill)) {
@@ -220,11 +264,11 @@ export function GuestCard({ data, index, onChange, onFile, onRemove }: GuestCard
         }
       }
 
-      const count = Object.keys(autoFill).filter((k) => autoFill[k]).length;
+      const count = Object.values(autoFill).filter(Boolean).length;
       setOcrResult(count > 0 ? `✓ ${count} campos completados automáticamente` : "No se encontraron datos legibles");
     } catch (err) {
       console.error("OCR error:", err);
-      setOcrResult("Error de conexión con el lector de documentos");
+      setOcrResult("Error procesando el documento");
     } finally {
       setOcrLoading(false);
     }

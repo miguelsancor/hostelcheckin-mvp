@@ -147,70 +147,138 @@ const REASONS_TRIP = [
   "Academic event", "Other",
 ];
 
+/* ── Labels legibles para campos del formulario ── */
+const FIELD_LABELS: Record<string, string> = {
+  nombre: "Nombre",
+  tipoDocumento: "Tipo documento",
+  numeroDocumento: "Nº documento",
+  nacionalidad: "Nacionalidad",
+  fechaNacimiento: "Fecha nacimiento",
+  ciudadResidencia: "Ciudad residencia",
+  direccion: "Dirección",
+};
+
 /* ── Parser de texto OCR para documentos de identidad ── */
-function parseDocumentText(text: string, _esCedula: boolean, _esPasaporte: boolean): Record<string, string> {
+function parseDocumentText(rawText: string): Record<string, string> {
+  const text = rawText.replace(/\r/g, "");
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   const joined = lines.join(" ");
   const result: Record<string, string> = {};
 
-  /* Número de documento: buscar secuencias numéricas largas */
-  const numMatch = joined.match(/\b(\d[\d.,]{5,15}\d)\b/);
-  if (numMatch) {
-    result.numeroDocumento = numMatch[1].replace(/[.,]/g, "");
-  }
+  console.log("🔍 OCR texto crudo:", text);
+  console.log("🔍 OCR líneas:", lines);
 
-  /* Nombre: buscar APELLIDOS + NOMBRES en cédulas colombianas */
-  const apellidoMatch = joined.match(/APELLIDOS?\s*[:\s]*([A-ZÁÉÍÓÚÑ\s]+?)(?=\s*NOMBRES?\b)/i);
-  const nombreMatch = joined.match(/NOMBRES?\s*[:\s]*([A-ZÁÉÍÓÚÑ\s]+?)(?=\s*(?:FIRMA|FECHA|$|\d))/i);
-  if (apellidoMatch && nombreMatch) {
-    const apellidos = apellidoMatch[1].trim();
-    const nombres = nombreMatch[1].trim();
-    if (apellidos.length > 1 && nombres.length > 1) {
-      result.nombre = `${nombres} ${apellidos}`.replace(/\s{2,}/g, " ").trim();
-    }
-  }
-
-  /* Fecha de nacimiento: buscar patrones de fecha */
-  const datePatterns = [
-    /(\d{4}[-/.]\d{2}[-/.]\d{2})/,
-    /(\d{2}[-/.]\d{2}[-/.]\d{4})/,
-    /(\d{2}\s+[A-Z]{3}\s+\d{4})/i,
-  ];
-  for (const pat of datePatterns) {
-    const m = joined.match(pat);
-    if (m) {
-      let dateStr = m[1].replace(/[/.]/g, "-");
-      const parts = dateStr.split("-");
-      if (parts.length === 3 && parts[2].length === 4) {
-        dateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
-      }
-      result.fechaNacimiento = dateStr;
-      break;
-    }
-  }
-
-  /* Nacionalidad */
-  if (/COLOMBIA|COLOMBIAN[OA]?/i.test(joined)) {
-    result.nacionalidad = "Colombia";
-  } else {
-    const natMatch = joined.match(/(?:NATIONALITY|NACIONALIDAD|NAC)[:\s]+([A-Za-zÁÉÍÓÚÑáéíóúñ\s]+)/i);
-    if (natMatch) result.nacionalidad = natMatch[1].trim();
-  }
-
-  /* Tipo de documento (confirmar) */
-  if (/REPÚBLICA\s+DE\s+COLOMBIA|CÉDULA\s+DE\s+CIUDADANÍA|CEDULA/i.test(joined)) {
+  /* ── Tipo de documento ── */
+  if (/REP[UÚ]BLICA\s+DE\s+COLOMBIA|C[EÉ]DULA|CIUDADAN[IÍ]A|REGISTRADUR[IÍ]A/i.test(joined)) {
     result.tipoDocumento = "Cédula";
   } else if (/PASSPORT|PASAPORTE/i.test(joined)) {
     result.tipoDocumento = "Pasaporte";
   }
 
-  /* Ciudad / dirección */
-  const cityMatch = joined.match(/(?:LUGAR\s+DE\s+(?:NACIMIENTO|EXPEDICIÓN)|BIRTH\s*PLACE|CITY)[:\s]+([A-Za-zÁÉÍÓÚÑáéíóúñ\s]+)/i);
+  /* ── Número de documento ── */
+  // Buscar secuencias de 6-12 dígitos (pueden tener puntos como separadores)
+  const allNumbers = joined.match(/\b\d[\d.]{4,14}\d\b/g) || [];
+  const cleaned = allNumbers.map(n => n.replace(/\./g, "")).filter(n => n.length >= 6 && n.length <= 12);
+  if (cleaned.length > 0) {
+    // Tomar el más largo como número de documento
+    cleaned.sort((a, b) => b.length - a.length);
+    result.numeroDocumento = cleaned[0];
+  }
+
+  /* ── Nombre completo ── */
+  // Intento 1: APELLIDOS ... NOMBRES en cédulas colombianas
+  const apMatch = joined.match(/APELLIDOS?\s*[:\-]?\s*([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{1,40}?)(?=\s*NOMBRES?\b)/i);
+  const nmMatch = joined.match(/NOMBRES?\s*[:\-]?\s*([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{1,40}?)(?=\s*(?:LUGAR|FECHA|FIRMA|SEXO|DOCUMENTO|NUIP|\d|$))/i);
+  if (apMatch && nmMatch) {
+    const apellidos = apMatch[1].replace(/\s{2,}/g, " ").trim();
+    const nombres = nmMatch[1].replace(/\s{2,}/g, " ").trim();
+    if (apellidos.length >= 2 && nombres.length >= 2) {
+      result.nombre = `${nombres} ${apellidos}`;
+    }
+  }
+  // Intento 2: buscar en pasaportes — SURNAME / GIVEN NAMES
+  if (!result.nombre) {
+    const surnameMatch = joined.match(/SURNAME[S]?\s*[:/]?\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]{1,30})/i);
+    const givenMatch = joined.match(/GIVEN\s*NAME[S]?\s*[:/]?\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]{1,30})/i);
+    if (surnameMatch && givenMatch) {
+      result.nombre = `${givenMatch[1].trim()} ${surnameMatch[1].trim()}`;
+    }
+  }
+  // Intento 3: líneas con solo letras mayúsculas (posibles nombres)
+  if (!result.nombre) {
+    const nameCandidates = lines.filter(l => {
+      const clean = l.replace(/[^A-ZÁÉÍÓÚÑÜ\s]/gi, "").trim();
+      const words = clean.split(/\s+/).filter(w => w.length >= 2);
+      return words.length >= 2 && words.length <= 5 && clean.length >= 5 &&
+        !/REPUBLICA|COLOMBIA|CEDULA|CIUDADANIA|REGISTRADURIA|PASSPORT|DOCUMENTO|IDENTIDAD|FECHA|LUGAR|NACIMIENTO/i.test(clean);
+    });
+    if (nameCandidates.length > 0) {
+      result.nombre = nameCandidates[0].replace(/[^A-ZÁÉÍÓÚÑÜa-záéíóúñü\s]/g, "").replace(/\s{2,}/g, " ").trim();
+    }
+  }
+
+  /* ── Fecha de nacimiento ── */
+  // Buscar contexto "FECHA DE NACIMIENTO" o "DATE OF BIRTH" seguido de fecha
+  const fechaNacContext = joined.match(/(?:FECHA\s*(?:DE\s*)?NACIMIENTO|DATE\s*OF\s*BIRTH|F\.?\s*NACIMIENTO)\s*[:\-]?\s*(\d{1,2}[\s./-]\s*(?:\d{1,2}|[A-Z]{3,4})[\s./-]\s*\d{2,4})/i);
+  if (fechaNacContext) {
+    result.fechaNacimiento = normalizeDateStr(fechaNacContext[1]);
+  }
+  // Buscar cualquier fecha si no hay contexto
+  if (!result.fechaNacimiento) {
+    const datePatterns = [
+      /(\d{4}[-/.]\d{2}[-/.]\d{2})/,
+      /(\d{2}[-/.]\d{2}[-/.]\d{4})/,
+      /(\d{2}[-/.\s]+[A-Z]{3,4}[-/.\s]+\d{4})/i,
+    ];
+    for (const pat of datePatterns) {
+      const m = joined.match(pat);
+      if (m) {
+        result.fechaNacimiento = normalizeDateStr(m[1]);
+        break;
+      }
+    }
+  }
+
+  /* ── Nacionalidad ── */
+  if (/REP[UÚ]BLICA\s+DE\s+COLOMBIA|COLOMBIAN[OA]?/i.test(joined)) {
+    result.nacionalidad = "Colombia";
+  } else {
+    const natMatch = joined.match(/(?:NATIONALITY|NACIONALIDAD|NAC)\s*[:\-]?\s*([A-Za-zÁÉÍÓÚÑáéíóúñ\s]{2,25})/i);
+    if (natMatch) result.nacionalidad = natMatch[1].trim();
+  }
+
+  /* ── Ciudad ── */
+  const cityMatch = joined.match(/(?:LUGAR\s+DE\s+(?:NACIMIENTO|EXPEDICI[OÓ]N)|BIRTH\s*PLACE|CITY)\s*[:\-]?\s*([A-Za-zÁÉÍÓÚÑáéíóúñ\s]{2,35})/i);
   if (cityMatch) {
     result.ciudadResidencia = cityMatch[1].trim().substring(0, 40);
   }
 
   return result;
+}
+
+/* Normalizar string de fecha a YYYY-MM-DD */
+function normalizeDateStr(raw: string): string {
+  const MONTHS: Record<string, string> = {
+    ENE: "01", FEB: "02", MAR: "03", ABR: "04", MAY: "05", JUN: "06",
+    JUL: "07", AGO: "08", SEP: "09", OCT: "10", NOV: "11", DIC: "12",
+    JAN: "01", APR: "04", AUG: "08", DEC: "12",
+  };
+  let s = raw.trim().replace(/\s+/g, "-").replace(/[/.]/g, "-");
+  // Reemplazar mes textual
+  for (const [k, v] of Object.entries(MONTHS)) {
+    s = s.replace(new RegExp(k, "i"), v);
+  }
+  const parts = s.split("-").filter(Boolean);
+  if (parts.length !== 3) return s;
+  // Si el último es de 4 dígitos → DD-MM-YYYY → invertir
+  if (parts[2].length === 4) {
+    return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+  }
+  // Si el primero es de 4 dígitos → YYYY-MM-DD ya está ok
+  if (parts[0].length === 4) {
+    return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+  }
+  return s;
 }
 
 /* ── GuestCard ── */
@@ -234,11 +302,14 @@ export function GuestCard({ data, index, onChange, onBatchUpdate, onFile, onRemo
   const tieneDoc = !!docFile;
 
   /* ── OCR client-side con Tesseract.js ── */
+  const [ocrDetected, setOcrDetected] = useState<{ label: string; value: string }[]>([]);
+
   const handleOcrClick = async () => {
     if (!docFile || ocrLoading) return;
     setOcrLoading(true);
     setOcrResult(null);
     setOcrProgress(0);
+    setOcrDetected([]);
 
     try {
       /* Leer archivo como dataURL */
@@ -265,12 +336,16 @@ export function GuestCard({ data, index, onChange, onBatchUpdate, onFile, onRemo
       }
 
       /* Parsear campos del documento de identidad */
-      const autoFill = parseDocumentText(rawText, esCedula, esPasaporte);
+      const autoFill = parseDocumentText(rawText);
 
-      /* Filtrar solo campos con valor */
+      /* Filtrar solo campos con valor real */
       const validFields: Record<string, string> = {};
+      const detected: { label: string; value: string }[] = [];
       for (const [name, value] of Object.entries(autoFill)) {
-        if (value) validFields[name] = value;
+        if (value && value.length >= 2) {
+          validFields[name] = value;
+          detected.push({ label: FIELD_LABELS[name] || name, value });
+        }
       }
 
       /* Aplicar todos los campos de una sola vez */
@@ -278,8 +353,12 @@ export function GuestCard({ data, index, onChange, onBatchUpdate, onFile, onRemo
         onBatchUpdate(index, validFields);
       }
 
-      const count = Object.keys(validFields).length;
-      setOcrResult(count > 0 ? `✓ ${count} campos completados automáticamente` : "No se encontraron datos legibles");
+      setOcrDetected(detected);
+      setOcrResult(
+        detected.length > 0
+          ? `✓ ${detected.length} campo${detected.length > 1 ? "s" : ""} detectado${detected.length > 1 ? "s" : ""}:`
+          : "No se encontraron datos legibles en el documento"
+      );
     } catch (err) {
       console.error("OCR error:", err);
       setOcrResult("Error procesando el documento");
@@ -470,13 +549,37 @@ export function GuestCard({ data, index, onChange, onBatchUpdate, onFile, onRemo
 
                 {ocrResult && !ocrLoading && (
                   <div style={{
-                    marginTop: "0.5rem",
-                    fontSize: "0.82rem",
-                    fontWeight: 600,
-                    color: ocrResult.startsWith("✓") ? "#34d399" : "#fbbf24",
-                    lineHeight: 1.4,
+                    marginTop: "0.6rem",
+                    padding: "0.7rem 1rem",
+                    background: ocrDetected.length > 0 ? "rgba(16,185,129,0.08)" : "rgba(251,191,36,0.08)",
+                    border: `1px solid ${ocrDetected.length > 0 ? "rgba(16,185,129,0.25)" : "rgba(251,191,36,0.25)"}`,
+                    borderRadius: "0.75rem",
+                    maxWidth: "380px",
+                    marginLeft: "auto",
+                    marginRight: "auto",
                   }}>
-                    {ocrResult}
+                    <div style={{
+                      fontSize: "0.82rem",
+                      fontWeight: 700,
+                      color: ocrDetected.length > 0 ? "#34d399" : "#fbbf24",
+                      marginBottom: ocrDetected.length > 0 ? "0.4rem" : 0,
+                    }}>
+                      {ocrResult}
+                    </div>
+                    {ocrDetected.length > 0 && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                        {ocrDetected.map((d, i) => (
+                          <div key={i} style={{
+                            display: "flex", alignItems: "center", gap: "0.5rem",
+                            fontSize: "0.78rem", color: "#a7f3d0",
+                          }}>
+                            <span style={{ color: "#34d399", fontSize: "0.7rem" }}>✓</span>
+                            <span style={{ color: "#94a3b8", minWidth: "100px" }}>{d.label}:</span>
+                            <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{d.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
